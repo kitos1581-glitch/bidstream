@@ -24,10 +24,17 @@ Flutter (Android, iOS, web) + Firebase (Auth, Firestore, Storage, Cloud Function
 
 ### Reglas del negocio (las aplica el servidor)
 - Solo se puede pujar con **correo verificado** y **perfil completo**.
-- Primera puja: mínimo el precio inicial. Siguientes: puja actual + incremento.
-- El vendedor no puede pujar en su propio lote; no puedes pujar si ya vas ganando.
-- **Anti-francotirador:** una puja en los últimos 2 minutos extiende la subasta 2 minutos.
-- Tope contra errores de dedo: no se acepta una puja 20 veces mayor al mínimo.
+- **Puja proxy:** cada postor ofrece un máximo secreto. El precio visible solo
+  sube lo necesario: el sistema puja por el líder superando al retador por el
+  incremento, sin rebasar su máximo. En empate gana quien ofertó primero.
+- Primera oferta: mínimo el precio inicial (el precio visible queda en el
+  precio inicial). Retadores: al menos puja actual + incremento.
+- El líder puede subir su máximo; eso no cambia el precio ni el cierre.
+- El vendedor no puede pujar en su propio lote.
+- **Anti-sniping:** una oferta válida con 30 s o menos para el cierre lo mueve
+  a "ahora + 30 s".
+- Tope contra errores de dedo: máximo $50,000,000 por oferta.
+- Se requiere depósito de garantía (ver GUIA_PAGOS_MERCADO_PAGO.md).
 - Cada minuto se cierran las subastas vencidas. El ganador y el vendedor
   reciben en sus avisos el contacto del otro.
 - En el historial público solo se ve "Nombre + inicial" (ej. "Juan P.").
@@ -40,8 +47,12 @@ Flutter (Android, iOS, web) + Firebase (Auth, Firestore, Storage, Cloud Function
 users/{uid}                     perfil privado (solo lo lee su dueño)
   ├─ notifications/{id}         avisos (los crea el servidor)
   └─ bidding/{lotId}            subastas donde pujó (las mantiene el servidor)
-lots/{lotId}                    lote
-  └─ bids/{bidId}               pujas (solo las crea el servidor)
+lots/{lotId}                    lote (público)
+  ├─ bids/{bidId}               ofertas proxy: user_id, max_amount, current_effective_bid,
+  │                             timestamp. PRIVADAS: cada quien solo lee las suyas
+  ├─ history/{id}               historial público (sin máximos); auto=true si la
+  │                             puja la hizo el sistema proxy
+  └─ private/proxy_state        líder y su máximo; solo el servidor lo lee
 ```
 
 Campos del lote: `title, description, category, image_urls, starting_price,

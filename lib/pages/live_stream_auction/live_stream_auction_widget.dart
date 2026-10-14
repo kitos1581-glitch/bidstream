@@ -89,8 +89,8 @@ class _LiveStreamAuctionWidgetState extends State<LiveStreamAuctionWidget> {
     setState(() => _sending = false);
     showMessage(
       context,
-      r.ok ? '¡Puja de ${formatMoney(r.amount ?? amount)} registrada!' : (r.message ?? 'Error'),
-      error: !r.ok,
+      r.message ?? (r.ok ? 'Puja registrada.' : 'No se pudo pujar.'),
+      error: !r.ok || !r.leading,
     );
   }
 

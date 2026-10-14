@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "firebase-admin": "^12.7.0",
-    "firebase-functions": "^4.9.0"
+    "firebase-functions": "^4.9.0",
+    "mercadopago": "^2.13.0"
   },
   "engines": {
     "node": "20"

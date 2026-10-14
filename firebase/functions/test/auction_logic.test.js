@@ -1,67 +1,239 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { validateBid, minimumNextBid } = require("../auction_logic");
+const {
+  resolveProxyBid,
+  applyAntiSniping,
+  legacyState,
+  minimumNextBid,
+  publicName,
+} = require("../auction_logic");
 
 const NOW = 1_700_000_000_000;
 const HOUR = 3600_000;
-const base = () => ({
-  status: "active",
-  seller_uid: "seller",
-  starting_price: 1000,
-  current_bid: 1000,
-  minimum_increment: 100,
-  bid_count: 0,
-  start_time_ms: NOW - HOUR,
-  end_time_ms: NOW + HOUR,
-  highest_bidder_uid: null,
+
+function newLot(over = {}) {
+  return {
+    status: "active",
+    seller_uid: "vendedor",
+    starting_price: 1000,
+    current_bid: 1000,
+    minimum_increment: 100,
+    bid_count: 0,
+    start_time_ms: NOW - HOUR,
+    end_time_ms: NOW + HOUR,
+    highest_bidder_uid: null,
+    ...over,
+  };
+}
+
+/** Simula el servidor: aplica cada oferta como lo hace placeBid. */
+function simulate(bids, lotOver = {}) {
+  let lot = newLot(lotOver);
+  let state = null;
+  const results = [];
+  for (const [uid, max, now = NOW] of bids) {
+    const r = resolveProxyBid(lot, state, uid, max, now);
+    results.push(r);
+    if (!r.ok) continue;
+    state = { leader_uid: r.newLeaderUid, leader_max: r.newLeaderMax };
+    if (r.publicEvent) {
+      lot = {
+        ...lot,
+        current_bid: r.newCurrentBid,
+        bid_count: lot.bid_count + (r.outcome === "outbid" ? 2 : 1),
+        highest_bidder_uid: r.newLeaderUid,
+        end_time_ms: r.newEndTimeMs,
+      };
+    }
+  }
+  return { lot, state, results };
+}
+
+// ------------------------------------------------------------------
+// Puja proxy
+// ------------------------------------------------------------------
+
+test("primera oferta: precio visible = precio inicial, no el máximo", () => {
+  const { lot, state, results } = simulate([["ana", 5000]]);
+  assert.strictEqual(results[0].outcome, "first");
+  assert.strictEqual(lot.current_bid, 1000);
+  assert.strictEqual(state.leader_uid, "ana");
+  assert.strictEqual(state.leader_max, 5000);
 });
 
-test("primera puja puede ser igual al precio inicial", () => {
-  assert.strictEqual(minimumNextBid(base()), 1000);
-  assert.ok(validateBid(base(), 1000, "a", NOW).ok);
-});
-
-test("después de una puja se exige el incremento", () => {
-  const lot = { ...base(), bid_count: 1, current_bid: 1000, highest_bidder_uid: "a" };
-  assert.strictEqual(minimumNextBid(lot), 1100);
-  const r = validateBid(lot, 1050, "b", NOW);
+test("primera oferta menor al precio inicial se rechaza", () => {
+  const r = resolveProxyBid(newLot(), null, "ana", 999, NOW);
   assert.strictEqual(r.ok, false);
-  assert.strictEqual(r.minimum, 1100);
-  assert.ok(validateBid(lot, 1100, "b", NOW).ok);
+  assert.strictEqual(r.minimum, 1000);
 });
 
-test("el vendedor no puede pujar", () => {
-  assert.strictEqual(validateBid(base(), 2000, "seller", NOW).code, "permission-denied");
+test("el proxy responde por el líder superando al retador por un incremento", () => {
+  // Ana máx 5000. Beto ofrece 2000 → el sistema puja 2100 por Ana.
+  const { lot, state, results } = simulate([["ana", 5000], ["beto", 2000]]);
+  const r = results[1];
+  assert.strictEqual(r.outcome, "outbid");
+  assert.strictEqual(r.bidderEffective, 2000);
+  assert.strictEqual(lot.current_bid, 2100);
+  assert.strictEqual(state.leader_uid, "ana");
+  assert.strictEqual(r.previousLeaderEffective, 2100);
 });
 
-test("no se puede pujar si ya vas ganando", () => {
-  const lot = { ...base(), bid_count: 1, highest_bidder_uid: "a" };
-  assert.strictEqual(validateBid(lot, 5000, "a", NOW).code, "already-exists");
+test("el proxy nunca rebasa el máximo secreto del líder", () => {
+  // Ana máx 5000. Beto ofrece 4950 → 4950+100 = 5050 > 5000 → queda en 5000.
+  const { lot, state } = simulate([["ana", 5000], ["beto", 4950]]);
+  assert.strictEqual(lot.current_bid, 5000);
+  assert.strictEqual(state.leader_uid, "ana");
 });
 
-test("subasta terminada o no iniciada", () => {
-  assert.strictEqual(validateBid({ ...base(), end_time_ms: NOW - 1 }, 2000, "a", NOW).ok, false);
-  assert.strictEqual(validateBid({ ...base(), status: "ended" }, 2000, "a", NOW).ok, false);
-  assert.strictEqual(validateBid({ ...base(), start_time_ms: NOW + 1000 }, 2000, "a", NOW).ok, false);
+test("empate de máximos: gana quien ofertó primero", () => {
+  const { lot, state, results } = simulate([["ana", 5000], ["beto", 5000]]);
+  assert.strictEqual(results[1].outcome, "outbid");
+  assert.strictEqual(lot.current_bid, 5000);
+  assert.strictEqual(state.leader_uid, "ana");
 });
 
-test("montos inválidos y errores de dedo", () => {
-  assert.strictEqual(validateBid(base(), NaN, "a", NOW).ok, false);
-  assert.strictEqual(validateBid(base(), -5, "a", NOW).ok, false);
-  assert.strictEqual(validateBid(base(), 1000 * 50, "a", NOW).ok, false);
+test("un retador con máximo mayor pasa a ganar pagando solo lo necesario", () => {
+  // Ana máx 5000. Beto máx 9000 → precio 5100 (5000 + incremento).
+  const { lot, state, results } = simulate([["ana", 5000], ["beto", 9000]]);
+  const r = results[1];
+  assert.strictEqual(r.outcome, "leading");
+  assert.strictEqual(lot.current_bid, 5100);
+  assert.strictEqual(state.leader_uid, "beto");
+  assert.strictEqual(r.previousLeaderUid, "ana");
+  assert.strictEqual(r.previousLeaderEffective, 5000);
 });
 
-test("anti-francotirador extiende 2 minutos", () => {
-  const lot = { ...base(), end_time_ms: NOW + 30_000 };
-  const r = validateBid(lot, 1000, "a", NOW);
-  assert.ok(r.ok && r.extended);
-  assert.strictEqual(r.newEndTimeMs, NOW + 120_000);
-  const r2 = validateBid(base(), 1000, "a", NOW);
-  assert.strictEqual(r2.extended, false);
+test("si el nuevo máximo supera al del líder por menos de un incremento, el precio es su máximo", () => {
+  // Ana máx 5000. Beto máx 5050 → min(5050, 5100) = 5050.
+  const { lot, state } = simulate([["ana", 5000], ["beto", 5050]]);
+  assert.strictEqual(lot.current_bid, 5050);
+  assert.strictEqual(state.leader_uid, "beto");
+});
+
+test("el retador debe ofrecer al menos puja actual + incremento", () => {
+  const { results } = simulate([["ana", 5000], ["beto", 2000], ["caro", 2150]]);
+  // Tras Beto la puja va en 2100; Caro necesita 2200.
+  const r = results[2];
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.minimum, 2200);
+  // Exactamente puja actual + incremento sí se acepta.
+  const { results: r2 } = simulate([["ana", 5000], ["beto", 2000], ["caro", 2200]]);
+  assert.strictEqual(r2[2].ok, true);
+});
+
+test("el líder puede subir su máximo sin mover precio ni cierre", () => {
+  const end = NOW + 10_000; // dentro de la ventana anti-sniping
+  const { lot, state, results } = simulate([["ana", 5000, NOW], ["ana", 8000, NOW + 1]], {
+    end_time_ms: end,
+  });
+  const r = results[1];
+  assert.strictEqual(r.outcome, "max_raised");
+  assert.strictEqual(r.publicEvent, false);
+  assert.strictEqual(r.extended, false);
+  assert.strictEqual(state.leader_max, 8000);
+  assert.strictEqual(lot.current_bid, 1000);
+});
+
+test("el líder no puede bajar ni repetir su máximo", () => {
+  const { results } = simulate([["ana", 5000], ["ana", 4000]]);
+  assert.strictEqual(results[1].ok, false);
+  assert.strictEqual(results[1].code, "already-exists");
+});
+
+test("guerra de pujas: el resultado es el segundo máximo + incremento", () => {
+  const { lot, state } = simulate([
+    ["ana", 3000],
+    ["beto", 2500], // proxy de Ana responde 2600
+    ["caro", 7000], // Caro gana a 3100
+    ["ana", 6000], // proxy de Caro responde 6100
+    ["beto", 6500], // proxy de Caro responde 6600
+  ]);
+  assert.strictEqual(state.leader_uid, "caro");
+  assert.strictEqual(lot.current_bid, 6600);
+});
+
+test("centavos sin errores de punto flotante", () => {
+  const { lot } = simulate([["ana", 10.3], ["beto", 10.2]], {
+    starting_price: 10.1,
+    current_bid: 10.1,
+    minimum_increment: 0.1,
+  });
+  assert.strictEqual(lot.current_bid, 10.3);
+});
+
+test("validaciones generales", () => {
+  assert.strictEqual(resolveProxyBid(newLot(), null, "vendedor", 2000, NOW).code, "permission-denied");
+  assert.strictEqual(resolveProxyBid(newLot({ status: "ended" }), null, "a", 2000, NOW).ok, false);
+  assert.strictEqual(resolveProxyBid(newLot({ end_time_ms: NOW }), null, "a", 2000, NOW).ok, false);
+  assert.strictEqual(resolveProxyBid(newLot({ start_time_ms: NOW + 1 }), null, "a", 2000, NOW).ok, false);
+  assert.strictEqual(resolveProxyBid(newLot(), null, "a", NaN, NOW).ok, false);
+  assert.strictEqual(resolveProxyBid(newLot(), null, "a", -1, NOW).ok, false);
+  assert.strictEqual(resolveProxyBid(newLot(), null, "a", 60_000_000, NOW).ok, false);
+});
+
+test("lotes antiguos sin estado privado se reconstruyen", () => {
+  const lot = newLot({ bid_count: 3, current_bid: 1500, highest_bidder_uid: "ana" });
+  const state = legacyState(lot);
+  assert.deepStrictEqual(
+    { uid: state.leader_uid, max: state.leader_max },
+    { uid: "ana", max: 1500 }
+  );
+  const r = resolveProxyBid(lot, state, "beto", 1600, NOW);
+  assert.strictEqual(r.outcome, "leading");
+  assert.strictEqual(r.newCurrentBid, 1600);
+  assert.strictEqual(legacyState(newLot()), null);
+});
+
+// ------------------------------------------------------------------
+// Anti-sniping de 30 segundos
+// ------------------------------------------------------------------
+
+test("anti-sniping: con 30 s o menos, cierre = ahora + 30 s", () => {
+  assert.deepStrictEqual(applyAntiSniping(NOW + 30_000, NOW), {
+    newEndTimeMs: NOW + 30_000,
+    extended: true,
+  });
+  assert.deepStrictEqual(applyAntiSniping(NOW + 5_000, NOW), {
+    newEndTimeMs: NOW + 30_000,
+    extended: true,
+  });
+  assert.deepStrictEqual(applyAntiSniping(NOW + 1, NOW), {
+    newEndTimeMs: NOW + 30_000,
+    extended: true,
+  });
+});
+
+test("anti-sniping: con más de 30 s o ya vencido, no cambia", () => {
+  assert.strictEqual(applyAntiSniping(NOW + 30_001, NOW).extended, false);
+  assert.strictEqual(applyAntiSniping(NOW, NOW).extended, false);
+  assert.strictEqual(applyAntiSniping(NOW - 1, NOW).extended, false);
+});
+
+test("una oferta válida a 10 s del cierre extiende la subasta", () => {
+  const { lot, results } = simulate([["ana", 5000, NOW], ["beto", 2000, NOW + 50_000]], {
+    end_time_ms: NOW + 60_000,
+  });
+  assert.strictEqual(results[1].extended, true);
+  assert.strictEqual(lot.end_time_ms, NOW + 80_000);
+});
+
+test("una oferta rechazada no extiende la subasta", () => {
+  const { lot } = simulate([["ana", 5000, NOW], ["beto", 500, NOW + 50_000]], {
+    end_time_ms: NOW + 60_000,
+  });
+  assert.strictEqual(lot.end_time_ms, NOW + 60_000);
+});
+
+// ------------------------------------------------------------------
+// Utilidades
+// ------------------------------------------------------------------
+
+test("mínimo siguiente", () => {
+  assert.strictEqual(minimumNextBid(newLot()), 1000);
+  assert.strictEqual(minimumNextBid(newLot({ bid_count: 1, current_bid: 1200 })), 1300);
 });
 
 test("nombre público protege apellidos", () => {
-  const { publicName } = require("../auction_logic");
   assert.strictEqual(publicName("Juan Pérez López"), "Juan P.");
   assert.strictEqual(publicName("Ana"), "Ana");
   assert.strictEqual(publicName(""), "Postor");

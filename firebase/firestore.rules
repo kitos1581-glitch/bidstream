@@ -102,10 +102,23 @@ service cloud.firestore {
       // Solo se puede borrar un lote que nadie ha pujado.
       allow delete: if isOwner(resource.data.seller_uid) && resource.data.bid_count == 0;
 
-      // Historial de pujas: lectura para usuarios con sesión; escritura solo servidor.
+      // Ofertas proxy: contienen el MÁXIMO SECRETO (max_amount).
+      // Cada quien solo puede leer las suyas (las consultas deben filtrar
+      // por user_id == su uid). Solo el servidor escribe.
       match /bids/{bidId} {
+        allow read: if signedIn() && resource.data.user_id == request.auth.uid;
+        allow write: if false;
+      }
+
+      // Historial público de pujas (sin máximos). Solo el servidor escribe.
+      match /history/{entryId} {
         allow read: if signedIn();
         allow write: if false;
+      }
+
+      // Estado interno del proxy (líder y su máximo). Nadie lo lee desde la app.
+      match /private/{docId} {
+        allow read, write: if false;
       }
     }
 

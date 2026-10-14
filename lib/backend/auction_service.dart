@@ -25,22 +25,52 @@ const kLotCategories = <String>[
   'Otros',
 ];
 
-/// Resultado de intentar pujar.
+/// Resultado de una oferta proxy (puja máxima secreta).
 class PlaceBidResult {
-  const PlaceBidResult.success(this.amount, this.extended)
-      : ok = true,
-        message = null,
-        minimum = null;
-  const PlaceBidResult.failure(this.message, {this.minimum})
+  const PlaceBidResult.success({
+    required this.outcome,
+    required this.leading,
+    required this.currentBid,
+    required this.yourMax,
+    required this.extended,
+    this.message,
+  })  : ok = true,
+        minimum = null,
+        depositRequired = false;
+
+  const PlaceBidResult.failure(this.message,
+      {this.minimum, this.depositRequired = false})
       : ok = false,
-        amount = null,
+        outcome = null,
+        leading = false,
+        currentBid = null,
+        yourMax = null,
         extended = false;
 
   final bool ok;
-  final double? amount;
+
+  /// first | leading | outbid | max_raised
+  final String? outcome;
+
+  /// ¿Vas ganando después de esta oferta?
+  final bool leading;
+
+  /// Precio visible después de la oferta.
+  final double? currentBid;
+
+  /// Tu máximo secreto registrado.
+  final double? yourMax;
+
+  /// ¿Se extendió el cierre por anti-sniping (30 s)?
   final bool extended;
   final String? message;
   final double? minimum;
+
+  /// El servidor rechazó porque falta el depósito de garantía.
+  final bool depositRequired;
+
+  /// Compatibilidad: monto visible tras la oferta.
+  double? get amount => currentBid;
 }
 
 /// Todo el acceso a datos de la app pasa por aquí.
@@ -156,28 +186,39 @@ class AuctionService {
   // Pujas (siempre por el servidor)
   // ------------------------------------------------------------------
 
-  Future<PlaceBidResult> placeBid(String lotId, double amount) async {
+  /// Envía tu MÁXIMO secreto. El servidor puja por ti automáticamente
+  /// hasta ese límite (puja proxy) y aplica el anti-sniping de 30 s.
+  Future<PlaceBidResult> placeBid(String lotId, double maxAmount) async {
     try {
       final res = await _functions
           .httpsCallable('placeBid')
-          .call<dynamic>({'lotId': lotId, 'amount': amount});
+          .call<dynamic>({'lotId': lotId, 'max_amount': maxAmount});
       final raw = res.data;
       final data = raw is Map
           ? Map<String, dynamic>.from(raw)
           : const <String, dynamic>{};
       return PlaceBidResult.success(
-        (data['amount'] as num?)?.toDouble() ?? amount,
-        data['extended'] == true,
+        outcome: (data['outcome'] ?? 'leading').toString(),
+        leading: data['leading'] == true,
+        currentBid: (data['current_bid'] as num?)?.toDouble(),
+        yourMax: (data['your_max'] as num?)?.toDouble() ?? maxAmount,
+        extended: data['extended'] == true,
+        message: data['message']?.toString(),
       );
     } on FirebaseFunctionsException catch (e) {
       double? minimum;
+      var depositRequired = false;
       final details = e.details;
-      if (details is Map && details['minimum'] is num) {
-        minimum = (details['minimum'] as num).toDouble();
+      if (details is Map) {
+        if (details['minimum'] is num) {
+          minimum = (details['minimum'] as num).toDouble();
+        }
+        depositRequired = details['code'] == 'DEPOSIT_REQUIRED';
       }
       return PlaceBidResult.failure(
         e.message ?? 'No se pudo registrar la puja.',
         minimum: minimum,
+        depositRequired: depositRequired,
       );
     } catch (_) {
       return const PlaceBidResult.failure(

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/pages/deposit_guarantia/deposit_guarantia_widget.dart';
 import '/ui/ui_kit.dart';
 
 /// Elegir monto y confirmar la puja. La validación final la hace el servidor.
@@ -40,14 +41,19 @@ class _BidConfirmationModalWidgetState
     if (!mounted) return;
     setState(() => _sending = false);
     if (result.ok) {
+      final title = switch (result.outcome) {
+        'outbid' => 'Otro postor tiene un máximo mayor',
+        'max_raised' => 'Máximo actualizado',
+        _ => '¡Vas ganando!',
+      };
       await showDialog<void>(
         context: context,
         builder: (c) => AlertDialog(
-          title: const Text('¡Puja registrada!'),
+          title: Text(title),
           content: Text(
-            'Ofreciste ${formatMoney(result.amount ?? amount)} por "${lot.title}". '
-            'Te avisaremos si alguien te supera.'
-            '${result.extended ? '\n\nLa subasta se extendió 2 minutos por puja de último momento.' : ''}',
+            '${result.message ?? 'Tu máximo: ${formatMoney(result.yourMax ?? amount)}.'}'
+            '${result.leading ? '\n\nEl sistema pujará por ti automáticamente hasta tu máximo. Te avisaremos si alguien lo supera.' : ''}'
+            '${result.extended ? '\n\nLa subasta se extendió 30 segundos por puja de último momento.' : ''}',
           ),
           actions: [
             TextButton(
@@ -55,7 +61,29 @@ class _BidConfirmationModalWidgetState
           ],
         ),
       );
-      if (mounted) context.safePop();
+      // Si te superaron al instante, te quedas en la pantalla para ofrecer más.
+      if (mounted && result.leading) context.safePop();
+    } else if (result.depositRequired) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Falta tu depósito de garantía'),
+          content: Text(result.message ?? 'Deja tu depósito para poder pujar.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Ahora no')),
+            TextButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Dejar depósito')),
+          ],
+        ),
+      );
+      if (go == true && mounted) {
+        await Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => const DepositGarantiaWidget(),
+        ));
+      }
     } else {
       showMessage(context, result.message ?? 'No se pudo pujar.', error: true);
       if (result.minimum != null) {
@@ -156,7 +184,17 @@ class _BidConfirmationModalWidgetState
                     ),
                   ),
                 ]),
-                const SectionTitle('Elige tu puja'),
+                const SectionTitle('Tu puja máxima (secreta)'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Pon lo MÁXIMO que estás dispuesto a pagar. Nadie lo ve: '
+                    'el sistema puja por ti solo lo necesario para ir ganando, '
+                    'de ${formatMoney(lot.minimumIncrement)} en ${formatMoney(lot.minimumIncrement)}, '
+                    'sin pasarse de tu máximo.',
+                    style: theme.bodySmall.copyWith(color: theme.secondaryText),
+                  ),
+                ),
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   for (final o in options)
                     ChoiceChip(
@@ -177,7 +215,7 @@ class _BidConfirmationModalWidgetState
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    labelText: 'Otro monto',
+                    labelText: 'Otro máximo',
                     helperText: 'Mínimo ${formatMoney(min)}',
                     errorText: customText.isNotEmpty && amount < min
                         ? 'Debe ser al menos ${formatMoney(min)}'
@@ -197,7 +235,7 @@ class _BidConfirmationModalWidgetState
                     border: Border.all(color: theme.secondary, width: 2),
                   ),
                   child: Column(children: [
-                    _row(context, 'Tu puja', formatMoney(amount), bold: true),
+                    _row(context, 'Tu máximo', formatMoney(amount), bold: true),
                     const SizedBox(height: 6),
                     Text(
                       'Al confirmar te comprometes a comprar si ganas. '
@@ -209,7 +247,7 @@ class _BidConfirmationModalWidgetState
                 ),
                 const SizedBox(height: 20),
                 BigButton(
-                  label: 'Confirmar ${formatMoney(amount)}',
+                  label: 'Confirmar máximo ${formatMoney(amount)}',
                   loading: _sending,
                   onPressed: amount >= min ? () => _confirm(lot, amount) : null,
                 ),

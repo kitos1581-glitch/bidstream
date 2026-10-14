@@ -231,7 +231,7 @@ class _BiddingTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.titleSmall),
-                    Text('Mi puja: ${formatMoney(item.myMaxBid)}',
+                    Text('Mi máximo: ${formatMoney(item.myMaxBid)}',
                         style: theme.bodySmall),
                     if (lot != null)
                       Text('Actual: ${formatMoney(lot.currentBid)}',

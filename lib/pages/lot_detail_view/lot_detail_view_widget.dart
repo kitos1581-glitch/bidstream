@@ -295,7 +295,9 @@ class BidTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(mine ? 'Tú' : bid.bidderName, style: theme.titleSmall),
+              Text(
+                  '${mine ? 'Tú' : bid.bidderName}${bid.auto ? ' · automática' : ''}',
+                  style: theme.titleSmall),
               Text(timeAgo(bid.createdTime), style: theme.bodySmall),
             ],
           ),
@@ -344,9 +346,9 @@ class _BottomBar extends StatelessWidget {
         child: BigButton(
           label: !lot.hasStarted()
               ? 'Aún no inicia'
-              : (iAmWinning ? 'Vas ganando' : 'Pujar'),
+              : (iAmWinning ? 'Subir mi máximo' : 'Pujar'),
           icon: Icons.gavel_rounded,
-          onPressed: open && !iAmWinning
+          onPressed: open
               ? () => context.pushNamed('BidConfirmationModal',
                   queryParameters: {'lotId': id})
               : null,
