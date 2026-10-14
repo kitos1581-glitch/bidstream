@@ -1,5 +1,14 @@
 # BidStream + Mercado Pago — Guía de integración
 
+> **Nota (actualizada):** este paquete ya está integrado al proyecto y se
+> corrigieron varios errores del original (las funciones no se exportaban,
+> los reembolsos usaban un método inexistente, el depósito se descontaba en
+> varios lotes, el castigo fallaba, pagos tardíos se cobraban doble).
+> Los pasos 4 y 5 ya están hechos: la app tiene "Pagar ahora", la pantalla de
+> depósito está en "Mi cuenta" y los pagos a vendedores se registran desde el
+> **panel de administración** (no desde la consola). Ver README.md.
+
+
 Sistema de **escrow completo**: depósito de garantía para pujar, pago del
 ganador al cerrar la subasta, castigo por no pagar y reembolsos. Todo el
 dinero pasa por la cuenta de Mercado Pago de la plataforma.

@@ -22,6 +22,17 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email_verified == true;
     }
 
+    // Administradores: custom claim admin == true (scripts/set_admin.js).
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    // Identidad verificada (INE aprobada por un admin).
+    function identityVerified() {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid))
+        .data.get('verified', false) == true;
+    }
+
     // Solo cambian los campos indicados.
     function onlyChanges(fields) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
@@ -29,18 +40,19 @@ service cloud.firestore {
 
     // ---------------- Usuarios (datos privados) ----------------
     match /users/{uid} {
-      allow read: if isOwner(uid);
+      allow read: if isOwner(uid) || isAdmin();
 
       // El usuario crea su propio perfil, pero no puede auto-verificarse,
       // darse rol de administrador ni falsificar su depósito/strikes.
       allow create: if isOwner(uid)
         && !request.resource.data.keys().hasAny(
-              ['verified', 'role', 'banned', 'deposit', 'strikes']);
+              ['verified', 'role', 'banned', 'deposit', 'strikes',
+               'verification_status', 'ban_reason']);
 
       allow update: if isOwner(uid)
         && !request.resource.data.diff(resource.data).affectedKeys()
               .hasAny(['verified', 'role', 'banned', 'uid', 'created_time',
-                       'deposit', 'strikes']);
+                       'deposit', 'strikes', 'verification_status', 'ban_reason']);
 
       allow delete: if false;
 
@@ -51,6 +63,15 @@ service cloud.firestore {
         allow update: if isOwner(uid) && onlyChanges(['read']);
         allow delete: if isOwner(uid);
         allow create: if false;
+      }
+
+      // Tokens de notificaciones push de sus dispositivos.
+      // El id del documento ES el token; solo se guarda la plataforma y fecha.
+      match /fcm_tokens/{token} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['platform', 'updated_time'])
+          && token.size() < 512;
       }
 
       // Subastas en las que participa (las mantiene el servidor).
@@ -64,7 +85,9 @@ service cloud.firestore {
     match /lots/{lotId} {
       allow read: if signedIn();
 
+      // Para vender se necesita identidad verificada (INE).
       allow create: if emailVerified()
+        && identityVerified()
         && request.resource.data.seller_uid == request.auth.uid
         && request.resource.data.status == 'active'
         && request.resource.data.title is string
@@ -126,7 +149,20 @@ service cloud.firestore {
     // Depósitos, pagos de ganador, reembolsos y payouts. El dueño puede
     // leer los suyos; nadie escribe desde el cliente.
     match /payments/{paymentId} {
-      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow read: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
+      allow write: if false;
+    }
+
+    // ---------------- Verificación de identidad ----------------
+    // La crea/actualiza el servidor (submitIdentityVerification).
+    match /verifications/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
+    // Bitácora de acciones de administradores.
+    match /admin_log/{entryId} {
+      allow read: if isAdmin();
       allow write: if false;
     }
 

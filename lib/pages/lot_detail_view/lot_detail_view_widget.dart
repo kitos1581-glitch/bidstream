@@ -4,6 +4,7 @@ import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/backend/payment_service.dart';
 import '/ui/ui_kit.dart';
 
 /// Detalle de un lote: fotos, precio, cuenta regresiva e historial de pujas.
@@ -197,17 +198,29 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                           background: theme.surfaceVariant,
                           icon: Icons.emoji_events_outlined),
                     ],
+                    if (lot.isCancelled) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Subasta cancelada por la plataforma${lot.cancelReason.isEmpty ? '' : ': ${lot.cancelReason}'}.',
+                        style: theme.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w700, color: theme.error),
+                      ),
+                    ],
                     if (lot.status == 'ended') ...[
                       const SizedBox(height: 10),
                       Text(
                         lot.winnerUid.isEmpty
                             ? 'Terminó sin pujas.'
                             : (lot.winnerUid == currentUserUid
-                                ? '¡Ganaste esta subasta! Revisa tus avisos: ahí está el contacto del vendedor.'
+                                ? '¡Ganaste esta subasta!'
                                 : 'Ganó ${lot.winnerName}.'),
                         style: theme.bodyMedium
                             .copyWith(fontWeight: FontWeight.w700),
                       ),
+                      if (lot.winnerUid == currentUserUid) ...[
+                        const SizedBox(height: 8),
+                        _WinnerPaymentBox(lot: lot),
+                      ],
                     ],
                     if (lot.isLiveFormat) ...[
                       const SizedBox(height: 12),
@@ -372,5 +385,41 @@ class _BottomBar extends StatelessWidget {
       ),
       child: SafeArea(top: false, child: Row(children: buttons)),
     );
+  }
+}
+
+/// Estado del pago para el ganador, con botón "Pagar ahora".
+class _WinnerPaymentBox extends StatelessWidget {
+  const _WinnerPaymentBox({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    switch (lot.paymentStatus) {
+      case 'pending':
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(
+            'Debes pagar ${formatMoney(lot.amountDue)} antes del ${formatDateTime(lot.paymentDueTime)}. '
+            'Si no pagas a tiempo pierdes tu depósito.',
+            style: theme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          BigButton(
+            label: 'Pagar ahora',
+            icon: Icons.lock_outline,
+            onPressed: lot.winnerPaymentUrl.isEmpty
+                ? null
+                : () => PaymentService.instance.openCheckout(lot.winnerPaymentUrl),
+          ),
+        ]);
+      case 'paid':
+        return Tag('Pagado — revisa tus avisos para coordinar la entrega',
+            icon: Icons.check_circle_outline);
+      case 'forfeited':
+        return Tag('No se pagó a tiempo', background: theme.error, foreground: Colors.white);
+      default:
+        return Text('Estamos generando tu enlace de pago…', style: theme.bodySmall);
+    }
   }
 }

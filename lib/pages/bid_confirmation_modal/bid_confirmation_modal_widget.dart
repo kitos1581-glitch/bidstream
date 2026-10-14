@@ -63,6 +63,23 @@ class _BidConfirmationModalWidgetState
       );
       // Si te superaron al instante, te quedas en la pantalla para ofrecer más.
       if (mounted && result.leading) context.safePop();
+    } else if (result.identityRequired) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Verifica tu identidad'),
+          content: Text(result.message ?? 'Para este monto necesitas verificar tu INE.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Ahora no')),
+            TextButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Verificar INE')),
+          ],
+        ),
+      );
+      if (go == true && mounted) context.pushNamed('IdentityVerification');
     } else if (result.depositRequired) {
       final go = await showDialog<bool>(
         context: context,

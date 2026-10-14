@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bid_stream/ui/ui_kit.dart';
 import 'package:bid_stream/ui/youtube.dart';
+import 'package:bid_stream/ui/clabe.dart';
 
 void main() {
   group('youtubeIdFrom', () {
@@ -30,6 +31,18 @@ void main() {
     test('dinero en pesos', () {
       expect(formatMoney(14500), '\$14,500');
       expect(formatMoney(99.5), '\$99.50');
+    });
+  });
+
+  group('CLABE', () {
+    test('acepta una CLABE con dígito verificador correcto', () {
+      expect(isValidClabe('032180000118359719'), isTrue);
+      expect(isValidClabe('0321 8000 0118 3597 19'), isTrue);
+    });
+    test('rechaza dígito verificador o longitud incorrecta', () {
+      expect(isValidClabe('032180000118359718'), isFalse);
+      expect(isValidClabe('12345'), isFalse);
+      expect(isValidClabe('03218000011835971A'), isFalse);
     });
   });
 }

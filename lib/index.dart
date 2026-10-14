@@ -16,3 +16,6 @@ export '/pages/onboarding_verification/onboarding_verification_widget.dart'
 export '/pages/auction_notifications/auction_notifications_widget.dart'
     show AuctionNotificationsWidget;
 export '/bidder_access/bidder_access_widget.dart' show BidderAccessWidget;
+export '/pages/identity_verification/identity_verification_widget.dart'
+    show IdentityVerificationWidget;
+export '/pages/admin_panel/admin_panel_widget.dart' show AdminPanelWidget;

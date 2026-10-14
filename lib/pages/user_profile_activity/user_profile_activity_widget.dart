@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
+import '/backend/push_service.dart';
+import '/backend/admin_service.dart';
+import '/pages/deposit_guarantia/deposit_guarantia_widget.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/ui/ui_kit.dart';
@@ -24,11 +27,15 @@ class _UserProfileActivityWidgetState extends State<UserProfileActivityWidget> {
   late final Stream<List<BiddingRecord>> _bidding = _svc.myBidding();
   late final Stream<List<LotsRecord>> _won = _svc.wonLots();
   late final Stream<List<LotsRecord>> _mine = _svc.myListings();
+  late final Stream<UsersRecord?> _profileLinks = _svc.myProfile();
+  late final Future<bool> _isAdmin = AdminService.instance.isAdmin();
 
   Future<void> _signOut() async {
-    GoRouter.of(context).prepareAuthEvent();
+    final router = GoRouter.of(context);
+    router.prepareAuthEvent();
+    await PushService.instance.unregister();
     await authManager.signOut();
-    GoRouter.of(context).clearRedirectLocation();
+    router.clearRedirectLocation();
     if (mounted) context.goNamedAuth('BidderAccess', context.mounted);
   }
 
@@ -106,6 +113,52 @@ class _UserProfileActivityWidgetState extends State<UserProfileActivityWidget> {
                   TextButton(
                     onPressed: () => context.pushNamed('OnboardingVerification'),
                     child: Text(complete ? 'Editar' : 'Completar'),
+                  ),
+                ]),
+              );
+            },
+          ),
+          // ---------------- Accesos: depósito, INE, admin ----------------
+          StreamBuilder<UsersRecord?>(
+            stream: _profileLinks,
+            builder: (context, snap) {
+              final p = snap.data;
+              const depLabels = {
+                'held': 'Depósito activo',
+                'reserved': 'Depósito aplicado a una compra',
+                'applied': 'Depósito usado',
+                'refunding': 'Reembolsando depósito',
+                'refunded': 'Depósito reembolsado',
+                'forfeited': 'Depósito perdido',
+              };
+              const idLabels = {
+                'approved': 'INE verificada',
+                'pending': 'INE en revisión',
+                'rejected': 'INE rechazada',
+              };
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Wrap(spacing: 8, runSpacing: 8, children: [
+                  ActionChip(
+                    avatar: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                    label: Text(depLabels[p?.depositStatus] ?? 'Dejar depósito'),
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => const DepositGarantiaWidget())),
+                  ),
+                  ActionChip(
+                    avatar: const Icon(Icons.badge_outlined, size: 18),
+                    label: Text(idLabels[p?.verificationStatus] ?? 'Verificar INE'),
+                    onPressed: () => context.pushNamed('IdentityVerification'),
+                  ),
+                  FutureBuilder<bool>(
+                    future: _isAdmin,
+                    builder: (context, a) => a.data == true
+                        ? ActionChip(
+                            avatar: const Icon(Icons.admin_panel_settings_outlined, size: 18),
+                            label: const Text('Administración'),
+                            onPressed: () => context.pushNamed('AdminPanel'),
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ]),
               );

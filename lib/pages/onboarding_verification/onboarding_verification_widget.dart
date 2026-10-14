@@ -4,6 +4,7 @@ import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/ui/clabe.dart';
 import '/ui/ui_kit.dart';
 
 /// Completar cuenta: verificar correo + datos de contacto + términos.
@@ -25,6 +26,8 @@ class _OnboardingVerificationWidgetState
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _city = TextEditingController();
+  final _clabe = TextEditingController();
+  final _holder = TextEditingController();
   bool _terms = false;
   bool _loaded = false;
   bool _saving = false;
@@ -44,6 +47,8 @@ class _OnboardingVerificationWidgetState
       _name.text = profile?.fullName ?? '';
       _phone.text = profile?.phone ?? '';
       _city.text = profile?.city ?? '';
+      _clabe.text = profile?.payoutClabe ?? '';
+      _holder.text = profile?.payoutHolder ?? '';
       _terms = profile?.acceptedTerms ?? false;
       _loaded = true;
     });
@@ -54,6 +59,8 @@ class _OnboardingVerificationWidgetState
     _name.dispose();
     _phone.dispose();
     _city.dispose();
+    _clabe.dispose();
+    _holder.dispose();
     super.dispose();
   }
 
@@ -93,6 +100,8 @@ class _OnboardingVerificationWidgetState
         fullName: _name.text,
         phone: _phone.text,
         city: _city.text,
+        payoutClabe: _clabe.text,
+        payoutHolder: _holder.text,
         acceptedTerms: _terms,
       );
       if (!mounted) return;
@@ -228,6 +237,44 @@ class _OnboardingVerificationWidgetState
                   ),
 
                   // ---------------- Paso 3: términos ----------------
+                  // ---------------- Para vendedores ----------------
+                  const SectionTitle('Si vas a vender (opcional)'),
+                  Text(
+                    'Aquí te transferimos lo que vendas. Debe estar a tu nombre.',
+                    style: theme.bodySmall.copyWith(color: theme.secondaryText),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _clabe,
+                    keyboardType: TextInputType.number,
+                    maxLength: 18,
+                    decoration: dec('CLABE interbancaria (18 dígitos)'),
+                    validator: (v) {
+                      final t = (v ?? '').trim();
+                      if (t.isEmpty) return null;
+                      return isValidClabe(t) ? null : 'CLABE inválida, revísala';
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _holder,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: dec('Titular de la cuenta'),
+                    validator: (v) => _clabe.text.trim().isNotEmpty &&
+                            (v ?? '').trim().isEmpty
+                        ? 'Escribe el titular'
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.badge_outlined),
+                    title: const Text('Verificar identidad (INE)'),
+                    subtitle: const Text('Necesaria para vender y para pujas altas.'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.pushNamed('IdentityVerification'),
+                  ),
+
                   const SectionTitle('3. Términos'),
                   CheckboxListTile(
                     value: _terms,

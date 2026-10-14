@@ -148,6 +148,18 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           builder: (context, params) => const AuctionNotificationsWidget(),
         ),
         FFRoute(
+          name: IdentityVerificationWidget.routeName,
+          path: IdentityVerificationWidget.routePath,
+          requireAuth: true,
+          builder: (context, params) => const IdentityVerificationWidget(),
+        ),
+        FFRoute(
+          name: AdminPanelWidget.routeName,
+          path: AdminPanelWidget.routePath,
+          requireAuth: true,
+          builder: (context, params) => const AdminPanelWidget(),
+        ),
+        FFRoute(
           name: BidderAccessWidget.routeName,
           path: BidderAccessWidget.routePath,
           requireAuth: false,

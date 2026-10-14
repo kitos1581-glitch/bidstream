@@ -15,6 +15,21 @@ exports.requestDepositRefund = payments.requestDepositRefund;
 exports.expireUnpaidWins = payments.expireUnpaidWins;
 exports.mpWebhook = payments.mpWebhook;
 
+// Verificación de identidad y panel de administrador.
+const adminFns = require("./admin");
+exports.submitIdentityVerification = adminFns.submitIdentityVerification;
+exports.adminReviewVerification = adminFns.adminReviewVerification;
+exports.adminSetBan = adminFns.adminSetBan;
+exports.adminMarkPayoutSent = adminFns.adminMarkPayoutSent;
+exports.adminRetryWinnerPayment = adminFns.adminRetryWinnerPayment;
+exports.adminCancelLot = adminFns.adminCancelLot;
+
+// Pujas altas requieren identidad verificada (INE). Monto en MXN.
+const VERIFIED_BID_THRESHOLD = Number(process.env.VERIFIED_BID_THRESHOLD || 20000);
+
+// Notificaciones push: cada aviso nuevo se manda al celular.
+exports.onNotificationCreated = require("./push").onNotificationCreated;
+
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
 
@@ -73,6 +88,14 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
   }
   if (user.banned === true) {
     throw new functions.https.HttpsError("permission-denied", "Tu cuenta está suspendida.");
+  }
+  // ---- Pujas altas: identidad verificada. ----
+  if (maxAmount > VERIFIED_BID_THRESHOLD && user.verified !== true) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      `Para pujas mayores a $${VERIFIED_BID_THRESHOLD.toLocaleString("es-MX")} necesitas verificar tu identidad (INE).`,
+      { code: "IDENTITY_REQUIRED" }
+    );
   }
   // ---- Escrow: sin depósito en garantía no se puja. ----
   if (!user.deposit || user.deposit.status !== "held") {

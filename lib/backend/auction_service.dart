@@ -36,10 +36,13 @@ class PlaceBidResult {
     this.message,
   })  : ok = true,
         minimum = null,
-        depositRequired = false;
+        depositRequired = false,
+        identityRequired = false;
 
   const PlaceBidResult.failure(this.message,
-      {this.minimum, this.depositRequired = false})
+      {this.minimum,
+      this.depositRequired = false,
+      this.identityRequired = false})
       : ok = false,
         outcome = null,
         leading = false,
@@ -68,6 +71,9 @@ class PlaceBidResult {
 
   /// El servidor rechazó porque falta el depósito de garantía.
   final bool depositRequired;
+
+  /// El servidor pide identidad verificada (INE) para este monto.
+  final bool identityRequired;
 
   /// Compatibilidad: monto visible tras la oferta.
   double? get amount => currentBid;
@@ -208,17 +214,20 @@ class AuctionService {
     } on FirebaseFunctionsException catch (e) {
       double? minimum;
       var depositRequired = false;
+      var identityRequired = false;
       final details = e.details;
       if (details is Map) {
         if (details['minimum'] is num) {
           minimum = (details['minimum'] as num).toDouble();
         }
         depositRequired = details['code'] == 'DEPOSIT_REQUIRED';
+        identityRequired = details['code'] == 'IDENTITY_REQUIRED';
       }
       return PlaceBidResult.failure(
         e.message ?? 'No se pudo registrar la puja.',
         minimum: minimum,
         depositRequired: depositRequired,
+        identityRequired: identityRequired,
       );
     } catch (_) {
       return const PlaceBidResult.failure(
@@ -246,7 +255,7 @@ class AuctionService {
     final snap = await ref.get();
     if (!snap.exists) {
       await ref.set({
-        'email': user.email ?? '',
+        'email': (user.email ?? '').toLowerCase(),
         'full_name': (fullName ?? user.displayName ?? '').trim(),
         'phone': '',
         'city': '',
@@ -263,6 +272,8 @@ class AuctionService {
     required String phone,
     required String city,
     required bool acceptedTerms,
+    String payoutClabe = '',
+    String payoutHolder = '',
   }) async {
     final uid = _uid;
     if (uid == null) return;
@@ -271,6 +282,8 @@ class AuctionService {
       'phone': phone.trim(),
       'city': city.trim(),
       'accepted_terms': acceptedTerms,
+      'payout_clabe': payoutClabe.replaceAll(RegExp(r'\s'), ''),
+      'payout_holder': payoutHolder.trim(),
     }, SetOptions(merge: true));
   }
 

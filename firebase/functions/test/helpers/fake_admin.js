@@ -98,6 +98,7 @@ function docRef(path) {
     set: async (data, opts) => { await tick(); applyWrite(path, data, opts); },
     update: async (data) => { await tick(); applyWrite(path, data, { update: true }); },
     create: async (data) => { await tick(); applyWrite(path, data, { create: true }); },
+    delete: async () => { await tick(); store.delete(path); },
   };
 }
 
@@ -106,6 +107,7 @@ function colRef(path) {
   const q = {
     path,
     doc: (id) => docRef(`${path}/${id || `auto${++autoId}`}`),
+    add: async (data) => { const r = docRef(`${path}/auto${++autoId}`); await r.set(data); return r; },
     where: (f, op, v) => { filters.push([f, op, v]); return q; },
     orderBy: () => q,
     limit: () => q,
@@ -138,6 +140,7 @@ const db = {
     return {
       set: (ref, data, opts) => ops.push(() => applyWrite(ref.path, data, opts)),
       update: (ref, data) => ops.push(() => applyWrite(ref.path, data, { update: true })),
+      delete: (ref) => ops.push(() => store.delete(ref.path)),
       commit: async () => { await tick(); ops.forEach((f) => f()); },
     };
   },

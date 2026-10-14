@@ -215,6 +215,27 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
           }
           final ready = AuctionService.instance.emailVerified &&
               (snap.data?.isProfileComplete ?? false);
+          if (ready && snap.data?.verified != true) {
+            final pending = snap.data?.verificationStatus == 'pending';
+            return EmptyState(
+              icon: Icons.badge_outlined,
+              title: pending
+                  ? 'Estamos revisando tu identidad'
+                  : 'Verifica tu identidad para vender',
+              message: pending
+                  ? 'Te avisaremos en cuanto quede aprobada.'
+                  : 'Por seguridad de los compradores, para publicar necesitas verificar tu INE.',
+              action: pending
+                  ? null
+                  : SizedBox(
+                      width: 240,
+                      child: BigButton(
+                        label: 'Verificar INE',
+                        onPressed: () => context.pushNamed('IdentityVerification'),
+                      ),
+                    ),
+            );
+          }
           if (!ready) {
             return EmptyState(
               icon: Icons.verified_user_outlined,

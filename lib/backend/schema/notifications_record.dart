@@ -14,6 +14,9 @@ class NotificationsRecord extends FirestoreRecord {
   String get body => asString(snapshotData['body']);
   String get lotId => asString(snapshotData['lot_id']);
   bool get read => asBool(snapshotData['read']);
+
+  /// Enlace de acción (p. ej. checkout de pago para 'won').
+  String get actionUrl => asString(snapshotData['action_url']);
   DateTime? get createdTime => asDate(snapshotData['created_time']);
 
   static CollectionReference collection(String uid) =>

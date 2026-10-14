@@ -17,6 +17,20 @@ class UsersRecord extends FirestoreRecord {
   bool get acceptedTerms => asBool(snapshotData['accepted_terms']);
   bool get verified => asBool(snapshotData['verified']);
   bool get banned => asBool(snapshotData['banned']);
+
+  /// none | pending | approved | rejected
+  String get verificationStatus =>
+      asString(snapshotData['verification_status'], verified ? 'approved' : 'none');
+  int get strikes => asInt(snapshotData['strikes']);
+  String get payoutClabe => asString(snapshotData['payout_clabe']);
+  String get payoutHolder => asString(snapshotData['payout_holder']);
+  String get role => asString(snapshotData['role'], 'user');
+
+  /// Estado del depósito de garantía (ver payment_service.dart).
+  String get depositStatus {
+    final d = snapshotData['deposit'];
+    return d is Map ? asString(d['status'], 'none') : 'none';
+  }
   DateTime? get createdTime => asDate(snapshotData['created_time']);
 
   /// Lo mismo que exige la función `placeBid` del servidor.

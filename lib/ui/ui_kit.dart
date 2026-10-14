@@ -112,7 +112,9 @@ class _CountdownState extends State<Countdown> {
     final lot = widget.lot;
     final now = DateTime.now();
     String text;
-    if (lot.status == 'ended') {
+    if (lot.status == 'cancelled') {
+      text = 'Cancelada';
+    } else if (lot.status != 'active') {
       text = 'Terminada';
     } else if (!lot.hasStarted(now)) {
       text = 'Inicia en ${formatRemaining(lot.startTime!.difference(now))}';

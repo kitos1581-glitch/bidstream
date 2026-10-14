@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/backend/payment_service.dart';
 import '/ui/ui_kit.dart';
 
 /// Avisos: te superaron, ganaste, vendiste, sin pujas.
@@ -28,6 +29,9 @@ class _AuctionNotificationsWidgetState
         'won' => Icons.emoji_events_outlined,
         'sold' => Icons.sell_outlined,
         'unsold' => Icons.inventory_2_outlined,
+        'paid' || 'payment_confirmed' || 'payout_sent' => Icons.payments_outlined,
+        'strike' || 'banned' => Icons.gpp_bad_outlined,
+        'verified' => Icons.verified_outlined,
         _ => Icons.notifications_none,
       };
 
@@ -112,6 +116,16 @@ class _AuctionNotificationsWidgetState
                                         : FontWeight.w800)),
                             const SizedBox(height: 2),
                             SelectableText(n.body, style: theme.bodySmall),
+                            if (n.actionUrl.isNotEmpty && n.type == 'won')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: OutlinedButton.icon(
+                                  onPressed: () => PaymentService.instance
+                                      .openCheckout(n.actionUrl),
+                                  icon: const Icon(Icons.lock_outline, size: 16),
+                                  label: const Text('Pagar ahora'),
+                                ),
+                              ),
                             const SizedBox(height: 4),
                             Text(timeAgo(n.createdTime),
                                 style: theme.labelSmall),

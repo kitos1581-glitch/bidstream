@@ -92,6 +92,8 @@ cd functions && npm install && npm test && cd ..
 cd firebase
 firebase deploy --only firestore:rules,firestore:indexes,storage,functions
 ```
+Las variables de Mercado Pago y montos van en `firebase/functions/.env`
+(ver GUIA_PAGOS_MERCADO_PAGO.md). Extra: `VERIFIED_BID_THRESHOLD=20000`.
 Los índices tardan unos minutos en construirse. Mientras tanto, algunas
 listas pueden marcar error de "index".
 
@@ -127,22 +129,67 @@ Usa **dos cuentas** (ej. en Chrome normal y en ventana de incógnito):
 
 ## 5. Administración
 
-Para marcar a alguien como verificado, suspenderlo o darle rol, edita su
-documento en `users/{uid}` desde la consola de Firebase (campos `verified`,
-`banned`, `role`). Los usuarios no pueden cambiarse esos campos.
+### Darte permisos de administrador
+```bash
+cd firebase/functions && npm install && cd ..
+export GOOGLE_APPLICATION_CREDENTIALS=/ruta/fuera/del/proyecto/llave.json
+node scripts/set_admin.js tu-correo@ejemplo.com
+```
+(La llave se descarga en Consola de Firebase → Configuración → Cuentas de
+servicio. **Nunca la subas a git ni la compartas.**) Cierra sesión y vuelve a
+entrar: en "Mi cuenta" aparece el botón **Administración**.
+
+### Qué hace el panel
+| Pestaña | Para qué |
+|---|---|
+| Identidad | Ver INE + selfie y aprobar/rechazar (con motivo) |
+| Pagos | Transferir a vendedores (muestra su CLABE) y registrar la referencia SPEI; reintentar cobros que fallaron; ver reembolsos fallidos |
+| Usuarios | Buscar por correo, ver depósito/strikes, suspender o reactivar |
+| Lotes | Cancelar subastas activas (fraude, artículo prohibido) |
+
+Cada acción queda registrada en la colección `admin_log`.
+
+### Verificación de identidad (INE)
+- **Obligatoria para vender** (lo exige `firestore.rules`).
+- **Obligatoria para pujas mayores a $20,000** (configurable con
+  `VERIFIED_BID_THRESHOLD` en `functions/.env`).
+- Las fotos son privadas (`verifications/{uid}/` en Storage): solo el dueño y
+  los admins las ven. Revisión manual; para automatizarla (comparación facial,
+  validación contra el INE) se puede integrar un proveedor como Truora,
+  MetaMap o Incode, que cobran por verificación.
+
+### Pagos a vendedores
+Son **manuales** a propósito: el panel muestra cuánto y a qué CLABE, tú
+transfieres y registras la referencia, y el vendedor recibe un aviso.
+Automatizarlo bien requiere el modelo "marketplace" de Mercado Pago (cada
+vendedor conecta su cuenta y el pago se divide solo, con tu comisión), lo cual
+cambia el flujo de cobro. Conviene hacerlo cuando el volumen lo justifique.
 
 ---
 
-## 6. Pendientes (siguientes versiones)
+## 6. Notificaciones push
 
-- **Pagos y comisión** (Stripe / Mercado Pago / Conekta). Hoy el pago y la
-  entrega se acuerdan entre comprador y vendedor.
-- **Verificación de identidad real** (INE + selfie). Hoy solo se verifica
-  correo y se pide teléfono.
-- **Notificaciones push** (Firebase Cloud Messaging). Hoy los avisos se ven
-  dentro de la app.
-- **Video propio** (Mux / Agora) en vez de YouTube, si se necesita menos
-  retraso o privacidad.
-- Precio de reserva, "compra ya", reportar lotes, panel de administrador.
-- Revisar requisitos legales de subastas/comercio electrónico en México
-  (PROFECO, aviso de privacidad, términos completos).
+Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda
+también como push a todos los dispositivos del usuario.
+
+- **Android:** funciona tal cual.
+- **iOS:** en la consola de Firebase → Configuración → Cloud Messaging, sube
+  tu **llave APNs** (.p8) de Apple Developer. En Xcode activa la capacidad
+  *Push Notifications*. Antes de publicar en la App Store cambia
+  `aps-environment` a `production` en `ios/Runner/Runner.entitlements`.
+- **Web:** en Cloud Messaging → *Web Push certificates* genera la **clave
+  VAPID** y compila con:
+  ```bash
+  flutter build web --release --dart-define=FCM_VAPID_KEY=tu_clave
+  ```
+
+---
+
+## 7. Pendientes
+
+- Revisión legal en México: términos y condiciones (depósito, comisión,
+  castigos), aviso de privacidad (INE, datos bancarios, pagos), PROFECO, y si
+  retener depósitos de terceros te obliga a algún registro.
+- Pagos automáticos a vendedores (modelo marketplace de Mercado Pago).
+- Verificación de identidad automática (proveedor externo).
+- Precio de reserva, "compra ya", reportar lotes.

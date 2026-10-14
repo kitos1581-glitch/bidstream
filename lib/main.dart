@@ -8,6 +8,7 @@ import 'auth/firebase_auth/firebase_user_provider.dart';
 import 'auth/firebase_auth/auth_util.dart';
 
 import 'backend/firebase/firebase_config.dart';
+import 'backend/push_service.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
@@ -60,9 +61,27 @@ class _MyAppState extends State<MyApp> {
 
     _appStateNotifier = AppStateNotifier.instance;
     _router = createRouter(_appStateNotifier);
+    // Notificaciones push: al tocar una, abrir la pantalla indicada;
+    // con la app abierta, mostrar una barra con botón "Ver".
+    PushService.instance.onOpenLink = (link) => _router.push(link);
+    PushService.instance.onForegroundMessage = (title, body, link) {
+      final ctx = appNavigatorKey.currentContext;
+      if (ctx == null) return;
+      ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+        content: Text(body.isEmpty ? title : '$title\n$body'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(label: 'Ver', onPressed: () => _router.push(link)),
+      ));
+    };
+
     userStream = bidStreamFirebaseUserStream()
       ..listen((user) {
         _appStateNotifier.update(user);
+        final uid = user.uid;
+        if (user.loggedIn && uid != null) {
+          PushService.instance.register(uid);
+        }
       });
     jwtTokenStream.listen((_) {});
     Future.delayed(

@@ -20,6 +20,18 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
+    // Documentos de identidad (INE frente/reverso y selfie).
+    // PRIVADOS: solo el dueño y los administradores pueden verlos.
+    match /verifications/{uid}/{fileName} {
+      allow read: if request.auth != null
+        && (request.auth.uid == uid || request.auth.token.admin == true);
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
     // Foto de perfil.
     match /users/{uid}/{fileName} {
       allow read: if request.auth != null;

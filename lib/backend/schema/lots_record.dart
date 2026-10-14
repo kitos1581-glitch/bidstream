@@ -40,6 +40,15 @@ class LotsRecord extends FirestoreRecord {
   String get format => asString(snapshotData['format'], 'timed');
   String get streamUrl => asString(snapshotData['stream_url']);
 
+  // ---- Pago del ganador (lo controla el servidor) ----
+  /// none | processing | pending | paid | forfeited | payment_error
+  String get paymentStatus => asString(snapshotData['payment_status'], 'none');
+  String get winnerPaymentUrl => asString(snapshotData['winner_payment_url']);
+  double get amountDue => asDouble(snapshotData['amount_due']);
+  DateTime? get paymentDueTime => asDate(snapshotData['payment_due_time']);
+  bool get isCancelled => status == 'cancelled';
+  String get cancelReason => asString(snapshotData['cancel_reason']);
+
   // ---- Personas ----
   String get sellerUid => asString(snapshotData['seller_uid']);
   String get sellerName => asString(snapshotData['seller_name'], 'Vendedor');
@@ -55,7 +64,7 @@ class LotsRecord extends FirestoreRecord {
       startTime == null || !(now ?? DateTime.now()).isBefore(startTime!);
 
   bool isEnded([DateTime? now]) =>
-      status == 'ended' ||
+      status != 'active' ||
       endTime == null ||
       !(now ?? DateTime.now()).isBefore(endTime!);
 
