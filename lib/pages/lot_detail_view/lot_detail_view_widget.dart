@@ -141,6 +141,14 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                         style: theme.headlineSmall
                             .copyWith(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
+                    if (kLotConditions[lot.condition] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Tag(kLotConditions[lot.condition]!,
+                            background: lot.condition == 'new'
+                                ? theme.surfaceVariant
+                                : theme.secondaryBackground),
+                      ),
                     Text('Vende: ${lot.sellerName}',
                         style: theme.bodySmall
                             .copyWith(color: theme.secondaryText)),

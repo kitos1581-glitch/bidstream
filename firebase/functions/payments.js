@@ -39,6 +39,56 @@ const REGION = "us-central1";
 
 const DEPOSIT_AMOUNT = Number(process.env.DEPOSIT_AMOUNT || 200);
 const COMMISSION_PCT = Number(process.env.COMMISSION_PCT || 0.1);
+
+/**
+ * Comisión por tramos (marginal, como el ISR): cada tramo del precio paga
+ * su porcentaje, así no hay "brincos" al pasar de un tramo a otro.
+ *
+ * COMMISSION_TIERS="10000:0.10,100000:0.08,inf:0.06"
+ *   → 10% de los primeros $10,000, 8% de $10,000 a $100,000, 6% del resto.
+ * COMMISSION_MIN=50  → comisión mínima por venta (cubre la tarifa fija de MP).
+ *
+ * Si COMMISSION_TIERS no está definido se usa COMMISSION_PCT plano.
+ */
+function parseTiers(spec) {
+  if (!spec) return null;
+  const tiers = String(spec)
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => {
+      const [upTo, pct] = p.split(":");
+      return {
+        upTo: upTo.trim().toLowerCase() === "inf" ? Infinity : Number(upTo),
+        pct: Number(pct),
+      };
+    });
+  const valid =
+    tiers.length > 0 &&
+    tiers.every((t, i) => t.pct >= 0 && t.pct < 1 && (i === 0 || t.upTo > tiers[i - 1].upTo)) &&
+    tiers[tiers.length - 1].upTo === Infinity;
+  return valid ? tiers : null;
+}
+
+const COMMISSION_TIERS = parseTiers(process.env.COMMISSION_TIERS);
+const COMMISSION_MIN = Number(process.env.COMMISSION_MIN || 0);
+
+function computeCommission(price, tiers = COMMISSION_TIERS, min = COMMISSION_MIN, flat = COMMISSION_PCT) {
+  const p = Math.max(0, Number(price) || 0);
+  let c = 0;
+  if (tiers) {
+    let prev = 0;
+    for (const t of tiers) {
+      if (p <= prev) break;
+      c += (Math.min(p, t.upTo) - prev) * t.pct;
+      prev = t.upTo;
+    }
+  } else {
+    c = p * flat;
+  }
+  // La comisión nunca supera el precio.
+  return round2(Math.min(p, Math.max(c, min)));
+}
 const WINNER_PAYMENT_WINDOW_HOURS = Number(process.env.WINNER_PAYMENT_WINDOW_HOURS || 24);
 const SITE_URL = process.env.SITE_URL || "https://bidstream.web.app";
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
@@ -195,7 +245,7 @@ function contactString(u) {
  */
 function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   const finalPrice = round2(Number(lot.current_bid) || 0);
-  const commission = round2(finalPrice * COMMISSION_PCT);
+  const commission = computeCommission(finalPrice);
   const sellerAmount = round2(finalPrice - commission);
 
   writer.set(db.collection("payments").doc(`payout-${lotId}`), {
@@ -803,5 +853,7 @@ module.exports = {
   round2,
   DEPOSIT_AMOUNT,
   COMMISSION_PCT,
+  computeCommission,
+  parseTiers,
   WINNER_PAYMENT_WINDOW_HOURS,
 };

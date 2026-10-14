@@ -1,3 +1,4 @@
+import 'dart:convert' show base64Encode;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,6 +25,40 @@ const kLotCategories = <String>[
   'Ropa y accesorios',
   'Otros',
 ];
+
+/// Estado del artículo. Deben coincidir con CONDITIONS de functions/ai.js.
+const kLotConditions = <String, String>{
+  'new': 'Nuevo',
+  'like_new': 'Como nuevo',
+  'used_good': 'Usado — buen estado',
+  'used_fair': 'Usado — con detalles',
+  'for_parts': 'Para reparar / refacciones',
+};
+
+/// Propuesta del asistente de IA para una publicación.
+class AiLotSuggestion {
+  AiLotSuggestion(Map<String, dynamic> d)
+      : title = (d['title'] ?? '').toString(),
+        category = (d['category'] ?? '').toString(),
+        description = (d['description'] ?? '').toString(),
+        detectedIssues = _strList(d['detected_issues']),
+        missingInfo = _strList(d['missing_info']),
+        conditionMismatch = (d['condition_mismatch'] ?? '').toString(),
+        prohibited = d['prohibited'] == true,
+        prohibitedReason = (d['prohibited_reason'] ?? '').toString();
+
+  static List<String> _strList(dynamic v) =>
+      v is List ? v.map((e) => e.toString()).toList() : const <String>[];
+
+  final String title;
+  final String category;
+  final String description;
+  final List<String> detectedIssues;
+  final List<String> missingInfo;
+  final String conditionMismatch;
+  final bool prohibited;
+  final String prohibitedReason;
+}
 
 /// Resultado de una oferta proxy (puja máxima secreta).
 class PlaceBidResult {
@@ -160,6 +195,7 @@ class AuctionService {
     required DateTime startTime,
     required DateTime endTime,
     required String format,
+    required String condition,
     required List<String> imageUrls,
     String streamUrl = '',
   }) async {
@@ -174,11 +210,35 @@ class AuctionService {
       startTime: startTime,
       endTime: endTime,
       format: format,
+      condition: condition,
       sellerUid: uid,
       imageUrls: imageUrls,
       streamUrl: streamUrl.trim(),
     ));
     return ref.id;
+  }
+
+  /// Pide a la IA título, categoría y descripción a partir de las fotos.
+  /// [photos]: (bytes, mime) de hasta 4 fotos.
+  Future<AiLotSuggestion> suggestLotContent({
+    required List<(Uint8List, String)> photos,
+    required String condition,
+    String notes = '',
+  }) async {
+    final res = await _functions
+        .httpsCallable('generateLotDescription',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 120)))
+        .call<dynamic>({
+      'images': [
+        for (final p in photos.take(4))
+          {'mime': p.$2, 'data': base64Encode(p.$1)},
+      ],
+      'condition': condition,
+      'notes': notes,
+    });
+    final raw = res.data;
+    return AiLotSuggestion(
+        raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{});
   }
 
   /// Solo funciona si el lote no tiene pujas (lo exige firestore.rules).

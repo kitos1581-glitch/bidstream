@@ -9,6 +9,7 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^4.9.0",
     "mercadopago": "^2.13.0"

@@ -257,6 +257,10 @@ class LotCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.titleSmall),
+                  if (lot.condition == 'new')
+                    Text('NUEVO',
+                        style: theme.labelSmall.copyWith(
+                            color: theme.primary, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 6),
                   Text(lot.bidCount == 0 ? 'Precio inicial' : 'Puja actual',
                       style: theme.labelSmall),

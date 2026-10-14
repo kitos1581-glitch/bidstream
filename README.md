@@ -167,7 +167,43 @@ cambia el flujo de cobro. Conviene hacerlo cuando el volumen lo justifique.
 
 ---
 
-## 6. Notificaciones push
+## 6. Asistente de IA para publicar
+
+En "Publicar", el vendedor elige el estado (nuevo, como nuevo, usado,
+usado con detalles, para reparar), puede escribir notas (año, km, fallas,
+qué incluye) y toca **Llenar con IA**. Claude lee hasta 4 fotos y propone
+título, categoría y descripción; además avisa:
+- detalles visibles (rayones, golpes) — ya incluidos en la descripción,
+- datos que los compradores van a preguntar,
+- si el estado elegido no coincide con las fotos,
+- si el artículo podría estar prohibido.
+
+La IA nunca publica sola: el vendedor revisa y corrige. Se le prohíbe
+inventar marca, modelo o especificaciones, y se borran teléfonos/correos.
+
+Configuración en `functions/.env`:
+```
+ANTHROPIC_API_KEY=sk-ant-...     # console.anthropic.com → API Keys
+AI_MODEL=claude-sonnet-5-5       # opcional
+AI_DAILY_LIMIT=20                # usos por usuario por día (controla costos)
+```
+Costo aproximado: unos centavos de dólar por descripción (4 fotos). Pon un
+límite de gasto mensual en la consola de Anthropic.
+
+## 7. Comisión
+
+Por defecto es 10% plano (`COMMISSION_PCT`). Para cobrar por tramos
+(recomendado si hay vehículos, ganado o maquinaria):
+```
+COMMISSION_TIERS=10000:0.10,100000:0.08,inf:0.06
+COMMISSION_MIN=50
+```
+= 10% de los primeros $10,000, 8% de $10,000 a $100,000, 6% del resto, con
+mínimo de $50 por venta. Es marginal (como el ISR): no hay brincos entre
+tramos. Recuerda que de la comisión se paga la tarifa de Mercado Pago
+(≈3.49% + $4 + IVA por cobro con liberación inmediata).
+
+## 8. Notificaciones push
 
 Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda
 también como push a todos los dispositivos del usuario.
@@ -185,7 +221,7 @@ también como push a todos los dispositivos del usuario.
 
 ---
 
-## 7. Pendientes
+## 9. Pendientes
 
 - Revisión legal en México: términos y condiciones (depósito, comisión,
   castigos), aviso de privacidad (INE, datos bancarios, pagos), PROFECO, y si

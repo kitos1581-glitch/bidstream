@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '/backend/backend.dart';
@@ -38,6 +39,10 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   late final Stream<UsersRecord?> _profile = AuctionService.instance.myProfile();
 
   String? _category;
+  String? _condition;
+  final _aiNotes = TextEditingController();
+  bool _aiLoading = false;
+  AiLotSuggestion? _ai;
   String _format = 'timed';
   int _timedDays = 3;
   DateTime? _liveStart;
@@ -53,6 +58,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
     _price.dispose();
     _increment.dispose();
     _streamUrl.dispose();
+    _aiNotes.dispose();
     super.dispose();
   }
 
@@ -110,7 +116,62 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
     _increment.text = suggested.toStringAsFixed(0);
   }
 
+  /// Llena título, categoría y descripción con la IA. Si ya hay texto,
+  /// pregunta antes de reemplazarlo.
+  Future<void> _fillWithAi() async {
+    if (_photos.isEmpty) {
+      showMessage(context, 'Primero agrega fotos.', error: true);
+      return;
+    }
+    if (_condition == null) {
+      showMessage(context, 'Indica si es nuevo o usado.', error: true);
+      return;
+    }
+    if (_title.text.isNotEmpty || _description.text.isNotEmpty) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('¿Reemplazar lo que escribiste?'),
+          content: const Text('La IA llenará título, categoría y descripción.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+            TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Reemplazar')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    setState(() => _aiLoading = true);
+    try {
+      final r = await AuctionService.instance.suggestLotContent(
+        photos: [for (final p in _photos) (p.bytes, p.mime)],
+        condition: _condition!,
+        notes: _aiNotes.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _ai = r;
+        _title.text = r.title;
+        _description.text = r.description;
+        if (kLotCategories.contains(r.category)) _category = r.category;
+      });
+      showMessage(context, 'Listo. Revisa y corrige lo que haga falta antes de publicar.');
+    } catch (e) {
+      if (mounted) {
+        final msg = e is FirebaseFunctionsException ? (e.message ?? '$e') : '$e';
+        showMessage(context, msg, error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _aiLoading = false);
+    }
+  }
+
   Future<void> _publish() async {
+    if (_condition == null) {
+      showMessage(context, 'Indica el estado del artículo (nuevo o usado).',
+          error: true);
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     if (_photos.isEmpty) {
       showMessage(context, 'Agrega al menos una foto.', error: true);
@@ -153,6 +214,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
         startTime: start,
         endTime: end,
         format: _format,
+        condition: _condition!,
         imageUrls: urls,
         streamUrl: _format == 'live' ? _streamUrl.text : '',
       );
@@ -326,6 +388,65 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
           ),
 
           // ---------------- Datos ----------------
+          // ---------------- Estado + asistente IA ----------------
+          const SectionTitle('Estado del artículo'),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final e in kLotConditions.entries)
+              ChoiceChip(
+                label: Text(e.value),
+                selected: _condition == e.key,
+                selectedColor: theme.surfaceVariant,
+                onSelected: (_) => setState(() => _condition = e.key),
+              ),
+          ]),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.primaryContainer,
+              border: Border.all(color: theme.secondary, width: 2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Icon(Icons.auto_awesome, color: theme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Deja que la IA escriba tu publicación',
+                        style: theme.titleSmall),
+                  ),
+                ]),
+                const SizedBox(height: 4),
+                Text(
+                  'Lee tus fotos y propone título, categoría y una descripción honesta. '
+                  'Tú revisas y corriges antes de publicar.',
+                  style: theme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _aiNotes,
+                  maxLines: 3,
+                  maxLength: 1000,
+                  decoration: InputDecoration(
+                    hintText:
+                        'Opcional: lo que no se ve en las fotos (año, km, si funciona, fallas, qué incluye, papeles…)',
+                    filled: true,
+                    fillColor: theme.secondaryBackground,
+                    border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+                  ),
+                ),
+                BigButton(
+                  label: 'Llenar con IA',
+                  icon: Icons.auto_awesome,
+                  loading: _aiLoading,
+                  onPressed: _saving || _photos.isEmpty ? null : _fillWithAi,
+                ),
+                if (_ai != null) _AiReport(ai: _ai!),
+              ],
+            ),
+          ),
+
           const SectionTitle('Datos del lote'),
           TextFormField(
             controller: _title,
@@ -506,5 +627,47 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
         ),
       ),
     );
+  }
+}
+
+/// Avisos de la IA: defectos vistos, datos faltantes, estado que no
+/// coincide y artículos posiblemente prohibidos.
+class _AiReport extends StatelessWidget {
+  const _AiReport({required this.ai});
+  final AiLotSuggestion ai;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    Widget block(IconData icon, Color color, String title, List<String> items) =>
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 6),
+              Expanded(child: Text(title, style: theme.titleSmall.copyWith(color: color))),
+            ]),
+            for (final i in items)
+              Padding(
+                padding: const EdgeInsets.only(left: 24, top: 2),
+                child: Text('• $i', style: theme.bodySmall),
+              ),
+          ]),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (ai.prohibited)
+        block(Icons.block, theme.error, 'Este artículo podría estar prohibido',
+            [ai.prohibitedReason.isEmpty ? 'Revisa los términos antes de publicar.' : ai.prohibitedReason]),
+      if (ai.conditionMismatch.isNotEmpty)
+        block(Icons.warning_amber_rounded, theme.tertiary,
+            'El estado que elegiste no coincide con las fotos', [ai.conditionMismatch]),
+      if (ai.detectedIssues.isNotEmpty)
+        block(Icons.visibility_outlined, theme.primaryText,
+            'Detalles que vio la IA (ya están en la descripción)', ai.detectedIssues),
+      if (ai.missingInfo.isNotEmpty)
+        block(Icons.help_outline, theme.primary,
+            'Los compradores van a preguntar esto; agrégalo a la descripción', ai.missingInfo),
+    ]);
   }
 }

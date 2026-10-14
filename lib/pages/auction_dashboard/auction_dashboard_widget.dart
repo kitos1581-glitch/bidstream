@@ -47,7 +47,7 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
     final columns = width > 1100 ? 4 : (width > 700 ? 3 : 2);
     // Alto de tarjeta = foto 4:3 + bloque de texto.
     final cellWidth = (width - 32 - 12 * (columns - 1)) / columns;
-    final cardHeight = cellWidth * 3 / 4 + 150;
+    final cardHeight = cellWidth * 3 / 4 + 166;
 
     return Scaffold(
       backgroundColor: theme.primaryBackground,

@@ -16,6 +16,9 @@ class LotsRecord extends FirestoreRecord {
   String get title => asString(snapshotData['title']);
   String get description => asString(snapshotData['description']);
   String get category => asString(snapshotData['category']);
+
+  /// new | like_new | used_good | used_fair | for_parts
+  String get condition => asString(snapshotData['condition']);
   List<String> get imageUrls => asStringList(snapshotData['image_urls']);
   String get firstImage => imageUrls.isEmpty ? '' : imageUrls.first;
 
@@ -113,6 +116,7 @@ Map<String, dynamic> createLotsRecordData({
   required DateTime startTime,
   required DateTime endTime,
   required String format,
+  required String condition,
   required String sellerUid,
   required List<String> imageUrls,
   String streamUrl = '',
@@ -129,6 +133,7 @@ Map<String, dynamic> createLotsRecordData({
       'end_time': Timestamp.fromDate(endTime),
       'status': 'active',
       'format': format,
+      'condition': condition,
       'stream_url': streamUrl,
       'seller_uid': sellerUid,
       'image_urls': imageUrls,

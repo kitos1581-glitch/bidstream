@@ -27,6 +27,9 @@ exports.adminCancelLot = adminFns.adminCancelLot;
 // Pujas altas requieren identidad verificada (INE). Monto en MXN.
 const VERIFIED_BID_THRESHOLD = Number(process.env.VERIFIED_BID_THRESHOLD || 20000);
 
+// Asistente de IA para describir lotes.
+exports.generateLotDescription = require("./ai").generateLotDescription;
+
 // Notificaciones push: cada aviso nuevo se manda al celular.
 exports.onNotificationCreated = require("./push").onNotificationCreated;
 
