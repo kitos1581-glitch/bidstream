@@ -1,8 +1,12 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { validateBid, publicName } = require("./auction_logic");
 
-admin.initializeApp();
+// Guarda: permite cargar index.js aunque otro módulo ya haya inicializado.
+if (!admin.apps.length) admin.initializeApp();
+
+const { validateBid, publicName } = require("./auction_logic");
+const { startWinnerPayment } = require("./payments");
+
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
 
@@ -16,9 +20,15 @@ function formatMoney(n) {
   return `$${Number(n).toLocaleString("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
+function contactString(u) {
+  const parts = [u.full_name, u.phone && `Tel/WhatsApp: ${u.phone}`, u.city].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "sin datos de contacto";
+}
+
 // ---------------------------------------------------------------------
 // placeBid: única forma de pujar. Valida todo en el servidor dentro
 // de una transacción para que dos pujas simultáneas no se pisen.
+// REQUIERE depósito de garantía activo (users/{uid}.deposit.status == 'held').
 // data: { lotId: string, amount: number }
 // ---------------------------------------------------------------------
 exports.placeBid = functions.region(REGION).https.onCall(async (data, context) => {
@@ -49,6 +59,14 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
   }
   if (user.banned === true) {
     throw new functions.https.HttpsError("permission-denied", "Tu cuenta está suspendida.");
+  }
+  // ---- Escrow: sin depósito en garantía no se puja. ----
+  if (!user.deposit || user.deposit.status !== "held") {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Debes dejar un depósito de garantía antes de pujar. Es reembolsable.",
+      { code: "DEPOSIT_REQUIRED" }
+    );
   }
 
   const bidderName = publicName(user.full_name);
@@ -138,7 +156,7 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
 
 // ---------------------------------------------------------------------
 // closeEndedAuctions: cada minuto cierra las subastas vencidas,
-// asigna ganador y avisa a ganador y vendedor.
+// asigna ganador, genera su pago y avisa a las partes.
 // ---------------------------------------------------------------------
 async function closeLot(lotRef) {
   const outcome = await db.runTransaction(async (tx) => {
@@ -155,6 +173,9 @@ async function closeLot(lotRef) {
       winner_uid: hasWinner ? lot.highest_bidder_uid : null,
       winner_name: hasWinner ? lot.highest_bidder_name || "" : null,
       final_price: hasWinner ? lot.current_bid : null,
+      // Sin pujas no hay nada que cobrar; con ganador queda 'pending' hasta
+      // que pague (lo pone startWinnerPayment) o venza (expireUnpaidWins).
+      payment_status: hasWinner ? "pending" : "none",
     });
     return { lot, hasWinner };
   });
@@ -162,40 +183,55 @@ async function closeLot(lotRef) {
 
   const { lot, hasWinner } = outcome;
 
-  // Intercambio de contacto: solo se comparte entre ganador y vendedor,
-  // dentro de sus notificaciones privadas.
-  async function contactOf(uid) {
-    const snap = await db.collection("users").doc(uid).get();
-    const u = snap.exists ? snap.data() : {};
-    const parts = [u.full_name, u.phone && `Tel/WhatsApp: ${u.phone}`, u.city]
-      .filter(Boolean);
-    return parts.length ? parts.join(" · ") : "sin datos de contacto";
-  }
-
-  const batch = db.batch();
   if (hasWinner) {
-    const [sellerContact, winnerContact] = await Promise.all([
-      contactOf(lot.seller_uid),
-      contactOf(lot.highest_bidder_uid),
+    // Datos de contacto para el intercambio y depósito del ganador.
+    const [sellerSnap, winnerSnap] = await Promise.all([
+      db.collection("users").doc(lot.seller_uid).get(),
+      db.collection("users").doc(lot.highest_bidder_uid).get(),
     ]);
+    const seller = sellerSnap.exists ? sellerSnap.data() : {};
+    const winner = winnerSnap.exists ? winnerSnap.data() : {};
+    const sellerContact = contactString(seller);
+    const winnerContact = contactString(winner);
+
+    // Generar el cobro del ganador (precio final − depósito).
+    let pay;
+    try {
+      pay = await startWinnerPayment(lotRef, lot, lot.highest_bidder_uid, winner);
+    } catch (err) {
+      functions.logger.error(`No se pudo generar el cobro de ${lotRef.id}`, err);
+      pay = { url: null, amount: 0, alreadySettled: false };
+    }
+
+    const depositApplied =
+      winner.deposit && winner.deposit.status === "held" ? Number(winner.deposit.amount) : 0;
+    const winnerBody = pay.alreadySettled
+      ? `Tu depósito cubre los ${formatMoney(lot.current_bid)}. Contacta al vendedor: ${sellerContact}.`
+      : `Ganaste con ${formatMoney(lot.current_bid)}. Tienes 24 horas para pagar ${formatMoney(
+          pay.amount
+        )}${depositApplied ? ` (tu depósito de ${formatMoney(depositApplied)} ya está aplicado)` : ""}.`;
+
+    const batch = db.batch();
     batch.set(notificationRef(lot.highest_bidder_uid), {
       type: "won",
       title: `¡Ganaste! ${lot.title}`,
-      body: `Ganaste con ${formatMoney(lot.current_bid)}. Contacta al vendedor: ${sellerContact}.`,
+      body: winnerBody,
       lot_id: lotRef.id,
+      action_url: pay.url || "",
       read: false,
       created_time: FieldValue.serverTimestamp(),
     });
     batch.set(notificationRef(lot.seller_uid), {
       type: "sold",
       title: `Vendiste: ${lot.title}`,
-      body: `Se vendió en ${formatMoney(lot.current_bid)}. Comprador: ${winnerContact}.`,
+      body: `Se vendió en ${formatMoney(lot.current_bid)}. Comprador: ${winnerContact}. Te avisaremos cuando el pago quede registrado.`,
       lot_id: lotRef.id,
       read: false,
       created_time: FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   } else {
-    batch.set(notificationRef(lot.seller_uid), {
+    await notificationRef(lot.seller_uid).set({
       type: "unsold",
       title: `Sin pujas: ${lot.title}`,
       body: "Tu subasta terminó sin pujas. Puedes publicarla de nuevo.",
@@ -204,7 +240,6 @@ async function closeLot(lotRef) {
       created_time: FieldValue.serverTimestamp(),
     });
   }
-  await batch.commit();
   return true;
 }
 

@@ -1,10 +1,11 @@
 rules_version = '2';
 
 // =====================================================================
-// BidStream — Reglas de seguridad de Firestore
+// BidStream — Reglas de seguridad de Firestore (con pagos / escrow)
 // ---------------------------------------------------------------------
-// Principio: el celular NUNCA escribe precios ni pujas. Las pujas pasan
-// por la Cloud Function `placeBid`, que valida todo en el servidor.
+// Principio: el celular NUNCA escribe precios, pujas ni datos de pago.
+// Las pujas pasan por la Cloud Function `placeBid`; los pagos por las
+// funciones de payments.js y el webhook de Mercado Pago.
 // =====================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -30,14 +31,16 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isOwner(uid);
 
-      // El usuario crea su propio perfil, pero no puede auto-verificarse
-      // ni darse rol de administrador.
+      // El usuario crea su propio perfil, pero no puede auto-verificarse,
+      // darse rol de administrador ni falsificar su depósito/strikes.
       allow create: if isOwner(uid)
-        && !request.resource.data.keys().hasAny(['verified', 'role', 'banned']);
+        && !request.resource.data.keys().hasAny(
+              ['verified', 'role', 'banned', 'deposit', 'strikes']);
 
       allow update: if isOwner(uid)
         && !request.resource.data.diff(resource.data).affectedKeys()
-              .hasAny(['verified', 'role', 'banned', 'uid', 'created_time']);
+              .hasAny(['verified', 'role', 'banned', 'uid', 'created_time',
+                       'deposit', 'strikes']);
 
       allow delete: if false;
 
@@ -79,10 +82,11 @@ service cloud.firestore {
         && request.resource.data.start_time < request.resource.data.end_time
         && request.resource.data.format in ['timed', 'live']
         && !request.resource.data.keys().hasAny(
-              ['highest_bidder_uid', 'highest_bidder_name', 'winner_uid', 'winner_name']);
+              ['highest_bidder_uid', 'highest_bidder_name', 'winner_uid', 'winner_name',
+               'payment_status', 'winner_payment_url', 'payment_due_time']);
 
       // El vendedor solo edita la parte descriptiva. Precio, pujas,
-      // estado y fechas los controla el servidor (o se editan sin pujas).
+      // estado, fechas y pagos los controla el servidor.
       allow update: if isOwner(resource.data.seller_uid)
         && resource.data.status == 'active'
         && (
@@ -103,6 +107,14 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if false;
       }
+    }
+
+    // ---------------- Pagos (solo el servidor) ----------------
+    // Depósitos, pagos de ganador, reembolsos y payouts. El dueño puede
+    // leer los suyos; nadie escribe desde el cliente.
+    match /payments/{paymentId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
     }
 
     // Todo lo demás, cerrado.

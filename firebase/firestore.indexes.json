@@ -23,6 +23,15 @@
         { "fieldPath": "winner_uid", "order": "ASCENDING" },
         { "fieldPath": "end_time", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "payment_status", "order": "ASCENDING" },
+        { "fieldPath": "payment_due_time", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
