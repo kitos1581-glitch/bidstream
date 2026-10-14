@@ -185,8 +185,14 @@ Configuración en `functions/.env`:
 ```
 ANTHROPIC_API_KEY=sk-ant-...     # console.anthropic.com → API Keys
 AI_MODEL=claude-sonnet-5-5       # opcional
-AI_DAILY_LIMIT=20                # usos por usuario por día (controla costos)
+AI_DAILY_LIMIT=20                # usos por usuario por día (entero 1–1000)
+AI_GLOBAL_DAILY_LIMIT=2000       # tope de toda la plataforma por día
 ```
+Requisitos para usarlo: correo verificado, identidad (INE) verificada y
+cuenta no suspendida (los mismos que para vender). Si la llamada a la IA
+falla o la respuesta viene incompleta, **no se descuenta el uso**. Una
+configuración inválida (p. ej. `AI_DAILY_LIMIT=abc`) desactiva solo el
+asistente con un error explícito en los logs; el resto de la app sigue.
 Costo aproximado: unos centavos de dólar por descripción (4 fotos). Pon un
 límite de gasto mensual en la consola de Anthropic.
 
@@ -199,7 +205,13 @@ COMMISSION_TIERS=10000:0.10,100000:0.08,inf:0.06
 COMMISSION_MIN=50
 ```
 = 10% de los primeros $10,000, 8% de $10,000 a $100,000, 6% del resto, con
-mínimo de $50 por venta. Es marginal (como el ISR): no hay brincos entre
+mínimo de $50 por venta.
+
+**Configuración inválida = error explícito.** Si `COMMISSION_TIERS`,
+`COMMISSION_PCT` o `COMMISSION_MIN` son inválidos, el sistema NO usa otro
+porcentaje en silencio: el pago del comprador se registra normalmente, pero
+la liquidación al vendedor queda **"en revisión"** (panel de administración →
+Pagos). Corrige el `.env`, redespliega funciones y pulsa **Recalcular**. Es marginal (como el ISR): no hay brincos entre
 tramos. Recuerda que de la comisión se paga la tarifa de Mercado Pago
 (≈3.49% + $4 + IVA por cobro con liberación inmediata).
 
@@ -221,7 +233,17 @@ también como push a todos los dispositivos del usuario.
 
 ---
 
-## 9. Pendientes
+## 9. Pruebas
+
+```bash
+cd firebase/functions && npm test        # backend (Firestore/MP/IA simulados)
+cd firebase/rules-tests && npm test      # reglas con el emulador oficial
+flutter analyze && flutter test          # app
+bash firebase/scripts/verificar_remoto.sh   # estado remoto, solo lectura
+```
+Resultados de esta versión: ver `EVIDENCIA_PRUEBAS.md`.
+
+## 10. Pendientes
 
 - Revisión legal en México: términos y condiciones (depósito, comisión,
   castigos), aviso de privacidad (INE, datos bancarios, pagos), PROFECO, y si

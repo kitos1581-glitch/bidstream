@@ -272,6 +272,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
       body: StreamBuilder<UsersRecord?>(
         stream: _profile,
         builder: (context, snap) {
+          if (snap.hasError) return ErrorState(error: snap.error);
           if (snap.connectionState == ConnectionState.waiting) {
             return const Loading();
           }

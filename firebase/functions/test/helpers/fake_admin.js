@@ -145,7 +145,12 @@ const db = {
     };
   },
   runTransaction: async (fn) => {
-    for (let attempt = 0; attempt < 10; attempt++) {
+    if (db.beforeTx) {
+      const hook = db.beforeTx;
+      db.beforeTx = null; // una sola vez
+      await hook();
+    }
+    for (let attempt = 0; attempt < 25; attempt++) {
       const reads = new Map();
       const writes = [];
       const tx = {
@@ -171,12 +176,18 @@ const db = {
       await tick();
       const conflict = [...reads].some(([p, v]) => (store.get(p) ? store.get(p).version : 0) !== v);
       if (conflict) { db.retries++; continue; }
+      // Commit atómico: si alguna escritura falla, no se aplica ninguna.
+      if (db.failWrites && writes.some(([p]) => db.failWrites.test(p))) {
+        throw new Error("UNAVAILABLE: escritura fallida (simulada)");
+      }
       writes.forEach(([p, d, o]) => applyWrite(p, d, o));
       return result;
     }
     throw new Error("ABORTED: demasiados reintentos");
   },
   retries: 0,
+  beforeTx: null,
+  failWrites: null,
 };
 
 const firestore = () => db;
@@ -190,5 +201,5 @@ module.exports = {
   // utilidades de prueba
   __store: store,
   __db: db,
-  __reset() { store.clear(); db.retries = 0; },
+  __reset() { store.clear(); db.retries = 0; db.beforeTx = null; db.failWrites = null; },
 };

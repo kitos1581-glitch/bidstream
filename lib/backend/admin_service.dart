@@ -116,6 +116,16 @@ class AdminService {
       .snapshots()
       .map((s) => s.docs.map((d) => PaymentDoc(d.id, d.data())).toList());
 
+  /// Liquidaciones que quedaron en revisión (p. ej. configuración de
+  /// comisiones inválida en el servidor).
+  Stream<List<PaymentDoc>> payoutsNeedingReview() => _db
+      .collection('payments')
+      .where('kind', isEqualTo: 'payout')
+      .where('status', isEqualTo: 'needs_review')
+      .limit(100)
+      .snapshots()
+      .map((s) => s.docs.map((d) => PaymentDoc(d.id, d.data())).toList());
+
   Stream<List<PaymentDoc>> failedRefunds() => _db
       .collection('payments')
       .where('kind', isEqualTo: 'refund')
@@ -162,6 +172,10 @@ class AdminService {
   Future<void> markPayoutSent(String paymentId, String reference) =>
       _fn.httpsCallable('adminMarkPayoutSent').call<dynamic>(
           {'paymentId': paymentId, 'reference': reference});
+
+  Future<void> recalculatePayout(String paymentId) => _fn
+      .httpsCallable('adminRecalculatePayout')
+      .call<dynamic>({'paymentId': paymentId});
 
   Future<void> retryWinnerPayment(String lotId) => _fn
       .httpsCallable('adminRetryWinnerPayment')

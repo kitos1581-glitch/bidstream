@@ -131,11 +131,20 @@ class _LiveStreamAuctionWidgetState extends State<LiveStreamAuctionWidget> {
           builder: (context, profileSnap) => StreamBuilder<LotsRecord?>(
             stream: _lot,
             builder: (context, snap) {
+              if (snap.hasError) {
+                return Container(
+                  color: FlutterFlowTheme.of(context).primaryBackground,
+                  child: ErrorState(error: snap.error),
+                );
+              }
               if (!snap.hasData) {
                 return snap.connectionState == ConnectionState.waiting
                     ? const Loading()
-                    : const EmptyState(
-                        icon: Icons.search_off, title: 'Este lote ya no existe');
+                    : Container(
+                        color: FlutterFlowTheme.of(context).primaryBackground,
+                        child: const EmptyState(
+                            icon: Icons.search_off, title: 'Este lote ya no existe'),
+                      );
               }
               final lot = snap.data!;
               final isSeller = lot.sellerUid == currentUserUid;
@@ -145,7 +154,11 @@ class _LiveStreamAuctionWidgetState extends State<LiveStreamAuctionWidget> {
               final step =
                   lot.minimumIncrement > 0 ? lot.minimumIncrement : 1.0;
 
-              return Column(children: [
+              // Se reconstruye al iniciar/terminar aunque no haya snapshots.
+              return LotPhaseBuilder(
+                start: lot.startTime,
+                end: lot.endTime,
+                builder: (context) => Column(children: [
                 // ---------------- Barra superior ----------------
                 Row(children: [
                   IconButton(
@@ -274,7 +287,8 @@ class _LiveStreamAuctionWidgetState extends State<LiveStreamAuctionWidget> {
                     ),
                   ),
                 ),
-              ]);
+              ]),
+              );
             },
           ),
         ),

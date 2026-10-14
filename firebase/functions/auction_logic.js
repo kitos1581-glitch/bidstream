@@ -53,6 +53,53 @@ function applyAntiSniping(endTimeMs, nowMs) {
   return { newEndTimeMs: endTimeMs, extended: false };
 }
 
+const VALID_STATUSES = ["active", "ended", "cancelled"];
+const isMoney = (n) => typeof n === "number" && Number.isFinite(n);
+
+/**
+ * Integridad del lote ANTES de aceptar una oferta. No confiamos en lo que
+ * haya en Firestore: un dato corrupto o manipulado (p. ej. un incremento
+ * negativo) nunca debe mover el precio hacia abajo.
+ * Devuelve null si todo está bien, o un mensaje de error.
+ */
+function lotIntegrityError(lot) {
+  if (!lot || typeof lot !== "object") return "El lote no existe.";
+  if (!VALID_STATUSES.includes(lot.status)) return "Estado del lote inválido.";
+  if (!isMoney(lot.starting_price) || lot.starting_price <= 0 || lot.starting_price > MAX_BID_PESOS) {
+    return "Precio inicial inválido.";
+  }
+  if (!isMoney(lot.current_bid) || lot.current_bid < lot.starting_price || lot.current_bid > MAX_BID_PESOS) {
+    return "Puja actual inválida.";
+  }
+  if (!isMoney(lot.minimum_increment) || lot.minimum_increment <= 0 || lot.minimum_increment > MAX_BID_PESOS) {
+    return "Incremento mínimo inválido.";
+  }
+  const count = lot.bid_count === undefined ? 0 : lot.bid_count;
+  if (!Number.isInteger(count) || count < 0) return "Conteo de pujas inválido.";
+  if (count === 0 && toCents(lot.current_bid) !== toCents(lot.starting_price)) {
+    return "Puja actual inconsistente con un lote sin pujas.";
+  }
+  if (count > 0 && !lot.highest_bidder_uid) return "Lote con pujas pero sin líder.";
+  if (!Number.isFinite(lot.end_time_ms)) return "Fecha de cierre inválida.";
+  if (lot.start_time_ms !== null && lot.start_time_ms !== undefined) {
+    if (!Number.isFinite(lot.start_time_ms) || lot.start_time_ms >= lot.end_time_ms) {
+      return "Fechas del lote inválidas.";
+    }
+  }
+  return null;
+}
+
+/** Integridad del estado privado del proxy frente al lote. */
+function stateIntegrityError(lot, state) {
+  if ((lot.bid_count || 0) === 0) return null; // sin pujas no hay estado que validar
+  if (!state || !state.leader_uid) return "Estado de pujas incompleto.";
+  if (state.leader_uid !== lot.highest_bidder_uid) return "Estado de pujas inconsistente.";
+  if (!isMoney(state.leader_max) || toCents(state.leader_max) < toCents(lot.current_bid)) {
+    return "Máximo del líder inconsistente.";
+  }
+  return null;
+}
+
 /**
  * Resuelve una nueva oferta proxy.
  *
@@ -78,8 +125,35 @@ function applyAntiSniping(endTimeMs, nowMs) {
  *          }
  */
 function resolveProxyBid(lot, state, uid, maxAmount, nowMs) {
+  const r = resolveProxyBidUnchecked(lot, state, uid, maxAmount, nowMs);
+  // Defensa en profundidad: el precio visible JAMÁS baja ni rebasa el máximo
+  // del líder, y el cierre jamás se adelanta.
+  if (r.ok) {
+    const cur = toCents(lot.current_bid);
+    const next = toCents(r.newCurrentBid);
+    if (next < cur || next > toCents(r.newLeaderMax) || r.newEndTimeMs < lot.end_time_ms) {
+      return {
+        ok: false,
+        code: "internal",
+        message: "La oferta produjo un resultado inconsistente y fue rechazada.",
+      };
+    }
+  }
+  return r;
+}
+
+function resolveProxyBidUnchecked(lot, state, uid, maxAmount, nowMs) {
   // ---------------- Validaciones generales ----------------
   if (!lot) return { ok: false, code: "not-found", message: "El lote no existe." };
+  const lotErr = lotIntegrityError(lot);
+  if (lotErr) {
+    return {
+      ok: false,
+      code: "failed-precondition",
+      message: `Este lote tiene datos inválidos (${lotErr}) y no acepta pujas por ahora.`,
+      integrity: true,
+    };
+  }
   if (typeof maxAmount !== "number" || !isFinite(maxAmount) || maxAmount <= 0) {
     return { ok: false, code: "invalid-argument", message: "Monto inválido." };
   }
@@ -106,7 +180,16 @@ function resolveProxyBid(lot, state, uid, maxAmount, nowMs) {
   const M = toCents(maxAmount);
   const inc = toCents(lot.minimum_increment || 0);
   const cur = toCents(lot.current_bid || lot.starting_price || 0);
-  const hasBids = (lot.bid_count || 0) > 0 && state && state.leader_uid;
+  const stateErr = stateIntegrityError(lot, state);
+  if (stateErr) {
+    return {
+      ok: false,
+      code: "failed-precondition",
+      message: `Este lote tiene datos inválidos (${stateErr}) y no acepta pujas por ahora.`,
+      integrity: true,
+    };
+  }
+  const hasBids = (lot.bid_count || 0) > 0;
 
   // ---------------- Primera oferta del lote ----------------
   if (!hasBids) {
@@ -232,6 +315,45 @@ function legacyState(lot) {
   return null;
 }
 
+/**
+ * ¿Puede este usuario pujar este monto? Se usa DOS veces: antes de la
+ * transacción (respuesta rápida) y DENTRO de ella con el documento fresco
+ * (la decisión que cuenta), por si el perfil cambió en medio.
+ * Devuelve null si puede, o { code, message, details }.
+ */
+function userBidEligibilityError(user, maxAmount, verifiedThreshold) {
+  if (!user) {
+    return { code: "failed-precondition", message: "Completa tu perfil antes de pujar." };
+  }
+  if (user.banned === true) {
+    return { code: "permission-denied", message: "Tu cuenta está suspendida." };
+  }
+  if (!String(user.full_name || "").trim() || !String(user.phone || "").trim()) {
+    return {
+      code: "failed-precondition",
+      message: "Completa tu perfil (nombre y teléfono) antes de pujar.",
+    };
+  }
+  if (user.accepted_terms !== true) {
+    return { code: "failed-precondition", message: "Acepta los términos antes de pujar." };
+  }
+  if (Number(maxAmount) > verifiedThreshold && user.verified !== true) {
+    return {
+      code: "failed-precondition",
+      message: `Para pujas mayores a $${verifiedThreshold.toLocaleString("es-MX")} necesitas verificar tu identidad (INE).`,
+      details: { code: "IDENTITY_REQUIRED" },
+    };
+  }
+  if (!user.deposit || user.deposit.status !== "held") {
+    return {
+      code: "failed-precondition",
+      message: "Debes dejar un depósito de garantía antes de pujar. Es reembolsable.",
+      details: { code: "DEPOSIT_REQUIRED" },
+    };
+  }
+  return null;
+}
+
 // Nombre público para el historial (protege privacidad):
 // "Juan Pérez López" -> "Juan P."
 function publicName(fullName) {
@@ -242,7 +364,10 @@ function publicName(fullName) {
 }
 
 module.exports = {
+  userBidEligibilityError,
   resolveProxyBid,
+  lotIntegrityError,
+  stateIntegrityError,
   applyAntiSniping,
   legacyState,
   minimumNextBid,

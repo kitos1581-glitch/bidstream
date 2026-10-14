@@ -40,8 +40,19 @@ class _OnboardingVerificationWidgetState
     _load();
   }
 
+  Object? _loadError;
+
   Future<void> _load() async {
-    final profile = await AuctionService.instance.myProfile().first;
+    UsersRecord? profile;
+    try {
+      profile = await AuctionService.instance
+          .myProfile()
+          .first
+          .timeout(const Duration(seconds: 20));
+    } catch (e) {
+      if (mounted) setState(() => _loadError = e);
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _name.text = profile?.fullName ?? '';
@@ -140,7 +151,14 @@ class _OnboardingVerificationWidgetState
         elevation: 0,
         title: Text('Completa tu cuenta', style: theme.titleMedium),
       ),
-      body: !_loaded
+      body: _loadError != null
+          ? ErrorState(
+              error: _loadError,
+              onRetry: () {
+                setState(() => _loadError = null);
+                _load();
+              })
+          : !_loaded
           ? const Loading()
           : Form(
               key: _formKey,

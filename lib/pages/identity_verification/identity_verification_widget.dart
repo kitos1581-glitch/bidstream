@@ -100,6 +100,7 @@ class _IdentityVerificationWidgetState
       body: StreamBuilder<VerificationRequest?>(
         stream: _request,
         builder: (context, snap) {
+          if (snap.hasError) return ErrorState(error: snap.error);
           if (snap.connectionState == ConnectionState.waiting) {
             return const Loading();
           }

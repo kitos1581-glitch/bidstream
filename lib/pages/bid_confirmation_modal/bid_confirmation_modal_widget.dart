@@ -128,17 +128,27 @@ class _BidConfirmationModalWidgetState
         builder: (context, profileSnap) => StreamBuilder<LotsRecord?>(
           stream: _lot,
           builder: (context, snap) {
-            if (!snap.hasData ||
-                (!profileSnap.hasData &&
-                    profileSnap.connectionState == ConnectionState.waiting)) {
+            // Errores de lectura: se muestran, nunca carga infinita.
+            if (snap.hasError || profileSnap.hasError) {
+              return ErrorState(error: snap.error ?? profileSnap.error);
+            }
+            if (snap.connectionState == ConnectionState.waiting ||
+                profileSnap.connectionState == ConnectionState.waiting) {
               return const Loading();
             }
+            // El lote dejó de existir (o nunca existió): mensaje claro.
             final lot = snap.data;
             if (lot == null) {
               return const EmptyState(
                   icon: Icons.search_off, title: 'Este lote ya no existe');
             }
             final profile = profileSnap.data;
+            // Se reconstruye al iniciar/terminar la subasta aunque no
+            // lleguen cambios de Firestore.
+            return LotPhaseBuilder(
+              start: lot.startTime,
+              end: lot.endTime,
+              builder: (context) {
             final emailOk = AuctionService.instance.emailVerified;
             final profileOk = profile?.isProfileComplete ?? false;
 
@@ -269,6 +279,8 @@ class _BidConfirmationModalWidgetState
                   onPressed: amount >= min ? () => _confirm(lot, amount) : null,
                 ),
               ],
+            );
+              },
             );
           },
         ),

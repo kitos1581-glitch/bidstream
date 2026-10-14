@@ -4,7 +4,12 @@ const admin = require("firebase-admin");
 // Guarda: permite cargar index.js aunque otro módulo ya haya inicializado.
 if (!admin.apps.length) admin.initializeApp();
 
-const { resolveProxyBid, legacyState, publicName } = require("./auction_logic");
+const {
+  resolveProxyBid,
+  legacyState,
+  publicName,
+  userBidEligibilityError,
+} = require("./auction_logic");
 const payments = require("./payments");
 const { startWinnerPayment, WINNER_PAYMENT_WINDOW_HOURS } = payments;
 
@@ -23,6 +28,7 @@ exports.adminSetBan = adminFns.adminSetBan;
 exports.adminMarkPayoutSent = adminFns.adminMarkPayoutSent;
 exports.adminRetryWinnerPayment = adminFns.adminRetryWinnerPayment;
 exports.adminCancelLot = adminFns.adminCancelLot;
+exports.adminRecalculatePayout = adminFns.adminRecalculatePayout;
 
 // Pujas altas requieren identidad verificada (INE). Monto en MXN.
 const VERIFIED_BID_THRESHOLD = Number(process.env.VERIFIED_BID_THRESHOLD || 20000);
@@ -81,35 +87,20 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
     throw new functions.https.HttpsError("invalid-argument", "Falta el lote.");
   }
 
-  const userSnap = await db.collection("users").doc(uid).get();
-  const user = userSnap.exists ? userSnap.data() : null;
-  if (!user || !user.full_name || !user.phone || user.accepted_terms !== true) {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "Completa tu perfil (nombre, teléfono y términos) antes de pujar."
-    );
-  }
-  if (user.banned === true) {
-    throw new functions.https.HttpsError("permission-denied", "Tu cuenta está suspendida.");
-  }
-  // ---- Pujas altas: identidad verificada. ----
-  if (maxAmount > VERIFIED_BID_THRESHOLD && user.verified !== true) {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      `Para pujas mayores a $${VERIFIED_BID_THRESHOLD.toLocaleString("es-MX")} necesitas verificar tu identidad (INE).`,
-      { code: "IDENTITY_REQUIRED" }
-    );
-  }
-  // ---- Escrow: sin depósito en garantía no se puja. ----
-  if (!user.deposit || user.deposit.status !== "held") {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "Debes dejar un depósito de garantía antes de pujar. Es reembolsable.",
-      { code: "DEPOSIT_REQUIRED" }
-    );
+  if (!Number.isFinite(maxAmount) || maxAmount <= 0) {
+    throw new functions.https.HttpsError("invalid-argument", "Monto inválido.");
   }
 
-  const bidderName = publicName(user.full_name);
+  // Revisión rápida (antes de la transacción) para responder pronto.
+  // La decisión definitiva se toma DENTRO de la transacción con datos frescos.
+  const userSnap = await db.collection("users").doc(uid).get();
+  const preErr = userBidEligibilityError(
+    userSnap.exists ? userSnap.data() : null,
+    maxAmount,
+    VERIFIED_BID_THRESHOLD
+  );
+  if (preErr) throw new functions.https.HttpsError(preErr.code, preErr.message, preErr.details);
+
   const lotRef = db.collection("lots").doc(lotId);
   // Estado privado del proxy: nadie lo puede leer desde la app (firestore.rules).
   const stateRef = lotRef.collection("private").doc("proxy_state");
@@ -125,16 +116,18 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
     if (!lotSnap.exists) {
       throw new functions.https.HttpsError("not-found", "El lote no existe.");
     }
-    // Se revisa otra vez DENTRO de la transacción: si el usuario pidió el
-    // reembolso del depósito al mismo tiempo, esta puja se rechaza.
-    const freshDeposit = freshUser.exists ? freshUser.data().deposit : null;
-    if (!freshDeposit || freshDeposit.status !== "held" || freshUser.data().banned === true) {
-      throw new functions.https.HttpsError(
-        "failed-precondition",
-        "Debes dejar un depósito de garantía antes de pujar. Es reembolsable.",
-        { code: "DEPOSIT_REQUIRED" }
-      );
+    // Perfil, términos, identidad, suspensión y depósito se revalidan
+    // DENTRO de la transacción: si cambiaron en medio (p. ej. pidió el
+    // reembolso o un admin lo suspendió), esta puja se rechaza.
+    const freshErr = userBidEligibilityError(
+      freshUser.exists ? freshUser.data() : null,
+      maxAmount,
+      VERIFIED_BID_THRESHOLD
+    );
+    if (freshErr) {
+      throw new functions.https.HttpsError(freshErr.code, freshErr.message, freshErr.details);
     }
+    const bidderName = publicName(freshUser.data().full_name);
     const lot = lotSnap.data();
     const state = stateSnap.exists ? stateSnap.data() : legacyState(lot);
 
@@ -153,6 +146,9 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
       nowMs
     );
     if (!r.ok) {
+      if (r.integrity || r.code === "internal") {
+        functions.logger.error(`Lote ${lotId} rechazó una puja por integridad: ${r.message}`);
+      }
       throw new functions.https.HttpsError(r.code, r.message, { minimum: r.minimum || null });
     }
 
@@ -245,25 +241,23 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
       { merge: true }
     );
 
+    // 6) Aviso al líder anterior si perdió el primer lugar. Va DENTRO de la
+    //    transacción: se escribe solo si la puja se confirma, una sola vez
+    //    aunque la transacción se reintente, y nunca puede "fallar después"
+    //    haciendo parecer rechazada una puja ya confirmada.
+    if (r.outcome === "leading" && r.previousLeaderUid && r.previousLeaderUid !== uid) {
+      tx.set(notificationRef(r.previousLeaderUid), {
+        type: "outbid",
+        title: `Te superaron: ${lot.title || ""}`,
+        body: `La puja va en ${formatMoney(r.newCurrentBid)} y superó tu máximo. ¡Todavía puedes recuperarla!`,
+        lot_id: lotId,
+        read: false,
+        created_time: FieldValue.serverTimestamp(),
+      });
+    }
+
     return { ...r, lotTitle: lot.title || "" };
   });
-
-  // Avisar al líder anterior si perdió el primer lugar (fuera de la transacción
-  // para no repetir el aviso si la transacción se reintenta).
-  if (
-    result.outcome === "leading" &&
-    result.previousLeaderUid &&
-    result.previousLeaderUid !== uid
-  ) {
-    await notificationRef(result.previousLeaderUid).set({
-      type: "outbid",
-      title: `Te superaron: ${result.lotTitle}`,
-      body: `La puja va en ${formatMoney(result.newCurrentBid)} y superó tu máximo. ¡Todavía puedes recuperarla!`,
-      lot_id: lotId,
-      read: false,
-      created_time: FieldValue.serverTimestamp(),
-    });
-  }
 
   const messages = {
     first: `¡Vas ganando! Puja actual ${formatMoney(result.newCurrentBid)}; tu máximo es ${formatMoney(result.maxAmount)}.`,

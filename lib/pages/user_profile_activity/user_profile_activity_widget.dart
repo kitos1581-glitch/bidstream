@@ -220,6 +220,7 @@ class _MyBidsTab extends StatelessWidget {
     return StreamBuilder<List<BiddingRecord>>(
       stream: stream,
       builder: (context, snap) {
+        if (snap.hasError) return ErrorState(error: snap.error);
         if (!snap.hasData) return const Loading();
         final items = snap.data!;
         if (items.isEmpty) {
@@ -252,7 +253,14 @@ class _BiddingTile extends StatelessWidget {
         final lot = snap.data;
         String status = '…';
         Color color = theme.accent3;
-        if (lot != null) {
+        if (snap.hasError) {
+          status = 'ERROR';
+        } else if (lot == null &&
+            snap.connectionState != ConnectionState.waiting) {
+          status = 'NO DISPONIBLE';
+        } else if (lot != null && lot.isCancelled) {
+          status = 'CANCELADA';
+        } else if (lot != null) {
           final winning = lot.highestBidderUid == currentUserUid;
           if (lot.status == 'ended') {
             final won = lot.winnerUid == currentUserUid;

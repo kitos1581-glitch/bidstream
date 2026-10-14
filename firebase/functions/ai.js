@@ -25,8 +25,37 @@ const db = admin.firestore();
 const { FieldValue } = admin.firestore;
 const REGION = "us-central1";
 
-const AI_MODEL = process.env.AI_MODEL || "claude-sonnet-5-5";
-const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 20);
+/**
+ * Configuración del proveedor. Se valida ESTRICTAMENTE: un valor inválido
+ * (p. ej. AI_DAILY_LIMIT="abc") desactiva el asistente con un error
+ * explícito, en vez de quedar sin límite o usar otro valor en silencio.
+ * Solo se desactiva el asistente; el resto de la app sigue funcionando.
+ */
+class AiConfigError extends Error {}
+
+function readAiConfig(env = process.env) {
+  const has = (k) => env[k] !== undefined && String(env[k]).trim() !== "";
+  const intIn = (k, def, min, max) => {
+    if (!has(k)) return def;
+    const n = Number(env[k]);
+    if (!Number.isInteger(n) || n < min || n > max) {
+      throw new AiConfigError(`${k} inválido: "${env[k]}" (entero de ${min} a ${max}).`);
+    }
+    return n;
+  };
+  if (!has("ANTHROPIC_API_KEY")) throw new AiConfigError("Falta ANTHROPIC_API_KEY.");
+  const model = has("AI_MODEL") ? String(env.AI_MODEL).trim() : "claude-sonnet-5-5";
+  if (!/^[a-z0-9][a-z0-9.\-]{2,80}$/.test(model)) {
+    throw new AiConfigError(`AI_MODEL inválido: "${env.AI_MODEL}".`);
+  }
+  return {
+    apiKey: String(env.ANTHROPIC_API_KEY).trim(),
+    model,
+    dailyLimit: intIn("AI_DAILY_LIMIT", 20, 1, 1000),
+    // Tope de usos de TODA la plataforma por día (controla el gasto).
+    globalDailyLimit: intIn("AI_GLOBAL_DAILY_LIMIT", 2000, 1, 1000000),
+  };
+}
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
@@ -168,32 +197,75 @@ function validateImages(images) {
   return { ok: true, images: out };
 }
 
-/** Cuenta usos por usuario por día (zona México). Lanza error si excede. */
-async function consumeDailyQuota(uid) {
-  const day = new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
-  const ref = db.collection("users").doc(uid).collection("ai_usage").doc(day);
+/** ¿Puede este usuario usar el asistente? (mismos requisitos que publicar). */
+function aiEligibilityError(user) {
+  if (!user) return { code: "failed-precondition", message: "Completa tu perfil primero." };
+  if (user.banned === true) return { code: "permission-denied", message: "Tu cuenta está suspendida." };
+  if (user.verified !== true) {
+    return {
+      code: "failed-precondition",
+      message: "El asistente es para vendedores con identidad verificada (INE).",
+    };
+  }
+  return null;
+}
+
+const mxDay = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
+
+/**
+ * Revisa permisos (con el perfil fresco) y consume 1 uso del usuario y 1 de
+ * la plataforma, todo en una transacción. Devuelve una función para
+ * DEVOLVER el uso si la solicitud a la IA falla.
+ */
+async function consumeQuota(uid, cfg) {
+  const day = mxDay();
+  const userRef = db.collection("users").doc(uid);
+  const ref = userRef.collection("ai_usage").doc(day);
+  const globalRef = db.collection("ai_usage_global").doc(day);
   await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
+    const [userSnap, snap, gSnap] = await Promise.all([tx.get(userRef), tx.get(ref), tx.get(globalRef)]);
+    const err = aiEligibilityError(userSnap.exists ? userSnap.data() : null);
+    if (err) throw new functions.https.HttpsError(err.code, err.message);
     const count = snap.exists ? Number(snap.data().count) || 0 : 0;
-    if (count >= AI_DAILY_LIMIT) {
+    const gCount = gSnap.exists ? Number(gSnap.data().count) || 0 : 0;
+    if (count >= cfg.dailyLimit) {
       throw new functions.https.HttpsError(
         "resource-exhausted",
-        `Llegaste al límite de ${AI_DAILY_LIMIT} usos del asistente por hoy. Intenta mañana.`
+        `Llegaste al límite de ${cfg.dailyLimit} usos del asistente por hoy. Intenta mañana.`
+      );
+    }
+    if (gCount >= cfg.globalDailyLimit) {
+      throw new functions.https.HttpsError(
+        "resource-exhausted",
+        "El asistente alcanzó su límite diario. Intenta mañana o escribe la descripción a mano."
       );
     }
     tx.set(ref, { count: count + 1, updated_time: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(globalRef, { count: gCount + 1, updated_time: FieldValue.serverTimestamp() }, { merge: true });
   });
+
+  return async function refund() {
+    try {
+      await db.runTransaction(async (tx) => {
+        const [snap, gSnap] = await Promise.all([tx.get(ref), tx.get(globalRef)]);
+        const count = snap.exists ? Number(snap.data().count) || 0 : 0;
+        const gCount = gSnap.exists ? Number(gSnap.data().count) || 0 : 0;
+        tx.set(ref, { count: Math.max(0, count - 1), updated_time: FieldValue.serverTimestamp() }, { merge: true });
+        tx.set(globalRef, { count: Math.max(0, gCount - 1), updated_time: FieldValue.serverTimestamp() }, { merge: true });
+      });
+    } catch (e) {
+      functions.logger.error("No se pudo devolver el uso del asistente", e);
+    }
+  };
 }
 
 let anthropicClient = null;
-function client() {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "El asistente de IA no está configurado en el servidor."
-    );
+let anthropicKey = null;
+function client(cfg) {
+  if (!anthropicClient || anthropicKey !== cfg.apiKey) {
+    anthropicClient = new Anthropic({ apiKey: cfg.apiKey });
+    anthropicKey = cfg.apiKey;
   }
-  anthropicClient = anthropicClient || new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   return anthropicClient;
 }
 
@@ -215,15 +287,29 @@ exports.generateLotDescription = functions
     if (context.auth.token.email_verified !== true) {
       throw new functions.https.HttpsError("failed-precondition", "Verifica tu correo primero.");
     }
+    // 1) Configuración del proveedor (antes de consumir cuota).
+    let cfg;
+    try {
+      cfg = readAiConfig();
+    } catch (err) {
+      functions.logger.error(`ASISTENTE DE IA MAL CONFIGURADO: ${err.message}`);
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "El asistente de IA no está disponible por ahora (configuración del servidor)."
+      );
+    }
+
+    // 2) Datos de entrada.
     const condition = String((data && data.condition) || "");
-    if (!CONDITIONS[condition]) {
+    if (!Object.prototype.hasOwnProperty.call(CONDITIONS, condition)) {
       throw new functions.https.HttpsError("invalid-argument", "Indica si el artículo es nuevo o usado.");
     }
     const check = validateImages(data && data.images);
     if (!check.ok) throw new functions.https.HttpsError("invalid-argument", check.message);
     const notes = stripContactInfo(String((data && data.notes) || "")).slice(0, 1000);
 
-    await consumeDailyQuota(context.auth.uid);
+    // 3) Permisos (perfil fresco) + cuota, en una transacción.
+    const refund = await consumeQuota(context.auth.uid, cfg);
 
     const content = [
       ...check.images.map((img) => ({
@@ -239,10 +325,12 @@ exports.generateLotDescription = functions
       },
     ];
 
+    // 4) Llamada al proveedor. Si falla o la respuesta no sirve, se
+    //    DEVUELVE el uso consumido: el vendedor no paga por errores ajenos.
     let response;
     try {
-      response = await client().messages.create({
-        model: AI_MODEL,
+      response = await client(cfg).messages.create({
+        model: cfg.model,
         max_tokens: 1500,
         system: SYSTEM_PROMPT,
         tools: [TOOL],
@@ -250,22 +338,37 @@ exports.generateLotDescription = functions
         messages: [{ role: "user", content }],
       });
     } catch (err) {
+      await refund();
       functions.logger.error("Error de la API de IA", err);
       throw new functions.https.HttpsError(
         "unavailable",
-        "El asistente no respondió. Intenta de nuevo en un momento."
+        "El asistente no respondió. Intenta de nuevo en un momento (no se te descontó el uso)."
       );
     }
 
-    const block = (response.content || []).find((b) => b.type === "tool_use");
-    if (!block) {
-      throw new functions.https.HttpsError("internal", "El asistente no generó una propuesta.");
+    const block = (response && response.content ? response.content : []).find(
+      (b) => b.type === "tool_use" && b.name === TOOL.name
+    );
+    const truncated = response && response.stop_reason === "max_tokens";
+    const suggestion = block && !truncated ? sanitizeSuggestion(block.input) : null;
+    if (!suggestion || !suggestion.title || !suggestion.description) {
+      await refund();
+      throw new functions.https.HttpsError(
+        "unavailable",
+        "El asistente no generó una propuesta completa. Intenta de nuevo (no se te descontó el uso)."
+      );
     }
-    return sanitizeSuggestion(block.input);
+
+    // 5) Revisión humana obligatoria: el servidor NUNCA publica nada; solo
+    //    devuelve la propuesta para que el vendedor la revise y corrija.
+    return { ...suggestion, requires_review: true };
   });
 
 module.exports = {
   ...module.exports,
+  readAiConfig,
+  AiConfigError,
+  aiEligibilityError,
   sanitizeSuggestion,
   validateImages,
   stripContactInfo,

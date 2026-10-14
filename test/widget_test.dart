@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bid_stream/ui/ui_kit.dart';
@@ -44,5 +45,53 @@ void main() {
       expect(isValidClabe('12345'), isFalse);
       expect(isValidClabe('03218000011835971A'), isFalse);
     });
+  });
+
+  group('Fase de la subasta (LotPhaseBuilder)', () {
+    final now = DateTime(2026, 10, 14, 12);
+    test('próximo cambio: primero el inicio, luego el cierre', () {
+      final start = now.add(const Duration(minutes: 5));
+      final end = now.add(const Duration(hours: 1));
+      expect(nextPhaseChange(start, end, now), start);
+      expect(nextPhaseChange(start, end, start.add(const Duration(seconds: 1))), end);
+    });
+    test('sin cambios futuros: null (no programa nada)', () {
+      final past = now.subtract(const Duration(minutes: 1));
+      expect(nextPhaseChange(past, past, now), isNull);
+      expect(nextPhaseChange(null, null, now), isNull);
+    });
+  });
+
+  group('Mensajes de error', () {
+    test('traduce permisos y conexión', () {
+      expect(friendlyError('[cloud_firestore/permission-denied] x'), contains('permiso'));
+      expect(friendlyError('[cloud_firestore/unavailable] x'), contains('conexión'));
+      expect(friendlyError('otro'), contains('error'));
+    });
+  });
+
+  testWidgets('LotPhaseBuilder se reconstruye al llegar el cierre sin snapshots',
+      (tester) async {
+    var builds = 0;
+    var fakeNow = DateTime(2026, 10, 14, 12);
+    final end = fakeNow.add(const Duration(seconds: 2));
+    await tester.pumpWidget(MaterialApp(
+      home: LotPhaseBuilder(
+        start: null,
+        end: end,
+        clock: () => fakeNow,
+        builder: (_) {
+          builds++;
+          return const SizedBox();
+        },
+      ),
+    ));
+    expect(builds, 1);
+    fakeNow = fakeNow.add(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 3));
+    expect(builds, 2);
+    // Ya no hay cambios futuros: no se vuelve a reconstruir.
+    await tester.pump(const Duration(seconds: 10));
+    expect(builds, 2);
   });
 }

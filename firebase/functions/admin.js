@@ -7,7 +7,7 @@
  */
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { startWinnerPayment } = require("./payments");
+const { startWinnerPayment, computeCommission } = require("./payments");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -220,6 +220,56 @@ exports.adminMarkPayoutSent = functions.region(REGION).https.onCall(async (data,
   await auditLog(adminUid, "payout_sent", paymentId, { reference, amount: payout.amount });
   return { ok: true };
 });
+
+// ---------------------------------------------------------------------
+// adminRecalculatePayout — liquidaciones que quedaron "needs_review" por
+// configuración de comisiones inválida. Una vez corregida la configuración
+// (y redesplegadas las funciones), el admin la recalcula aquí.
+// ---------------------------------------------------------------------
+exports.adminRecalculatePayout = functions
+  .region(REGION)
+  .https.onCall(async (data, context) => {
+    const adminUid = requireAdmin(context);
+    const paymentId = String((data && data.paymentId) || "");
+    const ref = db.collection("payments").doc(paymentId);
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists || snap.data().kind !== "payout") {
+        throw new functions.https.HttpsError("not-found", "Liquidación no encontrada.");
+      }
+      const p = snap.data();
+      if (p.status !== "needs_review") {
+        throw new functions.https.HttpsError("failed-precondition", "Esta liquidación no está en revisión.");
+      }
+      let commission;
+      try {
+        commission = computeCommission(p.final_price);
+      } catch (err) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          `La configuración de comisiones sigue inválida: ${err.message}`
+        );
+      }
+      const amount = Math.round((p.final_price - commission) * 100) / 100;
+      tx.update(ref, {
+        amount,
+        commission,
+        status: "ready",
+        error: null,
+        updated_time: FieldValue.serverTimestamp(),
+      });
+      return { amount, commission, uid: p.uid, lotId: p.lot_id };
+    });
+    await notify(
+      result.uid,
+      "payout_ready",
+      "Tu liquidación está lista",
+      `Te transferiremos $${result.amount.toLocaleString("es-MX")} (comisión $${result.commission.toLocaleString("es-MX")}).`,
+      result.lotId || ""
+    );
+    await auditLog(adminUid, "payout_recalculated", paymentId, result);
+    return { ok: true, amount: result.amount, commission: result.commission };
+  });
 
 // ---------------------------------------------------------------------
 // adminRetryWinnerPayment — Mercado Pago falló al cerrar: reintentar.

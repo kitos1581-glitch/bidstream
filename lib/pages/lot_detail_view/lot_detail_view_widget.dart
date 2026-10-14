@@ -21,9 +21,14 @@ class LotDetailViewWidget extends StatefulWidget {
 }
 
 class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
-  late final Stream<LotsRecord?> _lot = AuctionService.instance.lot(widget.lotId);
-  late final Stream<List<BidsRecord>> _bids =
+  late Stream<LotsRecord?> _lot = AuctionService.instance.lot(widget.lotId);
+  late Stream<List<BidsRecord>> _bids =
       AuctionService.instance.bids(widget.lotId);
+
+  void _retry() => setState(() {
+        _lot = AuctionService.instance.lot(widget.lotId);
+        _bids = AuctionService.instance.bids(widget.lotId);
+      });
   int _photo = 0;
 
   Future<void> _delete(LotsRecord lot) async {
@@ -61,6 +66,14 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
     return StreamBuilder<LotsRecord?>(
       stream: _lot,
       builder: (context, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+            backgroundColor: theme.primaryBackground,
+            appBar: AppBar(backgroundColor: theme.primaryBackground, elevation: 0,
+                foregroundColor: theme.primaryText),
+            body: ErrorState(error: snap.error, onRetry: _retry),
+          );
+        }
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
           return Scaffold(
               backgroundColor: theme.primaryBackground, body: const Loading());
@@ -78,6 +91,19 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
           );
         }
 
+        // Se reconstruye solo al iniciar/terminar la subasta.
+        return LotPhaseBuilder(
+          start: lot.startTime,
+          end: lot.endTime,
+          builder: (context) => _buildLot(context, lot),
+        );
+      },
+    );
+  }
+
+  Widget _buildLot(BuildContext context, LotsRecord lot) {
+    final theme = FlutterFlowTheme.of(context);
+    {
         final isSeller = lot.sellerUid == currentUserUid;
         final iAmWinning =
             lot.highestBidderUid.isNotEmpty && lot.highestBidderUid == currentUserUid;
@@ -263,6 +289,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
               StreamBuilder<List<BidsRecord>>(
                 stream: _bids,
                 builder: (context, s) {
+                  if (s.hasError) return ErrorState(error: s.error, onRetry: _retry);
                   if (!s.hasData) return const Loading();
                   final bids = s.data!;
                   if (bids.isEmpty) {
@@ -280,8 +307,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
             ],
           ),
         );
-      },
-    );
+    }
   }
 }
 
@@ -367,7 +393,9 @@ class _BottomBar extends StatelessWidget {
         child: BigButton(
           label: !lot.hasStarted()
               ? 'Aún no inicia'
-              : (iAmWinning ? 'Subir mi máximo' : 'Pujar'),
+              : (lot.isEnded()
+                  ? 'Cerrando…'
+                  : (iAmWinning ? 'Subir mi máximo' : 'Pujar')),
           icon: Icons.gavel_rounded,
           onPressed: open
               ? () => context.pushNamed('BidConfirmationModal',

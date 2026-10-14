@@ -38,7 +38,6 @@ const { FieldValue, Timestamp } = admin.firestore;
 const REGION = "us-central1";
 
 const DEPOSIT_AMOUNT = Number(process.env.DEPOSIT_AMOUNT || 200);
-const COMMISSION_PCT = Number(process.env.COMMISSION_PCT || 0.1);
 
 /**
  * Comisión por tramos (marginal, como el ISR): cada tramo del precio paga
@@ -46,48 +45,98 @@ const COMMISSION_PCT = Number(process.env.COMMISSION_PCT || 0.1);
  *
  * COMMISSION_TIERS="10000:0.10,100000:0.08,inf:0.06"
  *   → 10% de los primeros $10,000, 8% de $10,000 a $100,000, 6% del resto.
- * COMMISSION_MIN=50  → comisión mínima por venta (cubre la tarifa fija de MP).
+ * COMMISSION_MIN=50     → comisión mínima por venta.
+ * COMMISSION_PCT=0.10   → porcentaje plano, solo si NO hay COMMISSION_TIERS.
  *
- * Si COMMISSION_TIERS no está definido se usa COMMISSION_PCT plano.
+ * Una configuración inválida NO se reemplaza en silencio por otro valor:
+ * produce un error explícito. Las ventas siguen registrándose, pero su
+ * liquidación al vendedor queda "needs_review" hasta corregir la
+ * configuración (ver panel de administración).
  */
+class CommissionConfigError extends Error {}
+
 function parseTiers(spec) {
-  if (!spec) return null;
-  const tiers = String(spec)
+  const parts = String(spec)
     .split(",")
     .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => {
-      const [upTo, pct] = p.split(":");
-      return {
-        upTo: upTo.trim().toLowerCase() === "inf" ? Infinity : Number(upTo),
-        pct: Number(pct),
-      };
-    });
-  const valid =
-    tiers.length > 0 &&
-    tiers.every((t, i) => t.pct >= 0 && t.pct < 1 && (i === 0 || t.upTo > tiers[i - 1].upTo)) &&
-    tiers[tiers.length - 1].upTo === Infinity;
-  return valid ? tiers : null;
+    .filter(Boolean);
+  if (parts.length === 0) throw new CommissionConfigError("COMMISSION_TIERS está vacío.");
+  const tiers = parts.map((p) => {
+    const m = p.split(":");
+    if (m.length !== 2) throw new CommissionConfigError(`Tramo mal escrito: "${p}" (usa límite:porcentaje).`);
+    const upTo = m[0].trim().toLowerCase() === "inf" ? Infinity : Number(m[0]);
+    const pct = Number(m[1]);
+    if (!(upTo > 0)) throw new CommissionConfigError(`Límite inválido en "${p}".`);
+    if (!Number.isFinite(pct) || pct < 0 || pct >= 1) {
+      throw new CommissionConfigError(`Porcentaje inválido en "${p}" (debe ser de 0 a 0.99).`);
+    }
+    return { upTo, pct };
+  });
+  for (let i = 1; i < tiers.length; i++) {
+    if (!(tiers[i].upTo > tiers[i - 1].upTo)) {
+      throw new CommissionConfigError("Los límites de COMMISSION_TIERS deben ir en orden creciente.");
+    }
+  }
+  if (tiers[tiers.length - 1].upTo !== Infinity) {
+    throw new CommissionConfigError('El último tramo de COMMISSION_TIERS debe ser "inf".');
+  }
+  return tiers;
 }
 
-const COMMISSION_TIERS = parseTiers(process.env.COMMISSION_TIERS);
-const COMMISSION_MIN = Number(process.env.COMMISSION_MIN || 0);
+/** Lee y valida la configuración. Devuelve { tiers, flat, min } o lanza. */
+function readCommissionConfig(env = process.env) {
+  const has = (k) => env[k] !== undefined && String(env[k]).trim() !== "";
+  let tiers = null;
+  let flat = null;
+  if (has("COMMISSION_TIERS")) {
+    tiers = parseTiers(env.COMMISSION_TIERS);
+  } else {
+    flat = has("COMMISSION_PCT") ? Number(env.COMMISSION_PCT) : 0.1;
+    if (!Number.isFinite(flat) || flat < 0 || flat >= 1) {
+      throw new CommissionConfigError(`COMMISSION_PCT inválido: "${env.COMMISSION_PCT}" (de 0 a 0.99).`);
+    }
+  }
+  const min = has("COMMISSION_MIN") ? Number(env.COMMISSION_MIN) : 0;
+  if (!Number.isFinite(min) || min < 0) {
+    throw new CommissionConfigError(`COMMISSION_MIN inválido: "${env.COMMISSION_MIN}".`);
+  }
+  return { tiers, flat, min };
+}
 
-function computeCommission(price, tiers = COMMISSION_TIERS, min = COMMISSION_MIN, flat = COMMISSION_PCT) {
-  const p = Math.max(0, Number(price) || 0);
+// Se valida al cargar para que el error aparezca en los logs desde el
+// arranque, sin tumbar las demás funciones (pujas, depósitos, etc.).
+let COMMISSION_CONFIG = null;
+let COMMISSION_CONFIG_ERROR = null;
+try {
+  COMMISSION_CONFIG = readCommissionConfig();
+} catch (err) {
+  COMMISSION_CONFIG_ERROR = err.message;
+  functions.logger.error(`CONFIGURACIÓN DE COMISIONES INVÁLIDA: ${err.message}`);
+}
+
+/**
+ * Comisión de una venta. Lanza CommissionConfigError si la configuración
+ * es inválida (nunca usa un valor por defecto en silencio).
+ */
+function computeCommission(price, config = COMMISSION_CONFIG) {
+  if (!config) {
+    throw new CommissionConfigError(COMMISSION_CONFIG_ERROR || "Configuración de comisiones ausente.");
+  }
+  const p = Number(price);
+  if (!Number.isFinite(p) || p < 0) throw new CommissionConfigError(`Precio inválido: ${price}`);
   let c = 0;
-  if (tiers) {
+  if (config.tiers) {
     let prev = 0;
-    for (const t of tiers) {
+    for (const t of config.tiers) {
       if (p <= prev) break;
       c += (Math.min(p, t.upTo) - prev) * t.pct;
       prev = t.upTo;
     }
   } else {
-    c = p * flat;
+    c = p * config.flat;
   }
   // La comisión nunca supera el precio.
-  return round2(Math.min(p, Math.max(c, min)));
+  return round2(Math.min(p, Math.max(c, config.min)));
 }
 const WINNER_PAYMENT_WINDOW_HOURS = Number(process.env.WINNER_PAYMENT_WINDOW_HOURS || 24);
 const SITE_URL = process.env.SITE_URL || "https://bidstream.web.app";
@@ -245,7 +294,49 @@ function contactString(u) {
  */
 function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   const finalPrice = round2(Number(lot.current_bid) || 0);
-  const commission = computeCommission(finalPrice);
+  let commission;
+  try {
+    commission = computeCommission(finalPrice);
+  } catch (err) {
+    // Configuración inválida: el pago SÍ se registra (el dinero ya entró),
+    // pero la liquidación al vendedor queda en revisión, sin inventar montos.
+    functions.logger.error(`Liquidación del lote ${lotId} en revisión: ${err.message}`);
+    writer.set(db.collection("payments").doc(`payout-${lotId}`), {
+      kind: "payout",
+      reason: "sale",
+      uid: lot.seller_uid,
+      lot_id: lotId,
+      final_price: finalPrice,
+      amount: null,
+      commission: null,
+      currency: "MXN",
+      status: "needs_review",
+      error: `Configuración de comisiones inválida: ${err.message}`,
+      created_time: FieldValue.serverTimestamp(),
+      updated_time: FieldValue.serverTimestamp(),
+    });
+    writer.set(
+      notificationRef(lot.seller_uid),
+      notificationData(
+        "paid",
+        `¡Cobrada! ${lot.title}`,
+        `Recibimos ${money(finalPrice)}. Estamos calculando tu liquidación y te avisaremos. Coordina la entrega con el comprador: ${contactString(winner)}.`,
+        lotId
+      )
+    );
+    if (winnerUid) {
+      writer.set(
+        notificationRef(winnerUid),
+        notificationData(
+          "payment_confirmed",
+          `Pago confirmado: ${lot.title}`,
+          `Tu pago quedó registrado. Coordina la entrega con el vendedor: ${contactString(seller)}.`,
+          lotId
+        )
+      );
+    }
+    return { finalPrice, commission: null, sellerAmount: null, needsReview: true };
+  }
   const sellerAmount = round2(finalPrice - commission);
 
   writer.set(db.collection("payments").doc(`payout-${lotId}`), {
@@ -852,8 +943,10 @@ module.exports = {
   refundAndRecord,
   round2,
   DEPOSIT_AMOUNT,
-  COMMISSION_PCT,
   computeCommission,
   parseTiers,
+  readCommissionConfig,
+  CommissionConfigError,
+  getCommissionConfigError: () => COMMISSION_CONFIG_ERROR,
   WINNER_PAYMENT_WINDOW_HOURS,
 };

@@ -250,6 +250,26 @@ class _PaymentsTab extends StatelessWidget {
           ]);
         },
       ),
+      const SectionTitle('Liquidaciones en revisión'),
+      StreamBuilder<List<PaymentDoc>>(
+        stream: AdminService.instance.payoutsNeedingReview(),
+        builder: (context, snap) {
+          if (snap.hasError) return EmptyState(icon: Icons.error_outline, title: '${snap.error}');
+          if (!snap.hasData) return const Loading();
+          if (snap.data!.isEmpty) {
+            return const EmptyState(icon: Icons.check_circle_outline, title: 'Ninguna en revisión');
+          }
+          return Column(children: [
+            for (final p in snap.data!)
+              _Row(
+                title: 'Venta de ${formatMoney((p.data['final_price'] as num?)?.toDouble() ?? 0)} · lote ${p.lotId}',
+                subtitle: '${p.data['error'] ?? ''}\nCorrige la configuración de comisiones, redespliega y recalcula.',
+                action: 'Recalcular',
+                onTap: () => _run(context, () => AdminService.instance.recalculatePayout(p.id), 'Liquidación lista'),
+              ),
+          ]);
+        },
+      ),
       const SectionTitle('Cobros que fallaron al generarse'),
       StreamBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
         stream: AdminService.instance.paymentErrors(),

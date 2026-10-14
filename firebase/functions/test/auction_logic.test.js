@@ -238,3 +238,85 @@ test("nombre público protege apellidos", () => {
   assert.strictEqual(publicName("Ana"), "Ana");
   assert.strictEqual(publicName(""), "Postor");
 });
+
+// ------------------------------------------------------------------
+// Integridad del lote (hallazgo de auditoría: incremento negativo)
+// ------------------------------------------------------------------
+
+test("AUDITORÍA: incremento negativo ya no puede bajar el precio de 1000 a menos", () => {
+  const lot = newLot({ bid_count: 1, highest_bidder_uid: "ana", minimum_increment: -200 });
+  const state = { leader_uid: "ana", leader_max: 5000 };
+  const r = resolveProxyBid(lot, state, "beto", 800, NOW);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.integrity, true);
+  // incremento 0 también se rechaza
+  assert.strictEqual(resolveProxyBid(newLot({ minimum_increment: 0 }), null, "a", 1000, NOW).ok, false);
+});
+
+test("rechaza importes inválidos en el lote", () => {
+  const bad = [
+    { starting_price: -5, current_bid: -5 },
+    { starting_price: NaN, current_bid: NaN },
+    { starting_price: "1000", current_bid: "1000" },
+    { current_bid: 900 }, // menor al precio inicial
+    { current_bid: 1200, bid_count: 0 }, // sin pujas pero precio movido
+    { minimum_increment: Infinity },
+  ];
+  for (const over of bad) {
+    const r = resolveProxyBid(newLot(over), null, "a", 5000, NOW);
+    assert.strictEqual(r.ok, false, JSON.stringify(over));
+  }
+});
+
+test("rechaza estados inconsistentes", () => {
+  // estado desconocido
+  assert.strictEqual(resolveProxyBid(newLot({ status: "hacked" }), null, "a", 5000, NOW).ok, false);
+  // con pujas pero sin líder
+  assert.strictEqual(resolveProxyBid(newLot({ bid_count: 2 }), null, "a", 5000, NOW).ok, false);
+  // estado privado no coincide con el líder del lote
+  const lot = newLot({ bid_count: 1, highest_bidder_uid: "ana", current_bid: 1500 });
+  assert.strictEqual(
+    resolveProxyBid(lot, { leader_uid: "caro", leader_max: 9000 }, "beto", 5000, NOW).ok,
+    false
+  );
+  // máximo del líder menor al precio visible
+  assert.strictEqual(
+    resolveProxyBid(lot, { leader_uid: "ana", leader_max: 1000 }, "beto", 5000, NOW).ok,
+    false
+  );
+  // fechas invertidas
+  assert.strictEqual(
+    resolveProxyBid(newLot({ start_time_ms: NOW + 10, end_time_ms: NOW + 5 }), null, "a", 5000, NOW).ok,
+    false
+  );
+  // conteo de pujas no entero
+  assert.strictEqual(resolveProxyBid(newLot({ bid_count: 1.5 }), null, "a", 5000, NOW).ok, false);
+});
+
+test("propiedad: en 2000 ofertas aleatorias el precio nunca baja ni rebasa el máximo del líder", () => {
+  let seed = 42;
+  const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  const users = ["a", "b", "c", "d"];
+  for (let run = 0; run < 50; run++) {
+    let lot = newLot({ starting_price: 100, current_bid: 100, minimum_increment: 1 + Math.floor(rand() * 50) });
+    let state = null;
+    for (let i = 0; i < 40; i++) {
+      const uid = users[Math.floor(rand() * users.length)];
+      const max = Math.round(lot.current_bid + rand() * 500 - 50);
+      const before = lot.current_bid;
+      const r = resolveProxyBid(lot, state, uid, max, NOW);
+      if (!r.ok) continue;
+      assert.ok(r.newCurrentBid >= before, "el precio bajó");
+      assert.ok(r.newCurrentBid <= r.newLeaderMax, "rebasó el máximo del líder");
+      state = { leader_uid: r.newLeaderUid, leader_max: r.newLeaderMax };
+      if (r.publicEvent) {
+        lot = {
+          ...lot,
+          current_bid: r.newCurrentBid,
+          bid_count: lot.bid_count + (r.outcome === "outbid" ? 2 : 1),
+          highest_bidder_uid: r.newLeaderUid,
+        };
+      }
+    }
+  }
+});

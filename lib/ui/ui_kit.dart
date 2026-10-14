@@ -488,3 +488,126 @@ class AppBottomNav extends StatelessWidget {
     );
   }
 }
+
+// =====================================================================
+// Reconstruye la pantalla justo cuando la subasta INICIA o TERMINA,
+// aunque no llegue ningún cambio nuevo de Firestore. También al volver
+// la app del segundo plano.
+// =====================================================================
+
+/// Siguiente momento (después de [now]) en que cambia la fase del lote.
+DateTime? nextPhaseChange(DateTime? start, DateTime? end, DateTime now) {
+  DateTime? next;
+  for (final d in [start, end]) {
+    if (d != null && d.isAfter(now) && (next == null || d.isBefore(next))) {
+      next = d;
+    }
+  }
+  return next;
+}
+
+DateTime _systemNow() => DateTime.now();
+
+class LotPhaseBuilder extends StatefulWidget {
+  const LotPhaseBuilder({
+    super.key,
+    required this.start,
+    required this.end,
+    required this.builder,
+    this.clock = _systemNow,
+  });
+
+  final DateTime? start;
+  final DateTime? end;
+  final WidgetBuilder builder;
+
+  /// Reloj (inyectable para pruebas).
+  final DateTime Function() clock;
+
+  @override
+  State<LotPhaseBuilder> createState() => _LotPhaseBuilderState();
+}
+
+class _LotPhaseBuilderState extends State<LotPhaseBuilder>
+    with WidgetsBindingObserver {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(LotPhaseBuilder old) {
+    super.didUpdateWidget(old);
+    if (old.start != widget.start || old.end != widget.end) _schedule();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(() {});
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    final now = widget.clock();
+    final next = nextPhaseChange(widget.start, widget.end, now);
+    if (next == null) return;
+    // +300 ms para caer del otro lado del límite.
+    _timer = Timer(next.difference(now) + const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {});
+      _schedule();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
+}
+
+// =====================================================================
+// Error de lectura: siempre se muestra (nunca carga infinita).
+// =====================================================================
+
+String friendlyError(Object? error) {
+  final s = '$error';
+  if (s.contains('permission-denied')) {
+    return 'No tienes permiso para ver esta información.';
+  }
+  if (s.contains('unavailable') || s.contains('network')) {
+    return 'Sin conexión con el servidor. Revisa tu internet.';
+  }
+  if (s.contains('failed-precondition') && s.contains('index')) {
+    return 'Falta un índice en la base de datos (avisa al administrador).';
+  }
+  return 'Ocurrió un error al cargar. Intenta de nuevo.';
+}
+
+class ErrorState extends StatelessWidget {
+  const ErrorState({super.key, required this.error, this.onRetry});
+
+  final Object? error;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) => EmptyState(
+        icon: Icons.cloud_off_outlined,
+        title: 'No pudimos cargar la información',
+        message: friendlyError(error),
+        action: onRetry == null
+            ? null
+            : OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
+      );
+}

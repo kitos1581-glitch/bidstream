@@ -27,6 +27,33 @@ service cloud.firestore {
       return signedIn() && request.auth.token.admin == true;
     }
 
+    function notBanned() {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid))
+        .data.get('banned', false) != true;
+    }
+
+    // Validación COMPLETA de un lote. Se usa al crear y al actualizar.
+    function validLotData(d) {
+      return d.title is string && d.title.size() >= 3 && d.title.size() <= 120
+        && d.get('description', '') is string && d.get('description', '').size() <= 3000
+        && d.category is string && d.category.size() >= 1 && d.category.size() <= 60
+        && d.get('image_urls', []) is list && d.get('image_urls', []).size() <= 10
+        && d.get('stream_url', '') is string && d.get('stream_url', '').size() <= 500
+        && d.starting_price is number && d.starting_price > 0 && d.starting_price <= 50000000
+        && d.minimum_increment is number && d.minimum_increment > 0
+        && d.minimum_increment <= 50000000
+        && d.current_bid is number && d.current_bid >= d.starting_price
+        && d.current_bid <= 50000000
+        && d.bid_count is int && d.bid_count >= 0
+        && d.start_time is timestamp && d.end_time is timestamp
+        && d.start_time < d.end_time
+        && d.end_time <= d.start_time + duration.value(60, 'd')
+        && d.format in ['timed', 'live']
+        && d.get('condition', 'used_good') in
+             ['new', 'like_new', 'used_good', 'used_fair', 'for_parts']
+        && d.seller_uid is string;
+    }
+
     // Identidad verificada (INE aprobada por un admin).
     function identityVerified() {
       return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -91,40 +118,35 @@ service cloud.firestore {
     match /lots/{lotId} {
       allow read: if signedIn();
 
-      // Para vender se necesita identidad verificada (INE).
+      // Para vender: correo verificado, identidad verificada (INE), cuenta
+      // no suspendida, y datos válidos (MISMA validación que al actualizar).
       allow create: if emailVerified()
         && identityVerified()
+        && notBanned()
+        && validLotData(request.resource.data)
         && request.resource.data.seller_uid == request.auth.uid
         && request.resource.data.status == 'active'
-        && request.resource.data.title is string
-        && request.resource.data.title.size() >= 3
-        && request.resource.data.title.size() <= 120
-        && request.resource.data.starting_price is number
-        && request.resource.data.starting_price > 0
-        && request.resource.data.minimum_increment is number
-        && request.resource.data.minimum_increment > 0
-        && request.resource.data.current_bid == request.resource.data.starting_price
         && request.resource.data.bid_count == 0
-        && request.resource.data.end_time is timestamp
+        && request.resource.data.current_bid == request.resource.data.starting_price
         && request.resource.data.end_time > request.time
-        && request.resource.data.start_time is timestamp
-        && request.resource.data.start_time < request.resource.data.end_time
-        && request.resource.data.format in ['timed', 'live']
-        && request.resource.data.get('condition', 'used_good') in
-             ['new', 'like_new', 'used_good', 'used_fair', 'for_parts']
         && !request.resource.data.keys().hasAny(
               ['highest_bidder_uid', 'highest_bidder_name', 'winner_uid', 'winner_name',
-               'payment_status', 'winner_payment_url', 'payment_due_time']);
+               'payment_status', 'winner_payment_url', 'payment_due_time', 'amount_due',
+               'deposit_applied', 'final_price', 'seller_name', 'cancel_reason']);
 
-      // El vendedor solo edita la parte descriptiva. Precio, pujas,
-      // estado, fechas y pagos los controla el servidor.
+      // El vendedor solo edita la parte descriptiva. Precio, incremento y
+      // fechas solo mientras NO haya pujas. El documento resultante pasa por
+      // la misma validación que al crear (evita, p. ej., incrementos negativos).
       allow update: if isOwner(resource.data.seller_uid)
+        && notBanned()
         && resource.data.status == 'active'
+        && validLotData(request.resource.data)
         && (
-          onlyChanges(['title', 'description', 'category', 'image_urls', 'stream_url'])
+          onlyChanges(['title', 'description', 'category', 'image_urls', 'stream_url',
+                       'condition'])
           || (resource.data.bid_count == 0
               && onlyChanges(['title', 'description', 'category', 'image_urls',
-                              'stream_url', 'starting_price', 'current_bid',
+                              'stream_url', 'condition', 'starting_price', 'current_bid',
                               'minimum_increment', 'end_time', 'start_time', 'format'])
               && request.resource.data.current_bid == request.resource.data.starting_price
               && request.resource.data.end_time > request.time)
