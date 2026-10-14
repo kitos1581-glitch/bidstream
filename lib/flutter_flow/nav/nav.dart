@@ -96,48 +96,63 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: AuctionDashboardWidget.routeName,
           path: AuctionDashboardWidget.routePath,
-          builder: (context, params) => AuctionDashboardWidget(),
+          requireAuth: true,
+          builder: (context, params) => const AuctionDashboardWidget(),
         ),
         FFRoute(
           name: LotDetailViewWidget.routeName,
           path: LotDetailViewWidget.routePath,
-          builder: (context, params) => LotDetailViewWidget(),
+          requireAuth: true,
+          builder: (context, params) => LotDetailViewWidget(
+            lotId: params.getParam('lotId', ParamType.String) ?? '',
+          ),
         ),
         FFRoute(
           name: LiveStreamAuctionWidget.routeName,
           path: LiveStreamAuctionWidget.routePath,
-          builder: (context, params) => LiveStreamAuctionWidget(),
+          requireAuth: true,
+          builder: (context, params) => LiveStreamAuctionWidget(
+            lotId: params.getParam('lotId', ParamType.String) ?? '',
+          ),
         ),
         FFRoute(
           name: BidConfirmationModalWidget.routeName,
           path: BidConfirmationModalWidget.routePath,
-          builder: (context, params) => BidConfirmationModalWidget(),
+          requireAuth: true,
+          builder: (context, params) => BidConfirmationModalWidget(
+            lotId: params.getParam('lotId', ParamType.String) ?? '',
+          ),
         ),
         FFRoute(
           name: CreateLotManagementWidget.routeName,
           path: CreateLotManagementWidget.routePath,
-          builder: (context, params) => CreateLotManagementWidget(),
+          requireAuth: true,
+          builder: (context, params) => const CreateLotManagementWidget(),
         ),
         FFRoute(
           name: UserProfileActivityWidget.routeName,
           path: UserProfileActivityWidget.routePath,
-          builder: (context, params) => UserProfileActivityWidget(),
+          requireAuth: true,
+          builder: (context, params) => const UserProfileActivityWidget(),
         ),
         FFRoute(
           name: OnboardingVerificationWidget.routeName,
           path: OnboardingVerificationWidget.routePath,
-          builder: (context, params) => OnboardingVerificationWidget(),
+          requireAuth: true,
+          builder: (context, params) => const OnboardingVerificationWidget(),
         ),
         FFRoute(
           name: AuctionNotificationsWidget.routeName,
           path: AuctionNotificationsWidget.routePath,
-          builder: (context, params) => AuctionNotificationsWidget(),
+          requireAuth: true,
+          builder: (context, params) => const AuctionNotificationsWidget(),
         ),
         FFRoute(
           name: BidderAccessWidget.routeName,
           path: BidderAccessWidget.routePath,
-          builder: (context, params) => BidderAccessWidget(),
-        )
+          requireAuth: false,
+          builder: (context, params) => const BidderAccessWidget(),
+        ),
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );
 

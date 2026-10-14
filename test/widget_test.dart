@@ -1,16 +1,35 @@
-// Add tests for your app to this folder. See
-// https://docs.flutter.dev/testing/overview to get started.
-//
-// The generated app sets up services such as Firebase and app state in
-// `main()` before it builds `MyApp`, so a widget test that pumps `MyApp` needs
-// those services initialized or mocked first. If your app uses web-only
-// libraries such as `dart:html`, run its tests with
-// `flutter test --platform chrome`.
-
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bid_stream/ui/ui_kit.dart';
+import 'package:bid_stream/ui/youtube.dart';
+
 void main() {
-  test('test setup works', () {
-    expect(1 + 1, 2);
+  group('youtubeIdFrom', () {
+    test('reconoce los formatos comunes de YouTube', () {
+      expect(youtubeIdFrom('https://www.youtube.com/watch?v=abc123XYZ'), 'abc123XYZ');
+      expect(youtubeIdFrom('https://youtu.be/abc123XYZ'), 'abc123XYZ');
+      expect(youtubeIdFrom('https://youtube.com/live/abc123XYZ?feature=share'), 'abc123XYZ');
+      expect(youtubeIdFrom('https://m.youtube.com/watch?v=abc123XYZ'), 'abc123XYZ');
+      expect(youtubeIdFrom('https://www.youtube.com/embed/abc123XYZ'), 'abc123XYZ');
+    });
+
+    test('regresa null si no es YouTube', () {
+      expect(youtubeIdFrom('https://www.facebook.com/live/123'), isNull);
+      expect(youtubeIdFrom('no es un enlace'), isNull);
+      expect(youtubeIdFrom(''), isNull);
+    });
+  });
+
+  group('formatos', () {
+    test('cuenta regresiva', () {
+      expect(formatRemaining(const Duration(hours: 2, minutes: 5, seconds: 9)), '02:05:09');
+      expect(formatRemaining(const Duration(days: 1, hours: 3)), '1d 03:00:00');
+      expect(formatRemaining(const Duration(seconds: -1)), 'Terminada');
+    });
+
+    test('dinero en pesos', () {
+      expect(formatMoney(14500), '\$14,500');
+      expect(formatMoney(99.5), '\$99.50');
+    });
   });
 }

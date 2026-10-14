@@ -1,79 +1,72 @@
-import 'dart:async';
-
-import 'package:collection/collection.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '/backend/schema/util/firestore_util.dart';
-import '/backend/schema/util/schema_util.dart';
+import 'record_helpers.dart';
 
-import 'index.dart';
-import '/flutter_flow/flutter_flow_util.dart';
-
-/// title, description, category, current_bid, starting_price,
-/// minimum_increment, end_time, status, image_urls
+/// Un lote en subasta.
+///
+/// Campos que SOLO escribe el servidor (Cloud Functions):
+/// current_bid (después de la primera puja), bid_count, highest_bidder_*,
+/// winner_*, final_price, status = 'ended', seller_name.
 class LotsRecord extends FirestoreRecord {
-  LotsRecord._(
-    DocumentReference reference,
-    Map<String, dynamic> data,
-  ) : super(reference, data) {
-    _initializeFields();
-  }
+  LotsRecord._(DocumentReference reference, Map<String, dynamic> data)
+      : super(reference, data);
 
-  // "title" field.
-  String? _title;
-  String get title => _title ?? '';
-  bool hasTitle() => _title != null;
+  // ---- Datos descriptivos ----
+  String get title => asString(snapshotData['title']);
+  String get description => asString(snapshotData['description']);
+  String get category => asString(snapshotData['category']);
+  List<String> get imageUrls => asStringList(snapshotData['image_urls']);
+  String get firstImage => imageUrls.isEmpty ? '' : imageUrls.first;
 
-  // "description" field.
-  String? _description;
-  String get description => _description ?? '';
-  bool hasDescription() => _description != null;
+  // ---- Precio ----
+  double get startingPrice => asDouble(snapshotData['starting_price']);
+  double get currentBid => asDouble(snapshotData['current_bid']);
+  double get minimumIncrement => asDouble(snapshotData['minimum_increment']);
+  int get bidCount => asInt(snapshotData['bid_count']);
+  double? get finalPrice => snapshotData['final_price'] == null
+      ? null
+      : asDouble(snapshotData['final_price']);
 
-  // "category" field.
-  String? _category;
-  String get category => _category ?? '';
-  bool hasCategory() => _category != null;
+  // ---- Tiempo y estado ----
+  DateTime? get startTime => asDate(snapshotData['start_time']);
+  DateTime? get endTime => asDate(snapshotData['end_time']);
+  DateTime? get createdTime => asDate(snapshotData['created_time']);
 
-  // "current_bid" field.
-  double? _currentBid;
-  double get currentBid => _currentBid ?? 0.0;
-  bool hasCurrentBid() => _currentBid != null;
+  /// 'active' | 'ended'
+  String get status => asString(snapshotData['status']);
 
-  // "starting_price" field.
-  double? _startingPrice;
-  double get startingPrice => _startingPrice ?? 0.0;
-  bool hasStartingPrice() => _startingPrice != null;
+  /// 'timed' (por tiempo) | 'live' (con transmisión en vivo)
+  String get format => asString(snapshotData['format'], 'timed');
+  String get streamUrl => asString(snapshotData['stream_url']);
 
-  // "minimum_increment" field.
-  double? _minimumIncrement;
-  double get minimumIncrement => _minimumIncrement ?? 0.0;
-  bool hasMinimumIncrement() => _minimumIncrement != null;
+  // ---- Personas ----
+  String get sellerUid => asString(snapshotData['seller_uid']);
+  String get sellerName => asString(snapshotData['seller_name'], 'Vendedor');
+  String get highestBidderUid => asString(snapshotData['highest_bidder_uid']);
+  String get highestBidderName => asString(snapshotData['highest_bidder_name']);
+  String get winnerUid => asString(snapshotData['winner_uid']);
+  String get winnerName => asString(snapshotData['winner_name']);
 
-  // "end_time" field.
-  DateTime? _endTime;
-  DateTime? get endTime => _endTime;
-  bool hasEndTime() => _endTime != null;
+  // ---- Lógica de ayuda (la validación real está en el servidor) ----
+  bool get isLiveFormat => format == 'live';
 
-  // "status" field.
-  String? _status;
-  String get status => _status ?? '';
-  bool hasStatus() => _status != null;
+  bool hasStarted([DateTime? now]) =>
+      startTime == null || !(now ?? DateTime.now()).isBefore(startTime!);
 
-  // "image_urls" field.
-  List<String>? _imageUrls;
-  List<String> get imageUrls => _imageUrls ?? const [];
-  bool hasImageUrls() => _imageUrls != null;
+  bool isEnded([DateTime? now]) =>
+      status == 'ended' ||
+      endTime == null ||
+      !(now ?? DateTime.now()).isBefore(endTime!);
 
-  void _initializeFields() {
-    _title = snapshotData['title'] as String?;
-    _description = snapshotData['description'] as String?;
-    _category = snapshotData['category'] as String?;
-    _currentBid = castToType<double>(snapshotData['current_bid']);
-    _startingPrice = castToType<double>(snapshotData['starting_price']);
-    _minimumIncrement = castToType<double>(snapshotData['minimum_increment']);
-    _endTime = snapshotData['end_time'] as DateTime?;
-    _status = snapshotData['status'] as String?;
-    _imageUrls = getDataList(snapshotData['image_urls']);
-  }
+  bool isOpenForBids([DateTime? now]) => hasStarted(now) && !isEnded(now);
+
+  /// En vivo ahora: formato en vivo, ya empezó y no ha terminado.
+  bool isLiveNow([DateTime? now]) => isLiveFormat && isOpenForBids(now);
+
+  /// La siguiente puja mínima. Igual que `minimumNextBid` del servidor.
+  double get minimumNextBid =>
+      bidCount == 0 ? currentBid : currentBid + minimumIncrement;
 
   static CollectionReference get collection =>
       FirebaseFirestore.instance.collection('lots');
@@ -86,14 +79,8 @@ class LotsRecord extends FirestoreRecord {
 
   static LotsRecord fromSnapshot(DocumentSnapshot snapshot) => LotsRecord._(
         snapshot.reference,
-        mapFromFirestore(snapshot.data() as Map<String, dynamic>),
+        mapFromFirestore((snapshot.data() as Map<String, dynamic>?) ?? {}),
       );
-
-  static LotsRecord getDocumentFromData(
-    Map<String, dynamic> data,
-    DocumentReference reference,
-  ) =>
-      LotsRecord._(reference, mapFromFirestore(data));
 
   @override
   String toString() =>
@@ -107,62 +94,34 @@ class LotsRecord extends FirestoreRecord {
       other is LotsRecord && reference.path == other.reference.path;
 }
 
+/// Datos para crear un lote nuevo. Cumple con firestore.rules.
 Map<String, dynamic> createLotsRecordData({
-  String? title,
-  String? description,
-  String? category,
-  double? currentBid,
-  double? startingPrice,
-  double? minimumIncrement,
-  DateTime? endTime,
-  String? status,
-}) {
-  final firestoreData = mapToFirestore(
-    <String, dynamic>{
+  required String title,
+  required String description,
+  required String category,
+  required double startingPrice,
+  required double minimumIncrement,
+  required DateTime startTime,
+  required DateTime endTime,
+  required String format,
+  required String sellerUid,
+  required List<String> imageUrls,
+  String streamUrl = '',
+}) =>
+    {
       'title': title,
       'description': description,
       'category': category,
-      'current_bid': currentBid,
       'starting_price': startingPrice,
+      'current_bid': startingPrice,
       'minimum_increment': minimumIncrement,
-      'end_time': endTime,
-      'status': status,
-    }.withoutNulls,
-  );
-
-  return firestoreData;
-}
-
-class LotsRecordDocumentEquality implements Equality<LotsRecord> {
-  const LotsRecordDocumentEquality();
-
-  @override
-  bool equals(LotsRecord? e1, LotsRecord? e2) {
-    const listEquality = ListEquality();
-    return e1?.title == e2?.title &&
-        e1?.description == e2?.description &&
-        e1?.category == e2?.category &&
-        e1?.currentBid == e2?.currentBid &&
-        e1?.startingPrice == e2?.startingPrice &&
-        e1?.minimumIncrement == e2?.minimumIncrement &&
-        e1?.endTime == e2?.endTime &&
-        e1?.status == e2?.status &&
-        listEquality.equals(e1?.imageUrls, e2?.imageUrls);
-  }
-
-  @override
-  int hash(LotsRecord? e) => const ListEquality().hash([
-        e?.title,
-        e?.description,
-        e?.category,
-        e?.currentBid,
-        e?.startingPrice,
-        e?.minimumIncrement,
-        e?.endTime,
-        e?.status,
-        const ListEquality().hash(e?.imageUrls)
-      ]);
-
-  @override
-  bool isValidKey(Object? o) => o is LotsRecord;
-}
+      'bid_count': 0,
+      'start_time': Timestamp.fromDate(startTime),
+      'end_time': Timestamp.fromDate(endTime),
+      'status': 'active',
+      'format': format,
+      'stream_url': streamUrl,
+      'seller_uid': sellerUid,
+      'image_urls': imageUrls,
+      'created_time': FieldValue.serverTimestamp(),
+    };

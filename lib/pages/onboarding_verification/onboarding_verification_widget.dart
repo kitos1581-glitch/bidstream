@@ -1,17 +1,13 @@
-import '/components/button/button_widget.dart';
-import '/components/step_indicator/step_indicator_widget.dart';
-import '/components/verification_card/verification_card_widget.dart';
+import 'package:flutter/material.dart';
+
+import '/auth/firebase_auth/auth_util.dart';
+import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
-import '/index.dart';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'onboarding_verification_model.dart';
-export 'onboarding_verification_model.dart';
+import '/ui/ui_kit.dart';
 
+/// Completar cuenta: verificar correo + datos de contacto + términos.
+/// Es lo mínimo que exige el servidor para pujar o vender.
 class OnboardingVerificationWidget extends StatefulWidget {
   const OnboardingVerificationWidget({super.key});
 
@@ -25,405 +21,232 @@ class OnboardingVerificationWidget extends StatefulWidget {
 
 class _OnboardingVerificationWidgetState
     extends State<OnboardingVerificationWidget> {
-  late OnboardingVerificationModel _model;
-
-  final scaffoldKey = GlobalKey<ScaffoldState>();
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _city = TextEditingController();
+  bool _terms = false;
+  bool _loaded = false;
+  bool _saving = false;
+  bool _checking = false;
+  bool _emailVerified = AuctionService.instance.emailVerified;
 
   @override
   void initState() {
     super.initState();
-    _model = createModel(context, () => OnboardingVerificationModel());
+    _load();
+  }
+
+  Future<void> _load() async {
+    final profile = await AuctionService.instance.myProfile().first;
+    if (!mounted) return;
+    setState(() {
+      _name.text = profile?.fullName ?? '';
+      _phone.text = profile?.phone ?? '';
+      _city.text = profile?.city ?? '';
+      _terms = profile?.acceptedTerms ?? false;
+      _loaded = true;
+    });
   }
 
   @override
   void dispose() {
-    _model.dispose();
-
+    _name.dispose();
+    _phone.dispose();
+    _city.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkEmail() async {
+    setState(() => _checking = true);
+    final ok = await AuctionService.instance.refreshEmailVerified();
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      _emailVerified = ok;
+    });
+    showMessage(
+        context,
+        ok
+            ? '¡Correo verificado!'
+            : 'Aún no aparece verificado. Abre el enlace del correo y vuelve a intentar.',
+        error: !ok);
+  }
+
+  Future<void> _resend() async {
+    await authManager.sendEmailVerification();
+    if (mounted) {
+      showMessage(context, 'Te reenviamos el correo a $currentUserEmail.');
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (!_terms) {
+      showMessage(context, 'Debes aceptar los términos para continuar.',
+          error: true);
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await AuctionService.instance.updateProfile(
+        fullName: _name.text,
+        phone: _phone.text,
+        city: _city.text,
+        acceptedTerms: _terms,
+      );
+      if (!mounted) return;
+      showMessage(context, 'Perfil guardado.');
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.goNamed('AuctionDashboard');
+      }
+    } catch (e) {
+      if (mounted) showMessage(context, 'No se pudo guardar: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-        FocusManager.instance.primaryFocus?.unfocus();
-      },
-      child: Scaffold(
-        key: scaffoldKey,
-        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-        body: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: FlutterFlowTheme.of(context).primaryBackground,
-                shape: BoxShape.rectangle,
-              ),
-              child: Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(24.0, 40.0, 24.0, 32.0),
-                child: Container(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'VERIFICATION',
-                        style: FlutterFlowTheme.of(context).labelLarge.override(
-                              font: GoogleFonts.jetBrainsMono(
-                                fontWeight: FontWeight.w900,
-                                fontStyle: FlutterFlowTheme.of(context)
-                                    .labelLarge
-                                    .fontStyle,
-                              ),
-                              color: FlutterFlowTheme.of(context).primary,
-                              letterSpacing: 0.0,
-                              fontWeight: FontWeight.w900,
-                              fontStyle: FlutterFlowTheme.of(context)
-                                  .labelLarge
-                                  .fontStyle,
-                              lineHeight: 1.2,
-                            ),
-                      ),
-                      Text(
-                        'Secure Your Bidding Identity',
-                        style: FlutterFlowTheme.of(context).bodyMedium.override(
-                              font: GoogleFonts.spaceGrotesk(
-                                fontWeight: FontWeight.w800,
-                                fontStyle: FlutterFlowTheme.of(context)
-                                    .bodyMedium
-                                    .fontStyle,
-                              ),
-                              color: FlutterFlowTheme.of(context)
-                                  .onPrimaryContainer,
-                              fontSize: 42.0,
-                              letterSpacing: 0.0,
-                              fontWeight: FontWeight.w800,
-                              fontStyle: FlutterFlowTheme.of(context)
-                                  .bodyMedium
-                                  .fontStyle,
-                              lineHeight: 1.1,
-                            ),
-                      ),
-                      Text(
-                        'BidStream Pro requires verified credentials for high-value asset auctions.',
-                        style: FlutterFlowTheme.of(context).bodyLarge.override(
-                              font: GoogleFonts.spaceGrotesk(
-                                fontWeight: FlutterFlowTheme.of(context)
-                                    .bodyLarge
-                                    .fontWeight,
-                                fontStyle: FlutterFlowTheme.of(context)
-                                    .bodyLarge
-                                    .fontStyle,
-                              ),
-                              color: FlutterFlowTheme.of(context)
-                                  .onPrimaryContainer70,
-                              letterSpacing: 0.0,
-                              fontWeight: FlutterFlowTheme.of(context)
-                                  .bodyLarge
-                                  .fontWeight,
-                              fontStyle: FlutterFlowTheme.of(context)
-                                  .bodyLarge
-                                  .fontStyle,
-                              lineHeight: 1.5,
-                            ),
-                      ),
-                    ].divide(SizedBox(height: 16.0)),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.max,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: wrapWithModel(
-                          model: _model.stepIndicatorModel1,
-                          updateCallback: () => safeSetState(() {}),
-                          child: StepIndicatorWidget(
-                            label: 'Identity',
-                            active: true,
-                            complete: false,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 1,
-                        child: wrapWithModel(
-                          model: _model.stepIndicatorModel2,
-                          updateCallback: () => safeSetState(() {}),
-                          child: StepIndicatorWidget(
-                            label: 'Payment',
-                            active: false,
-                            complete: false,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 1,
-                        child: wrapWithModel(
-                          model: _model.stepIndicatorModel3,
-                          updateCallback: () => safeSetState(() {}),
-                          child: StepIndicatorWidget(
-                            label: 'Finalize',
-                            active: false,
-                            complete: false,
-                          ),
-                        ),
-                      ),
-                    ].divide(SizedBox(width: 16.0)),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Account Standing',
-                        style: FlutterFlowTheme.of(context).titleLarge.override(
-                              font: GoogleFonts.spaceGrotesk(
-                                fontWeight: FontWeight.w800,
-                                fontStyle: FlutterFlowTheme.of(context)
-                                    .titleLarge
-                                    .fontStyle,
-                              ),
-                              color: FlutterFlowTheme.of(context).primaryText,
-                              letterSpacing: 0.0,
-                              fontWeight: FontWeight.w800,
-                              fontStyle: FlutterFlowTheme.of(context)
-                                  .titleLarge
-                                  .fontStyle,
-                              lineHeight: 1.3,
-                            ),
-                      ),
-                      wrapWithModel(
-                        model: _model.verificationCardModel1,
-                        updateCallback: () => safeSetState(() {}),
-                        child: VerificationCardWidget(
-                          icon: Icon(
-                            Icons.badge_rounded,
-                            color: FlutterFlowTheme.of(context).success,
-                            size: 24.0,
-                          ),
-                          subtitle: 'Passport or National ID required',
-                          title: 'Identity Document',
-                          verified: true,
-                        ),
-                      ),
-                      wrapWithModel(
-                        model: _model.verificationCardModel2,
-                        updateCallback: () => safeSetState(() {}),
-                        child: VerificationCardWidget(
-                          icon: Icon(
-                            Icons.account_balance_wallet_rounded,
-                            color: FlutterFlowTheme.of(context).primary,
-                            size: 24.0,
-                          ),
-                          subtitle: 'Credit card or Bank wire setup',
-                          title: 'Payment Method',
-                          verified: false,
-                        ),
-                      ),
-                      wrapWithModel(
-                        model: _model.verificationCardModel3,
-                        updateCallback: () => safeSetState(() {}),
-                        child: VerificationCardWidget(
-                          icon: Icon(
-                            Icons.shield_rounded,
-                            color: FlutterFlowTheme.of(context).primary,
-                            size: 24.0,
-                          ),
-                          subtitle: 'Required for lots over \$50,000',
-                          title: 'Proof of Funds',
-                          verified: false,
-                        ),
-                      ),
-                    ].divide(SizedBox(height: 24.0)),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: FlutterFlowTheme.of(context).onPrimaryContainer,
-                      shape: BoxShape.rectangle,
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(24.0),
-                      child: Container(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'NOTE ON SECURITY',
-                              style: FlutterFlowTheme.of(context)
-                                  .labelSmall
-                                  .override(
-                                    font: GoogleFonts.jetBrainsMono(
-                                      fontWeight: FontWeight.bold,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontStyle,
-                                    ),
-                                    color: FlutterFlowTheme.of(context)
-                                        .surfaceVariant,
-                                    letterSpacing: 0.0,
-                                    fontWeight: FontWeight.bold,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .labelSmall
-                                        .fontStyle,
-                                    lineHeight: 1.2,
-                                  ),
-                            ),
-                            Text(
-                              'Encryption protocols ensure your sensitive data is never stored on our public servers. Verification typically takes 2-4 hours.',
-                              style: FlutterFlowTheme.of(context)
-                                  .bodySmall
-                                  .override(
-                                    font: GoogleFonts.spaceGrotesk(
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .bodySmall
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .bodySmall
-                                          .fontStyle,
-                                    ),
-                                    color: FlutterFlowTheme.of(context)
-                                        .primaryBackground,
-                                    letterSpacing: 0.0,
-                                    fontWeight: FlutterFlowTheme.of(context)
-                                        .bodySmall
-                                        .fontWeight,
-                                    fontStyle: FlutterFlowTheme.of(context)
-                                        .bodySmall
-                                        .fontStyle,
-                                    lineHeight: 1.5,
-                                  ),
-                            ),
-                          ].divide(SizedBox(height: 8.0)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      InkWell(
-                        splashColor: Colors.transparent,
-                        focusColor: Colors.transparent,
-                        hoverColor: Colors.transparent,
-                        highlightColor: Colors.transparent,
-                        onTap: () async {
-                          context.goNamed(UserProfileActivityWidget.routeName);
-                        },
-                        child: wrapWithModel(
-                          model: _model.buttonModel1,
-                          updateCallback: () => safeSetState(() {}),
-                          child: ButtonWidget(
-                            iconPresent: false,
-                            iconEnd: Icon(
-                              Icons.arrow_forward_rounded,
-                              color: FlutterFlowTheme.of(context).primaryText,
-                              size: 24.0,
-                            ),
-                            iconEndPresent: true,
-                            content: 'Complete Payment Setup',
-                            variant: 'primary',
-                            size: 'large',
-                            fullWidth: false,
-                            loading: false,
-                            disabled: false,
-                          ),
-                        ),
-                      ),
-                      wrapWithModel(
-                        model: _model.buttonModel2,
-                        updateCallback: () => safeSetState(() {}),
-                        child: ButtonWidget(
-                          iconPresent: false,
-                          iconEndPresent: false,
-                          content: 'Save Progress',
-                          variant: 'ghost',
-                          size: 'medium',
-                          fullWidth: false,
-                          loading: false,
-                          disabled: false,
-                        ),
-                      ),
-                      Container(
-                        child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Container(
-                            child: Container(
-                              alignment: AlignmentDirectional(0.0, 0.0),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.lock_rounded,
-                                    color: FlutterFlowTheme.of(context)
-                                        .secondaryText,
-                                    size: 14.0,
-                                  ),
-                                  Text(
-                                    'Bank-grade 256-bit SSL Encryption',
-                                    style: FlutterFlowTheme.of(context)
-                                        .labelSmall
-                                        .override(
-                                          font: GoogleFonts.jetBrainsMono(
-                                            fontWeight:
-                                                FlutterFlowTheme.of(context)
-                                                    .labelSmall
-                                                    .fontWeight,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .labelSmall
-                                                    .fontStyle,
-                                          ),
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryText,
-                                          letterSpacing: 0.0,
-                                          fontWeight:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelSmall
-                                                  .fontWeight,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelSmall
-                                                  .fontStyle,
-                                          lineHeight: 1.2,
-                                        ),
-                                  ),
-                                ].divide(SizedBox(width: 4.0)),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ].divide(SizedBox(height: 16.0)),
-                  ),
-                ].divide(SizedBox(height: 32.0)),
-              ),
-            ),
-          ],
-        ),
+    final theme = FlutterFlowTheme.of(context);
+    InputDecoration dec(String label, {String? helper}) => InputDecoration(
+          labelText: label,
+          helperText: helper,
+          filled: true,
+          fillColor: theme.secondaryBackground,
+          border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.zero,
+              borderSide: BorderSide(color: theme.secondary, width: 2)),
+        );
+
+    return Scaffold(
+      backgroundColor: theme.primaryBackground,
+      appBar: AppBar(
+        backgroundColor: theme.primaryBackground,
+        foregroundColor: theme.primaryText,
+        elevation: 0,
+        title: Text('Completa tu cuenta', style: theme.titleMedium),
       ),
+      body: !_loaded
+          ? const Loading()
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                children: [
+                  Text(
+                    'Para pujar o vender necesitamos saber quién eres. '
+                    'Tus datos de contacto solo se comparten con la otra parte '
+                    'cuando se cierra una venta.',
+                    style: theme.bodyMedium
+                        .copyWith(color: theme.secondaryText),
+                  ),
+
+                  // ---------------- Paso 1: correo ----------------
+                  const SectionTitle('1. Verifica tu correo'),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: _emailVerified
+                          ? theme.surfaceVariant
+                          : theme.secondaryBackground,
+                      border: Border.all(color: theme.secondary, width: 2),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(
+                              _emailVerified
+                                  ? Icons.check_circle
+                                  : Icons.mark_email_unread_outlined,
+                              color: _emailVerified
+                                  ? theme.primary
+                                  : theme.tertiary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(currentUserEmail,
+                                style: theme.titleSmall),
+                          ),
+                        ]),
+                        if (!_emailVerified) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                              'Abre el enlace que te enviamos (revisa también "Spam") y luego toca "Ya lo verifiqué".',
+                              style: theme.bodySmall),
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            TextButton(
+                                onPressed: _resend,
+                                child: const Text('Reenviar correo')),
+                            const Spacer(),
+                            FilledButton(
+                              onPressed: _checking ? null : _checkEmail,
+                              child: Text(_checking
+                                  ? 'Revisando…'
+                                  : 'Ya lo verifiqué'),
+                            ),
+                          ]),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  // ---------------- Paso 2: datos ----------------
+                  const SectionTitle('2. Tus datos'),
+                  TextFormField(
+                    controller: _name,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: dec('Nombre completo',
+                        helper: 'En el historial solo se ve "Nombre + inicial".'),
+                    validator: (v) =>
+                        (v ?? '').trim().split(RegExp(r'\s+')).length < 2
+                            ? 'Escribe nombre y apellido'
+                            : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _phone,
+                    keyboardType: TextInputType.phone,
+                    decoration: dec('Teléfono (WhatsApp)'),
+                    validator: (v) =>
+                        (v ?? '').replaceAll(RegExp(r'\D'), '').length < 10
+                            ? 'Escribe un teléfono de 10 dígitos'
+                            : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _city,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: dec('Ciudad y estado'),
+                    validator: (v) =>
+                        (v ?? '').trim().isEmpty ? 'Requerido' : null,
+                  ),
+
+                  // ---------------- Paso 3: términos ----------------
+                  const SectionTitle('3. Términos'),
+                  CheckboxListTile(
+                    value: _terms,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    onChanged: (v) => setState(() => _terms = v ?? false),
+                    title: Text(
+                      'Acepto que cada puja es un compromiso de compra, que '
+                      'no puedo cancelar pujas y que la entrega y el pago se '
+                      'acuerdan entre comprador y vendedor.',
+                      style: theme.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  BigButton(
+                      label: 'Guardar', loading: _saving, onPressed: _save),
+                ],
+              ),
+            ),
     );
   }
 }

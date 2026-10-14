@@ -97,7 +97,7 @@ class FirebaseAuthManager extends AuthManager
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
-                  'Too long since most recent sign in. Sign in again before updating your email.')),
+                  'Por seguridad, vuelve a iniciar sesión antes de cambiar tu correo.')),
         );
       }
     }
@@ -139,7 +139,7 @@ class FirebaseAuthManager extends AuthManager
       return null;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Password reset email sent')),
+      SnackBar(content: Text('Te enviamos un correo para restablecer tu contraseña.')),
     );
   }
 
@@ -330,11 +330,18 @@ class FirebaseAuthManager extends AuthManager
           : BidStreamFirebaseUser.fromUserCredential(userCredential);
     } on FirebaseAuthException catch (e) {
       final errorMsg = switch (e.code) {
-        'email-already-in-use' =>
-          'Error: The email is already in use by a different account',
+        'email-already-in-use' => 'Ese correo ya tiene una cuenta. Inicia sesión.',
+        'invalid-email' => 'El correo no es válido.',
+        'weak-password' => 'La contraseña debe tener al menos 6 caracteres.',
+        'user-not-found' ||
+        'wrong-password' ||
+        'invalid-credential' ||
         'INVALID_LOGIN_CREDENTIALS' =>
-          'Error: The supplied auth credential is incorrect, malformed or has expired',
-        _ => 'Error: ${e.message!}',
+          'Correo o contraseña incorrectos.',
+        'too-many-requests' =>
+          'Demasiados intentos. Espera unos minutos e intenta de nuevo.',
+        'network-request-failed' => 'Sin conexión. Revisa tu internet.',
+        _ => 'Error: ${e.message ?? e.code}',
       };
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(

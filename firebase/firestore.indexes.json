@@ -1,3 +1,29 @@
 {
-  "indexes": []
+  "indexes": [
+    {
+      "collectionGroup": "lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "end_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "seller_uid", "order": "ASCENDING" },
+        { "fieldPath": "created_time", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "lots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "winner_uid", "order": "ASCENDING" },
+        { "fieldPath": "end_time", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
 }

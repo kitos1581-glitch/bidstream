@@ -1,11 +1,113 @@
 rules_version = '2';
+
+// =====================================================================
+// BidStream — Reglas de seguridad de Firestore
+// ---------------------------------------------------------------------
+// Principio: el celular NUNCA escribe precios ni pujas. Las pujas pasan
+// por la Cloud Function `placeBid`, que valida todo en el servidor.
+// =====================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /lots/{document} {
-      allow create: if true;
-      allow read: if true;
-      allow write: if true;
-      allow delete: if true;
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function emailVerified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Solo cambian los campos indicados.
+    function onlyChanges(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // ---------------- Usuarios (datos privados) ----------------
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      // El usuario crea su propio perfil, pero no puede auto-verificarse
+      // ni darse rol de administrador.
+      allow create: if isOwner(uid)
+        && !request.resource.data.keys().hasAny(['verified', 'role', 'banned']);
+
+      allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['verified', 'role', 'banned', 'uid', 'created_time']);
+
+      allow delete: if false;
+
+      // Notificaciones: las crea el servidor; el usuario solo las lee
+      // y las marca como leídas.
+      match /notifications/{notificationId} {
+        allow read: if isOwner(uid);
+        allow update: if isOwner(uid) && onlyChanges(['read']);
+        allow delete: if isOwner(uid);
+        allow create: if false;
+      }
+
+      // Subastas en las que participa (las mantiene el servidor).
+      match /bidding/{lotId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+
+    // ---------------- Lotes ----------------
+    match /lots/{lotId} {
+      allow read: if signedIn();
+
+      allow create: if emailVerified()
+        && request.resource.data.seller_uid == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 3
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.starting_price is number
+        && request.resource.data.starting_price > 0
+        && request.resource.data.minimum_increment is number
+        && request.resource.data.minimum_increment > 0
+        && request.resource.data.current_bid == request.resource.data.starting_price
+        && request.resource.data.bid_count == 0
+        && request.resource.data.end_time is timestamp
+        && request.resource.data.end_time > request.time
+        && request.resource.data.start_time is timestamp
+        && request.resource.data.start_time < request.resource.data.end_time
+        && request.resource.data.format in ['timed', 'live']
+        && !request.resource.data.keys().hasAny(
+              ['highest_bidder_uid', 'highest_bidder_name', 'winner_uid', 'winner_name']);
+
+      // El vendedor solo edita la parte descriptiva. Precio, pujas,
+      // estado y fechas los controla el servidor (o se editan sin pujas).
+      allow update: if isOwner(resource.data.seller_uid)
+        && resource.data.status == 'active'
+        && (
+          onlyChanges(['title', 'description', 'category', 'image_urls', 'stream_url'])
+          || (resource.data.bid_count == 0
+              && onlyChanges(['title', 'description', 'category', 'image_urls',
+                              'stream_url', 'starting_price', 'current_bid',
+                              'minimum_increment', 'end_time', 'start_time', 'format'])
+              && request.resource.data.current_bid == request.resource.data.starting_price
+              && request.resource.data.end_time > request.time)
+        );
+
+      // Solo se puede borrar un lote que nadie ha pujado.
+      allow delete: if isOwner(resource.data.seller_uid) && resource.data.bid_count == 0;
+
+      // Historial de pujas: lectura para usuarios con sesión; escritura solo servidor.
+      match /bids/{bidId} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+    }
+
+    // Todo lo demás, cerrado.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

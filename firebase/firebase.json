@@ -6,14 +6,16 @@
   "functions": [
     {
       "source": "functions",
-      "codebase": "functions"
+      "codebase": "functions",
+      "ignore": ["node_modules", "test", "*.local"]
     }
   ],
   "storage": {
     "rules": "storage.rules"
   },
   "hosting": {
-    "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+    "public": "../build/web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
   }
 }
