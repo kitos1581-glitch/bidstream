@@ -5,7 +5,15 @@ const admin = require("firebase-admin");
 if (!admin.apps.length) admin.initializeApp();
 
 const { resolveProxyBid, legacyState, publicName } = require("./auction_logic");
-const { startWinnerPayment } = require("./payments");
+const payments = require("./payments");
+const { startWinnerPayment, WINNER_PAYMENT_WINDOW_HOURS } = payments;
+
+// Funciones de pagos: DEBEN exportarse desde index.js para que Firebase
+// las despliegue.
+exports.createDeposit = payments.createDeposit;
+exports.requestDepositRefund = payments.requestDepositRefund;
+exports.expireUnpaidWins = payments.expireUnpaidWins;
+exports.mpWebhook = payments.mpWebhook;
 
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
@@ -18,11 +26,6 @@ function notificationRef(uid) {
 
 function formatMoney(n) {
   return `$${Number(n).toLocaleString("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-}
-
-function contactString(u) {
-  const parts = [u.full_name, u.phone && `Tel/WhatsApp: ${u.phone}`, u.city].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "sin datos de contacto";
 }
 
 // ---------------------------------------------------------------------
@@ -87,9 +90,24 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
 
   const result = await db.runTransaction(async (tx) => {
     // En una transacción, TODAS las lecturas van antes de las escrituras.
-    const [lotSnap, stateSnap] = await Promise.all([tx.get(lotRef), tx.get(stateRef)]);
+    const userRef = db.collection("users").doc(uid);
+    const [lotSnap, stateSnap, freshUser] = await Promise.all([
+      tx.get(lotRef),
+      tx.get(stateRef),
+      tx.get(userRef),
+    ]);
     if (!lotSnap.exists) {
       throw new functions.https.HttpsError("not-found", "El lote no existe.");
+    }
+    // Se revisa otra vez DENTRO de la transacción: si el usuario pidió el
+    // reembolso del depósito al mismo tiempo, esta puja se rechaza.
+    const freshDeposit = freshUser.exists ? freshUser.data().deposit : null;
+    if (!freshDeposit || freshDeposit.status !== "held" || freshUser.data().banned === true) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Debes dejar un depósito de garantía antes de pujar. Es reembolsable.",
+        { code: "DEPOSIT_REQUIRED" }
+      );
     }
     const lot = lotSnap.data();
     const state = stateSnap.exists ? stateSnap.data() : legacyState(lot);
@@ -261,9 +279,9 @@ async function closeLot(lotRef) {
       winner_uid: hasWinner ? lot.highest_bidder_uid : null,
       winner_name: hasWinner ? lot.highest_bidder_name || "" : null,
       final_price: hasWinner ? lot.current_bid : null,
-      // Sin pujas no hay nada que cobrar; con ganador queda 'pending' hasta
-      // que pague (lo pone startWinnerPayment) o venza (expireUnpaidWins).
-      payment_status: hasWinner ? "pending" : "none",
+      // Sin pujas no hay nada que cobrar. Con ganador queda 'processing'
+      // hasta que startWinnerPayment lo pase a pending / paid / payment_error.
+      payment_status: hasWinner ? "processing" : "none",
     });
     return { lot, hasWinner };
   });
@@ -272,32 +290,27 @@ async function closeLot(lotRef) {
   const { lot, hasWinner } = outcome;
 
   if (hasWinner) {
-    // Datos de contacto para el intercambio y depósito del ganador.
-    const [sellerSnap, winnerSnap] = await Promise.all([
-      db.collection("users").doc(lot.seller_uid).get(),
-      db.collection("users").doc(lot.highest_bidder_uid).get(),
-    ]);
-    const seller = sellerSnap.exists ? sellerSnap.data() : {};
-    const winner = winnerSnap.exists ? winnerSnap.data() : {};
-    const sellerContact = contactString(seller);
-    const winnerContact = contactString(winner);
-
     // Generar el cobro del ganador (precio final − depósito).
     let pay;
     try {
-      pay = await startWinnerPayment(lotRef, lot, lot.highest_bidder_uid, winner);
+      pay = await startWinnerPayment(lotRef, lot, lot.highest_bidder_uid);
     } catch (err) {
       functions.logger.error(`No se pudo generar el cobro de ${lotRef.id}`, err);
-      pay = { url: null, amount: 0, alreadySettled: false };
+      await lotRef.update({ payment_status: "payment_error" });
+      pay = { url: null, amount: 0, alreadySettled: false, depositApplied: 0, error: true };
     }
 
-    const depositApplied =
-      winner.deposit && winner.deposit.status === "held" ? Number(winner.deposit.amount) : 0;
-    const winnerBody = pay.alreadySettled
-      ? `Tu depósito cubre los ${formatMoney(lot.current_bid)}. Contacta al vendedor: ${sellerContact}.`
-      : `Ganaste con ${formatMoney(lot.current_bid)}. Tienes 24 horas para pagar ${formatMoney(
-          pay.amount
-        )}${depositApplied ? ` (tu depósito de ${formatMoney(depositApplied)} ya está aplicado)` : ""}.`;
+    const depositApplied = pay.depositApplied || 0;
+    let winnerBody;
+    if (pay.alreadySettled) {
+      winnerBody = `Ganaste con ${formatMoney(lot.current_bid)} y tu depósito lo cubre. En tus avisos está el contacto del vendedor.`;
+    } else if (pay.error) {
+      winnerBody = `Ganaste con ${formatMoney(lot.current_bid)}. Estamos generando tu enlace de pago; te avisaremos en cuanto esté listo.`;
+    } else {
+      winnerBody = `Ganaste con ${formatMoney(lot.current_bid)}. Tienes ${WINNER_PAYMENT_WINDOW_HOURS} horas para pagar ${formatMoney(
+        pay.amount
+      )}${depositApplied ? ` (tu depósito de ${formatMoney(depositApplied)} ya está aplicado)` : ""}. Al pagar te compartimos el contacto del vendedor.`;
+    }
 
     const batch = db.batch();
     batch.set(notificationRef(lot.highest_bidder_uid), {
@@ -312,7 +325,7 @@ async function closeLot(lotRef) {
     batch.set(notificationRef(lot.seller_uid), {
       type: "sold",
       title: `Vendiste: ${lot.title}`,
-      body: `Se vendió en ${formatMoney(lot.current_bid)}. Comprador: ${winnerContact}. Te avisaremos cuando el pago quede registrado.`,
+      body: `Se vendió en ${formatMoney(lot.current_bid)}. Cuando el comprador pague te enviaremos su contacto para la entrega.`,
       lot_id: lotRef.id,
       read: false,
       created_time: FieldValue.serverTimestamp(),

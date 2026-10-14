@@ -20,15 +20,62 @@ const FieldValue = {
 let autoId = 0;
 const store = new Map(); // path -> { data, version }
 
-function applyWrite(path, data, { merge = false, update = false } = {}) {
+function isPlain(v) {
+  return v && typeof v === "object" && !Array.isArray(v) && !(v instanceof Timestamp) && !v.__op;
+}
+
+function resolveValue(cur, v) {
+  if (v && v.__op === "inc") return (cur || 0) + v.n;
+  if (v && v.__op === "ts") return Timestamp.now();
+  return v;
+}
+
+function deepMerge(target, src) {
+  const out = { ...(target || {}) };
+  for (const [k, v] of Object.entries(src)) {
+    if (v && v.__op === "del") delete out[k];
+    else if (isPlain(v)) out[k] = deepMerge(out[k], v);
+    else out[k] = resolveValue(out[k], v);
+  }
+  return out;
+}
+
+function deepResolve(src) {
+  const out = {};
+  for (const [k, v] of Object.entries(src)) {
+    if (v && v.__op === "del") continue;
+    out[k] = isPlain(v) ? deepResolve(v) : resolveValue(undefined, v);
+  }
+  return out;
+}
+
+function applyWrite(path, data, { merge = false, update = false, create = false } = {}) {
   const prev = store.get(path);
   if (update && !prev) throw new Error(`NOT_FOUND: ${path}`);
-  const base = merge || update ? { ...(prev ? prev.data : {}) } : {};
-  for (const [k, v] of Object.entries(data)) {
-    if (v && v.__op === "inc") base[k] = (base[k] || 0) + v.n;
-    else if (v && v.__op === "ts") base[k] = Timestamp.now();
-    else if (v && v.__op === "del") delete base[k];
-    else base[k] = v;
+  if (create && prev) {
+    const e = new Error(`ALREADY_EXISTS: ${path}`);
+    e.code = 6;
+    throw e;
+  }
+  let base;
+  if (update) {
+    base = { ...prev.data };
+    for (const [k, v] of Object.entries(data)) {
+      // Rutas con punto: "deposit.status"
+      const parts = k.split(".");
+      let obj = base;
+      for (let i = 0; i < parts.length - 1; i++) {
+        obj[parts[i]] = { ...(obj[parts[i]] || {}) };
+        obj = obj[parts[i]];
+      }
+      const last = parts[parts.length - 1];
+      if (v && v.__op === "del") delete obj[last];
+      else obj[last] = resolveValue(obj[last], v);
+    }
+  } else if (merge) {
+    base = deepMerge(prev ? prev.data : {}, data);
+  } else {
+    base = deepResolve(data);
   }
   store.set(path, { data: base, version: (prev ? prev.version : 0) + 1 });
 }
@@ -38,6 +85,7 @@ function snap(ref) {
   return { id: ref.id, ref, exists: !!e, data: () => (e ? { ...e.data } : undefined) };
 }
 
+const S_version = (p) => (store.get(p) ? store.get(p).version : 0);
 const tick = () => new Promise((r) => setImmediate(r));
 
 function docRef(path) {
@@ -49,6 +97,7 @@ function docRef(path) {
     get: async () => { await tick(); return snap(docRef(path)); },
     set: async (data, opts) => { await tick(); applyWrite(path, data, opts); },
     update: async (data) => { await tick(); applyWrite(path, data, { update: true }); },
+    create: async (data) => { await tick(); applyWrite(path, data, { create: true }); },
   };
 }
 
@@ -71,6 +120,7 @@ function colRef(path) {
           const val = (y) => (y instanceof Timestamp ? y.ms : y);
           if (op === "==") return val(x) === val(v);
           if (op === "<=") return val(x) <= val(v);
+          if (op === ">=") return val(x) >= val(v);
           return true;
         });
         if (ok) docs.push(snap(docRef(p)));
@@ -97,6 +147,15 @@ const db = {
       const writes = [];
       const tx = {
         get: async (ref) => {
+          if (writes.length) {
+            throw new Error("Firestore transactions require all reads to be executed before all writes.");
+          }
+          if (typeof ref.where === "function" && typeof ref.doc === "function" && !ref.collection) {
+            // Consulta dentro de la transacción.
+            const res = await ref.get();
+            res.docs.forEach((d) => reads.set(d.ref.path, S_version(d.ref.path)));
+            return res;
+          }
           await tick();
           const e = store.get(ref.path);
           reads.set(ref.path, e ? e.version : 0);
