@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "454079777397",
+    "project_id": "bidstream-656cf",
+    "storage_bucket": "bidstream-656cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:454079777397:android:db675cdceae7fa2c21463c",
+        "android_client_info": {
+          "package_name": "com.mycompany.bidstream"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2I3hXCCo6EXhEhIxp1VsYRPaZLu84F5g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
