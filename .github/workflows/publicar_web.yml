@@ -1,0 +1,46 @@
+# Publica la versión web de BidStream en GitHub Pages para verla en el
+# navegador. NO toca Firebase: solo compila la app y sube los archivos.
+# Requisito (una vez): Settings → Pages → Source: "GitHub Actions".
+name: Publicar web (vista previa)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Compilar web
+        run: flutter build web --release --base-href /${{ github.event.repository.name }}/
+      - name: Rutas directas (SPA) en GitHub Pages
+        run: cp build/web/index.html build/web/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

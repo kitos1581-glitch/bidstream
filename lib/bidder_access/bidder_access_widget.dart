@@ -46,7 +46,7 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
         final user = await authManager.createAccountWithEmail(
             context, _email.text.trim(), _password.text);
         if (user == null) return;
-        await AuctionService.instance.ensureProfile(fullName: _name.text);
+        await _safeEnsureProfile(fullName: _name.text);
         await authManager.sendEmailVerification();
         if (!mounted) return;
         context.goNamedAuth('OnboardingVerification', context.mounted);
@@ -54,12 +54,28 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
         final user = await authManager.signInWithEmail(
             context, _email.text.trim(), _password.text);
         if (user == null) return;
-        await AuctionService.instance.ensureProfile();
+        await _safeEnsureProfile();
         if (!mounted) return;
         context.goNamedAuth('AuctionDashboard', context.mounted);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Crear el perfil no debe impedir entrar a la app: si falla (sin
+  /// conexión, reglas no desplegadas...), se avisa y se reintenta después
+  /// desde "Completa tu cuenta".
+  Future<void> _safeEnsureProfile({String? fullName}) async {
+    try {
+      await AuctionService.instance.ensureProfile(fullName: fullName);
+    } catch (e) {
+      debugPrint('No se pudo crear el perfil: $e');
+      if (mounted) {
+        showMessage(context,
+            'Entraste, pero no pudimos guardar tu perfil. Complétalo en "Mi cuenta".',
+            error: true);
+      }
     }
   }
 
