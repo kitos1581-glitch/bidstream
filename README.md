@@ -243,6 +243,32 @@ OPENPAY_WEBHOOK_PASS=...        # ≥16 caracteres
 Webhook en Openpay: `https://us-central1-<proyecto>.cloudfunctions.net/openpayWebhook`
 con ese usuario y contraseña; el código de verificación aparece en los logs.
 
+## 7.2 Reputación (Fase 1.1)
+
+- `submitFeedback({lotId, rating 1–5, comment ≤500})`: solo el comprador que
+  pagó; una por venta (`feedback/{lotId}`); editable 7 días con `updateFeedback`;
+  bloqueada si hay disputa abierta. Teléfonos y correos se ocultan.
+- `public_profiles/{uid}` (público, lo escribe el servidor): nombre público,
+  verificado, promedio, número de opiniones y ventas, insignias
+  (`verificado`, `destacado` = ≥10 ventas y ≥4.5, `nuevo` = <3 ventas,
+  `en_disputa` mientras haya un reclamo abierto). Sin teléfono ni correo.
+- Al publicar, el lote copia la reputación del vendedor para mostrar ★ en las
+  tarjetas sin lecturas extra.
+- Perfil público: `/vendedor?uid=...` (lotes activos y opiniones).
+
+## 7.3 Protección al comprador: disputas (Fase 1.2)
+
+- `openDispute({lotId, reason, details, photos})`: comprador, desde el pago
+  confirmado hasta 72 h después. Congela la liquidación (`payout → on_hold`,
+  el admin no puede marcarla como transferida), marca el lote y el perfil.
+- `adminResolveDispute({disputeId, resolution, amount?, note})`:
+  `refund_full` (pago + depósito aplicado; liquidación cancelada),
+  `refund_partial` (monto; liquidación reducida) o `reject` (se libera).
+  Si ya se había transferido al vendedor → `payments/clawback-{lotId}`.
+  Reembolsos de Mercado Pago con llave de idempotencia; SPEI como reembolso
+  manual. Si MP rechaza, queda `refund_failed` y se puede reintentar.
+- Panel de administración → pestaña **Reclamos**.
+
 ## 8. Notificaciones push
 
 Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda

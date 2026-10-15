@@ -39,10 +39,11 @@ function fail(httpsCode, code, message) {
 }
 
 /** Insignias a partir de los agregados (función pura). */
-function computeBadges({ verified, sales_count: sales = 0, rating_avg: avg = 0, rating_count: count = 0 }) {
+function computeBadges({ verified, sales_count: sales = 0, rating_avg: avg = 0, rating_count: count = 0, open_disputes: disputes = 0 }) {
   const badges = [];
   if (verified) badges.push("verificado");
-  if (sales >= 10 && count > 0 && avg >= 4.5) badges.push("destacado");
+  if (disputes > 0) badges.push("en_disputa");
+  else if (sales >= 10 && count > 0 && avg >= 4.5) badges.push("destacado");
   if (sales < 3) badges.push("nuevo");
   return badges;
 }
@@ -86,7 +87,13 @@ function profilePatch(current, { addSum = 0, addCount = 0 }, seller) {
     rating_count: ratingCount,
     rating_avg: ratingAvg,
     sales_count: sales,
-    badges: computeBadges({ verified, sales_count: sales, rating_avg: ratingAvg, rating_count: ratingCount }),
+    badges: computeBadges({
+      verified,
+      sales_count: sales,
+      rating_avg: ratingAvg,
+      rating_count: ratingCount,
+      open_disputes: Number(current.open_disputes) || 0,
+    }),
     updated_time: FieldValue.serverTimestamp(),
   };
 }
@@ -232,7 +239,8 @@ exports.onSaleRecorded = functions
   .onWrite(async (change, context) => {
     const a = change.before.exists ? change.before.data() : {};
     const b = change.after.exists ? change.after.data() : null;
-    if (!b || (a.sales_count || 0) === (b.sales_count || 0)) return;
+    if (!b) return;
+    if ((a.sales_count || 0) === (b.sales_count || 0) && (a.open_disputes || 0) === (b.open_disputes || 0)) return;
     await refreshProfile(context.params.uid);
   });
 

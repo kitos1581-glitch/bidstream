@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '/backend/admin_service.dart';
+import '/backend/dispute_service.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/ui/ui_kit.dart';
@@ -39,7 +40,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
           );
         }
         return DefaultTabController(
-          length: 4,
+          length: 5,
           child: Scaffold(
             backgroundColor: theme.primaryBackground,
             appBar: AppBar(
@@ -54,6 +55,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
                 unselectedLabelColor: theme.secondaryText,
                 indicatorColor: theme.primary,
                 tabs: const [
+                  Tab(text: 'Reclamos'),
                   Tab(text: 'Identidad'),
                   Tab(text: 'Pagos'),
                   Tab(text: 'Usuarios'),
@@ -62,6 +64,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
               ),
             ),
             body: const TabBarView(children: [
+              _DisputesTab(),
               _VerificationsTab(),
               _PaymentsTab(),
               _UsersTab(),
@@ -504,5 +507,96 @@ class _SellerBankInfo extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+
+/// Reclamos de compradores: ver pruebas y resolver (reembolso total,
+/// parcial o rechazar). El servidor mueve el dinero con idempotencia.
+class _DisputesTab extends StatelessWidget {
+  const _DisputesTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Dispute>>(
+      stream: DisputeService.instance.pending(),
+      builder: (context, snap) {
+        if (snap.hasError) return ErrorState(error: snap.error);
+        if (!snap.hasData) return const Loading();
+        final list = snap.data!;
+        if (list.isEmpty) {
+          return const EmptyState(icon: Icons.verified_user_outlined, title: 'Sin reclamos pendientes');
+        }
+        return ListView(padding: const EdgeInsets.only(top: 8, bottom: 24), children: [
+          for (final d in list)
+            _Row(
+              title: '${d.lotTitle} · ${formatMoney(d.finalPrice)}',
+              subtitle:
+                  '${kDisputeReasons[d.reason] ?? d.reason}${d.status == 'refund_failed' ? ' · REEMBOLSO FALLÓ: reintentar' : ''}'
+                  '${d.payoutAlreadySent ? ' · ya se pagó al vendedor (habrá clawback)' : ''}\n${d.details}',
+              extra: d.photos.isEmpty
+                  ? null
+                  : Wrap(spacing: 6, children: [
+                      for (final p in d.photos)
+                        TextButton(
+                          onPressed: () async {
+                            final url = await AdminService.instance.fileUrl(p);
+                            await launchURL(url);
+                          },
+                          child: const Text('Ver prueba'),
+                        ),
+                    ]),
+              action: 'Resolver',
+              onOpen: () => context.pushNamed('LotDetailView', queryParameters: {'lotId': d.id}),
+              onTap: () => _resolve(context, d),
+            ),
+        ]);
+      },
+    );
+  }
+
+  Future<void> _resolve(BuildContext context, Dispute d) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.undo),
+            title: const Text('Reembolso total'),
+            subtitle: Text('Se devuelven ${formatMoney(d.finalPrice)} y se cancela la liquidación'),
+            onTap: () => Navigator.pop(c, 'refund_full'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.price_change_outlined),
+            title: const Text('Reembolso parcial'),
+            onTap: () => Navigator.pop(c, 'refund_partial'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.block),
+            title: const Text('No procede'),
+            subtitle: const Text('Se libera la liquidación al vendedor'),
+            onTap: () => Navigator.pop(c, 'reject'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    double? amount;
+    if (choice == 'refund_partial') {
+      final txt = await _askText(context, 'Monto a devolver (MXN)', 'Ej. 1500');
+      amount = double.tryParse((txt ?? '').replaceAll(',', ''));
+      if (amount == null) return;
+    }
+    if (!context.mounted) return;
+    final note = await _askText(context, 'Nota para el registro', 'Ej. fotos confirman el daño') ?? '';
+    if (!context.mounted) return;
+    await _run(context, () async {
+      try {
+        await DisputeService.instance.resolve(d.id, choice, amount: amount, note: note);
+      } on DisputeFailure catch (e) {
+        throw Exception(e.message);
+      }
+    }, 'Reclamo resuelto');
   }
 }

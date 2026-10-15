@@ -2,6 +2,7 @@
 const calls = { preferences: [], refunds: [], gets: [] };
 const payments = new Map(); // id -> objeto de pago
 let failPreference = false;
+let failRefunds = false;
 const refundKeys = new Set();
 
 class MercadoPagoConfig {
@@ -25,6 +26,7 @@ class Payment {
 }
 class PaymentRefund {
   async create({ payment_id, body, requestOptions }) {
+    if (failRefunds) throw new Error("MP rechazó el reembolso");
     const key = requestOptions && requestOptions.idempotencyKey;
     if (key && refundKeys.has(key)) return { id: "dup", idempotent: true };
     if (key) refundKeys.add(key);
@@ -41,6 +43,7 @@ module.exports = {
   __calls: calls,
   __payments: payments,
   __setFailPreference(v) { failPreference = v; },
+  __failRefunds(v) { failRefunds = v; },
   __reset() {
     calls.preferences.length = 0;
     calls.refunds.length = 0;
@@ -48,5 +51,6 @@ module.exports = {
     payments.clear();
     refundKeys.clear();
     failPreference = false;
+    failRefunds = false;
   },
 };

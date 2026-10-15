@@ -34,6 +34,18 @@ service firebase.storage {
       allow delete: if false;
     }
 
+    // Pruebas de un reclamo (fotos o video corto). Privadas: dueño y admin.
+    match /disputes/{uid}/{fileName} {
+      allow read: if request.auth != null
+        && (request.auth.uid == uid || request.auth.token.admin == true);
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 20 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType.matches('video/.*'));
+      allow update, delete: if false;
+    }
+
     // Foto de perfil.
     match /users/{uid}/{fileName} {
       allow read: if request.auth != null;

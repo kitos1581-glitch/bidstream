@@ -20,6 +20,21 @@ class LotsRecord extends FirestoreRecord {
   /// new | like_new | used_good | used_fair | for_parts
   String get condition => asString(snapshotData['condition']);
 
+  /// Disputa del comprador: '' | open | resolved.
+  String get disputeStatus => asString(snapshotData['dispute_status']);
+  String get disputeResolution => asString(snapshotData['dispute_resolution']);
+  DateTime? get paidTime {
+    final v = snapshotData['paid_time'];
+    return v is DateTime ? v : null;
+  }
+
+  /// ¿Todavía puede reclamar? (72 h desde el pago confirmado)
+  bool get canOpenDispute =>
+      paymentStatus == 'paid' &&
+      disputeStatus.isEmpty &&
+      paidTime != null &&
+      DateTime.now().isBefore(paidTime!.add(const Duration(hours: 72)));
+
   /// Reputación del vendedor copiada al publicar (la mantiene el servidor).
   double get sellerRatingAvg => (snapshotData['seller_rating_avg'] as num?)?.toDouble() ?? 0;
   int get sellerRatingCount => (snapshotData['seller_rating_count'] as num?)?.toInt() ?? 0;

@@ -33,6 +33,11 @@ exports.updateFeedback = reputation.updateFeedback;
 exports.onPublicProfileInputs = reputation.onPublicProfileInputs;
 exports.onSaleRecorded = reputation.onSaleRecorded;
 
+// Protección al comprador: disputas.
+const disputes = require("./disputes");
+exports.openDispute = disputes.openDispute;
+exports.adminResolveDispute = disputes.adminResolveDispute;
+
 // Tarjeta para compartir lotes en redes (Open Graph).
 exports.lotPreview = require("./share").lotPreview;
 

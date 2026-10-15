@@ -9,6 +9,8 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/backend/payment_service.dart';
 import '/backend/reputation_service.dart';
+import '/backend/dispute_service.dart';
+import 'package:image_picker/image_picker.dart';
 import '/ui/ui_kit.dart';
 
 /// Detalle de un lote: fotos, precio, cuenta regresiva e historial de pujas.
@@ -277,6 +279,8 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                         const SizedBox(height: 8),
                         _WinnerPaymentBox(lot: lot),
                         if (lot.paymentStatus == 'paid') ...[
+                          const SizedBox(height: 12),
+                          _DisputeBox(lot: lot),
                           const SizedBox(height: 12),
                           _FeedbackBox(lot: lot),
                         ],
@@ -883,6 +887,150 @@ class _FeedbackBoxState extends State<_FeedbackBox> {
           ]),
         );
       },
+    );
+  }
+}
+
+
+/// Protección al comprador: reclamar dentro de 72 h si no llegó o llegó distinto.
+class _DisputeBox extends StatelessWidget {
+  const _DisputeBox({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    if (lot.isDemo) return const SizedBox.shrink();
+    if (lot.disputeStatus == 'open') {
+      return Tag('Reclamo en revisión: te avisaremos la resolución', icon: Icons.support_agent);
+    }
+    if (lot.disputeStatus == 'resolved') {
+      final txt = lot.disputeResolution == 'reject'
+          ? 'Reclamo revisado: no procedió'
+          : 'Reclamo resuelto con reembolso';
+      return Tag(txt, icon: Icons.task_alt);
+    }
+    if (!lot.canOpenDispute) return const SizedBox.shrink();
+    final until = lot.paidTime!.add(const Duration(hours: 72));
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: theme.error,
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+      icon: const Icon(Icons.report_problem_outlined),
+      label: Text('¿No llegó o llegó distinto? Reclamar (hasta ${formatDateTime(until)})'),
+      onPressed: () => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => _DisputeForm(lot: lot),
+      ),
+    );
+  }
+}
+
+class _DisputeForm extends StatefulWidget {
+  const _DisputeForm({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  State<_DisputeForm> createState() => _DisputeFormState();
+}
+
+class _DisputeFormState extends State<_DisputeForm> {
+  String? _reason;
+  final _details = TextEditingController();
+  final List<String> _photos = [];
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _details.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addPhoto() async {
+    final f = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 80);
+    if (f == null) return;
+    setState(() => _busy = true);
+    try {
+      final path = await DisputeService.instance
+          .uploadEvidence(await f.readAsBytes(), f.mimeType ?? 'image/jpeg');
+      setState(() => _photos.add(path));
+    } catch (e) {
+      if (mounted) showMessage(context, '$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _send() async {
+    if (_reason == null) {
+      showMessage(context, 'Elige el motivo.', error: true);
+      return;
+    }
+    if (_details.text.trim().length < 20) {
+      showMessage(context, 'Describe el problema (mínimo 20 caracteres).', error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await DisputeService.instance
+          .open(widget.lot.reference.id, _reason!, _details.text.trim(), _photos);
+      if (!mounted) return;
+      Navigator.pop(context);
+      showMessage(context, 'Recibimos tu reclamo. El pago al vendedor queda en pausa mientras lo revisamos.');
+    } on DisputeFailure catch (e) {
+      if (mounted) showMessage(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('Reclamar esta compra', style: theme.titleLarge.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('Mientras revisamos, el pago al vendedor queda en pausa. Resolvemos en máximo 5 días hábiles.',
+              style: theme.bodySmall),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _reason,
+            decoration: const InputDecoration(
+                labelText: 'Motivo',
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))),
+            items: [
+              for (final e in kDisputeReasons.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+            ],
+            onChanged: (v) => setState(() => _reason = v),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _details,
+            minLines: 3,
+            maxLines: 6,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+                labelText: '¿Qué pasó?',
+                hintText: 'Ej. La silla llegó con la piel rota y en la publicación no se dijo.',
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))),
+          ),
+          Row(children: [
+            TextButton.icon(
+              onPressed: _busy || _photos.length >= 6 ? null : _addPhoto,
+              icon: const Icon(Icons.add_a_photo_outlined),
+              label: Text('Agregar foto (${_photos.length}/6)'),
+            ),
+          ]),
+          BigButton(label: 'Enviar reclamo', loading: _busy, onPressed: _send),
+        ]),
+      ),
     );
   }
 }

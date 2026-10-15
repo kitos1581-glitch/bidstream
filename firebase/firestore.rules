@@ -181,6 +181,13 @@ service cloud.firestore {
     // ---------------- Pagos (solo el servidor) ----------------
     // Depósitos, pagos de ganador, reembolsos y payouts. El dueño puede
     // leer los suyos; nadie escribe desde el cliente.
+    // Disputas: las ven comprador, vendedor y admin. Solo el servidor escribe.
+    match /disputes/{lotId} {
+      allow read: if signedIn() && (resource.data.buyer_uid == request.auth.uid
+        || resource.data.seller_uid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
     // Calificaciones: públicas, solo las escribe el servidor (submitFeedback).
     match /feedback/{lotId} {
       allow read: if true;
