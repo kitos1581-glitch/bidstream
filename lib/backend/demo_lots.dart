@@ -111,7 +111,7 @@ LotsRecord _build(_Demo d, DateTime now) {
     'seller_name': 'Vendedor Demo',
     'highest_bidder_uid': d.bids > 0 ? 'demo-bidder' : null,
     'highest_bidder_name': d.bids > 0 ? 'Juan P.' : null,
-    if (_demoSpecs[d.id] != null) 'specs': _demoSpecs[d.id],
+    if (_demoSpecs[d.id] != null) 'specs': Map<String, dynamic>.from(_demoSpecs[d.id]!),
   });
 }
 
