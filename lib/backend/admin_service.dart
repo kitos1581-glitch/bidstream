@@ -5,6 +5,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import 'storage_upload.dart';
+
 /// Solicitud de verificación de identidad (verifications/{uid}).
 class VerificationRequest {
   VerificationRequest(this.uid, Map<String, dynamic> d)
@@ -73,9 +75,7 @@ class AdminService {
     final ext = mime.contains('png') ? 'png' : 'jpg';
     final path =
         'verifications/$uid/${key}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await FirebaseStorage.instance
-        .ref(path)
-        .putData(bytes, SettableMetadata(contentType: mime));
+    await uploadWithTimeout(FirebaseStorage.instance.ref(path), bytes, mime);
     return path;
   }
 

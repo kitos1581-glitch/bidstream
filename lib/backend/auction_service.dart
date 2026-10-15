@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import 'schema/bidding_record.dart';
+import 'storage_upload.dart';
 import 'schema/bids_record.dart';
 import 'schema/lots_record.dart';
 import 'schema/notifications_record.dart';
@@ -182,7 +183,7 @@ class AuctionService {
     final ext = type.split('/').last.replaceAll('jpeg', 'jpg');
     final name = '${DateTime.now().millisecondsSinceEpoch}.$ext';
     final ref = FirebaseStorage.instance.ref('lots/$uid/$name');
-    await ref.putData(bytes, SettableMetadata(contentType: type));
+    await uploadWithTimeout(ref, bytes, type);
     return ref.getDownloadURL();
   }
 
