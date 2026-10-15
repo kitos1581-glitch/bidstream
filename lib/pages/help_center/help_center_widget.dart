@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/ui/ui_kit.dart';
 
 /// Centro de ayuda público (no requiere cuenta): cómo comprar y vender,
 /// comisiones, entregas, problemas, términos y privacidad.
