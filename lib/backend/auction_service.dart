@@ -2,6 +2,7 @@ import 'dart:convert' show base64Encode;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -141,11 +142,27 @@ class AuctionService {
         .snapshots()
         .map((s) => s.docs.map(LotsRecord.fromSnapshot).toList());
     if (!kShowDemoLots) return real;
-    return real.map((lots) {
+    return _withDemos(real);
+  }
+
+  /// En la vista previa, los lotes de ejemplo se muestran de inmediato y
+  /// aunque Firestore falle (sin conexión, reglas, índices).
+  Stream<List<LotsRecord>> _withDemos(Stream<List<LotsRecord>> real) async* {
+    List<LotsRecord> merge(List<LotsRecord> lots) {
       final all = [...lots, ...demoLots()];
-      all.sort((a, b) => (a.endTime ?? DateTime(2100)).compareTo(b.endTime ?? DateTime(2100)));
+      all.sort((a, b) =>
+          (a.endTime ?? DateTime(2100)).compareTo(b.endTime ?? DateTime(2100)));
       return all;
-    });
+    }
+
+    yield merge(const []);
+    try {
+      await for (final lots in real) {
+        yield merge(lots);
+      }
+    } catch (e) {
+      debugPrint('Lotes reales no disponibles: $e');
+    }
   }
 
   Stream<LotsRecord?> lot(String lotId) => isDemoLotId(lotId)

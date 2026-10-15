@@ -712,12 +712,22 @@ class ErrorState extends StatelessWidget {
   final VoidCallback? onRetry;
 
   @override
-  Widget build(BuildContext context) => EmptyState(
-        icon: Icons.cloud_off_outlined,
-        title: 'No pudimos cargar la información',
-        message: friendlyError(error),
-        action: onRetry == null
-            ? null
-            : OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
-      );
+  Widget build(BuildContext context) {
+    debugPrint('ErrorState: $error');
+    final detail = '$error';
+    return EmptyState(
+      icon: Icons.cloud_off_outlined,
+      title: 'No pudimos cargar la información',
+      message: friendlyError(error),
+      action: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (onRetry != null)
+          OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
+        const SizedBox(height: 8),
+        // Detalle técnico (pequeño) para poder diagnosticar.
+        Text(detail.length > 160 ? '${detail.substring(0, 160)}…' : detail,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ]),
+    );
+  }
 }
