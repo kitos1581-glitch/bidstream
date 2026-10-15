@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 
