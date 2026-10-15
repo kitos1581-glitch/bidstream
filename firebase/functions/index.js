@@ -1,4 +1,5 @@
 const functions = require("firebase-functions");
+const { assertAppCheck } = require("./appcheck");
 const admin = require("firebase-admin");
 
 // Guarda: permite cargar index.js aunque otro módulo ya haya inicializado.
@@ -24,6 +25,9 @@ exports.mpWebhook = payments.mpWebhook;
 const spei = require("./spei");
 exports.chooseWinnerPaymentMethod = spei.chooseWinnerPaymentMethod;
 exports.openpayWebhook = spei.openpayWebhook;
+
+// Tarjeta para compartir lotes en redes (Open Graph).
+exports.lotPreview = require("./share").lotPreview;
 
 // Verificación de identidad y panel de administrador.
 const adminFns = require("./admin");
@@ -74,6 +78,7 @@ function formatMoney(n) {
 // data: { lotId: string, max_amount: number }   (acepta `amount` por compatibilidad)
 // ---------------------------------------------------------------------
 exports.placeBid = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Inicia sesión para pujar.");
   }

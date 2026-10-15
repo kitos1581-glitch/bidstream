@@ -26,6 +26,7 @@
  *   DEPOSIT_AMOUNT (200), COMMISSION_PCT (0.10), WINNER_PAYMENT_WINDOW_HOURS (24)
  */
 const functions = require("firebase-functions");
+const { assertAppCheck } = require("./appcheck");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = require("mercadopago");
@@ -381,6 +382,7 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
 // createDeposit — genera el checkout del depósito de garantía.
 // ---------------------------------------------------------------------
 exports.createDeposit = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Inicia sesión.");
   }
@@ -665,6 +667,7 @@ exports.expireUnpaidWins = functions
 // rechaza, y dos solicitudes simultáneas no reembolsan dos veces.
 // ---------------------------------------------------------------------
 exports.requestDepositRefund = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Inicia sesión.");
   }

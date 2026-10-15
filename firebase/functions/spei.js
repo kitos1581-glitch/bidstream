@@ -17,6 +17,7 @@
  * details.code ∈ ERROR_CODES.
  */
 const functions = require("firebase-functions");
+const { assertAppCheck } = require("./appcheck");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
@@ -234,7 +235,10 @@ async function chooseWinnerPaymentMethodImpl(data, uid, nowMs = Date.now()) {
 
 exports.chooseWinnerPaymentMethod = functions
   .region(REGION)
-  .https.onCall((data, context) => chooseWinnerPaymentMethodImpl(data, context.auth ? context.auth.uid : null));
+  .https.onCall((data, context) => {
+    assertAppCheck(context);
+    return chooseWinnerPaymentMethodImpl(data, context.auth ? context.auth.uid : null);
+  });
 
 // ---------------------------------------------------------------------
 // Webhook de Openpay

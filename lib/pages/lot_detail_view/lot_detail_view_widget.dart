@@ -103,6 +103,21 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
     );
   }
 
+  /// Liga para compartir. Con SHARE_BASE_URL (dominio en Firebase Hosting)
+  /// usa /l/{id}, que muestra foto y precio en WhatsApp/Facebook; si no,
+  /// la dirección actual del lote.
+  Future<void> _share(LotsRecord lot) async {
+    const base = String.fromEnvironment('SHARE_BASE_URL');
+    final url = base.isNotEmpty
+        ? '$base/l/${lot.reference.id}'
+        : (kIsWeb
+            ? Uri.base.toString()
+            : '${const String.fromEnvironment('WEB_APP_URL', defaultValue: 'https://kitos1581-glitch.github.io/bidstream')}'
+                '/lotDetailView?lotId=${lot.reference.id}');
+    await Clipboard.setData(ClipboardData(text: '${lot.title} — $url'));
+    if (mounted) showMessage(context, 'Liga copiada. Pégala en WhatsApp o Facebook.');
+  }
+
   Widget _buildLot(BuildContext context, LotsRecord lot) {
     final theme = FlutterFlowTheme.of(context);
     {
@@ -120,6 +135,11 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
             title: Text(lot.category.isEmpty ? 'Lote' : lot.category,
                 style: theme.titleSmall),
             actions: [
+              IconButton(
+                tooltip: 'Compartir',
+                icon: const Icon(Icons.share_outlined),
+                onPressed: () => _share(lot),
+              ),
               if (isSeller && lot.bidCount == 0 && lot.status == 'active')
                 IconButton(
                   tooltip: 'Eliminar lote',

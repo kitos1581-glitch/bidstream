@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -17,10 +18,35 @@ void main() async {
   usePathUrlStrategy();
 
   await initFirebase();
+  await _activateAppCheck();
 
   await FlutterFlowTheme.initialize();
 
   runApp(MyApp());
+}
+
+/// Clave de reCAPTCHA v3 para App Check en web:
+/// flutter build web --dart-define=APP_CHECK_SITE_KEY=...
+const _appCheckSiteKey = String.fromEnvironment('APP_CHECK_SITE_KEY');
+
+/// App Check: prueba al servidor que la llamada viene de la app real.
+/// Si falla no bloquea el arranque; el servidor decide (APP_CHECK_MODE).
+Future<void> _activateAppCheck() async {
+  try {
+    if (kIsWeb) {
+      if (_appCheckSiteKey.isEmpty) return;
+      await FirebaseAppCheck.instance
+          .activate(webProvider: ReCaptchaV3Provider(_appCheckSiteKey));
+    } else {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider:
+            kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+        appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      );
+    }
+  } catch (e) {
+    debugPrint('App Check no se activó: $e');
+  }
 }
 
 class MyApp extends StatefulWidget {

@@ -6,6 +6,7 @@
  * (ver README). Todas las funciones admin lo revisan en el servidor.
  */
 const functions = require("firebase-functions");
+const { assertAppCheck } = require("./appcheck");
 const admin = require("firebase-admin");
 const { startWinnerPayment, computeCommission } = require("./payments");
 
@@ -55,6 +56,7 @@ function auditLog(adminUid, action, target, details = {}) {
 exports.submitIdentityVerification = functions
   .region(REGION)
   .https.onCall(async (data, context) => {
+    assertAppCheck(context);
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Inicia sesión.");
     }
@@ -112,6 +114,7 @@ exports.submitIdentityVerification = functions
 exports.adminReviewVerification = functions
   .region(REGION)
   .https.onCall(async (data, context) => {
+    assertAppCheck(context);
     const adminUid = requireAdmin(context);
     const uid = String((data && data.uid) || "");
     const approve = data && data.approve === true;
@@ -157,6 +160,7 @@ exports.adminReviewVerification = functions
 // data: { uid, banned: bool, reason?: string }
 // ---------------------------------------------------------------------
 exports.adminSetBan = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
   const adminUid = requireAdmin(context);
   const uid = String((data && data.uid) || "");
   const banned = data && data.banned === true;
@@ -186,6 +190,7 @@ exports.adminSetBan = functions.region(REGION).https.onCall(async (data, context
 // data: { paymentId, reference } (reference = folio / clave de rastreo SPEI)
 // ---------------------------------------------------------------------
 exports.adminMarkPayoutSent = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
   const adminUid = requireAdmin(context);
   const paymentId = String((data && data.paymentId) || "");
   const reference = String((data && data.reference) || "").trim().slice(0, 100);
@@ -229,6 +234,7 @@ exports.adminMarkPayoutSent = functions.region(REGION).https.onCall(async (data,
 exports.adminRecalculatePayout = functions
   .region(REGION)
   .https.onCall(async (data, context) => {
+    assertAppCheck(context);
     const adminUid = requireAdmin(context);
     const paymentId = String((data && data.paymentId) || "");
     const ref = db.collection("payments").doc(paymentId);
@@ -277,6 +283,7 @@ exports.adminRecalculatePayout = functions
 exports.adminRetryWinnerPayment = functions
   .region(REGION)
   .https.onCall(async (data, context) => {
+    assertAppCheck(context);
     const adminUid = requireAdmin(context);
     const lotId = String((data && data.lotId) || "");
     const lotRef = db.collection("lots").doc(lotId);
@@ -308,6 +315,7 @@ exports.adminRetryWinnerPayment = functions
 // prohibido...). Avisa al vendedor y a quien iba ganando.
 // ---------------------------------------------------------------------
 exports.adminCancelLot = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
   const adminUid = requireAdmin(context);
   const lotId = String((data && data.lotId) || "");
   const reason = String((data && data.reason) || "").trim().slice(0, 300);

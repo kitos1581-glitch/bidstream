@@ -11,8 +11,10 @@ service firebase.storage {
 
     // Fotos de lotes: cada vendedor sube a su propia carpeta.
     // Máximo 10 MB por foto y solo imágenes.
+    // Lectura pública: el catálogo se ve sin cuenta. (Las URL de descarga
+    // con token ya funcionan sin sesión; esta regla cubre el acceso directo.)
     match /lots/{uid}/{fileName} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow create, update: if request.auth != null
         && request.auth.uid == uid
         && request.resource.size < 10 * 1024 * 1024
