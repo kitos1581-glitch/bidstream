@@ -1,4 +1,30 @@
-# Evidencia de pruebas — BidStream v5 (correcciones de auditoría)
+# Evidencia de pruebas — Subástalo Aquí
+
+## Estado actual (2026-10-15, CI de GitHub Actions)
+
+Cada fila dice qué se ejecutó de verdad y dónde. "CI" = GitHub Actions
+(`.github/workflows/pruebas.yml`, 3 trabajos) sobre el commit indicado en el
+historial del repositorio.
+
+| Módulo / verificación | Estado | Detalle |
+|---|---|---|
+| Pruebas backend (Cloud Functions) | **EJECUTADO en CI: 139/139 pasan** | Firestore, Mercado Pago, Openpay, FCM y Claude **simulados** |
+| Reglas Firestore + Storage en emulador oficial | **EJECUTADO en CI** | 16 casos Firestore + 3 Storage (`firebase/rules-tests`) |
+| `flutter analyze` / `flutter test` / `flutter build web` | **EJECUTADO en CI** | 0 errores, 0 advertencias (solo infos); 13 pruebas Dart |
+| Pago final por SPEI (Openpay) | **EJECUTADO (simulado): 15 pruebas** | Sin cuenta de Openpay todavía: nunca se llamó a la API real |
+| Fase 0.1 App Check | **EJECUTADO (lógica): 4 pruebas** | Modo por defecto `monitor`. **NO activado** en Firebase (requiere consola + despliegue) |
+| Fase 0.2 Verificación remota | **NO EJECUTADO** | El backend **no está desplegado** (falta plan Blaze y autorización). `verificar_remoto.sh` listo |
+| Fase 0.3 Fotos de lotes sin sesión | **EJECUTADO en emulador** | Regla `lots/` pública + prueba; las URL con token ya funcionaban sin sesión |
+| Fase 0.4 Tarjetas para compartir (Open Graph) | **EJECUTADO (simulado): 3 pruebas** | Requiere Firebase Hosting desplegado (`/l/{id}`); en la vista previa de GitHub Pages no aplica |
+| Fase 1.1 Reputación | **EJECUTADO: 10 pruebas backend + 2 de reglas** | Incluye abuso: quien no compró, doble calificación simultánea, disputa abierta |
+| Fase 1.2 Disputas | **EJECUTADO: 11 pruebas** | Reembolsos MP idempotentes, clawback, reintento tras rechazo de MP |
+| Fase 1.3 Segunda oportunidad | **EJECUTADO: 7 pruebas** | Subcampeón inválido (vendedor, suspendido, bajo el mínimo), aceptación doble |
+| Pruebas en dispositivo real / de punta a punta | **NO EJECUTADO** | Sin backend desplegado no hay flujo real de dinero |
+
+---
+
+## Historial: versión v5 (correcciones de auditoría)
+
 
 Fecha: 2026-10-14. Base: `bid_stream_v4.zip` (verificado byte a byte contra la
 copia de trabajo antes de cambiar nada). **Nota:** el archivo de auditoría no
