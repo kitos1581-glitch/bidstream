@@ -118,7 +118,7 @@ function colRef(path) {
         const rest = p.slice(path.length + 1);
         if (!p.startsWith(path + "/") || rest.includes("/")) continue;
         const ok = filters.every(([f, op, v]) => {
-          const x = e.data[f];
+          const x = String(f).split(".").reduce((o, k) => (o == null ? undefined : o[k]), e.data);
           const val = (y) => (y instanceof Timestamp ? y.ms : y);
           if (op === "==") return val(x) === val(v);
           if (op === "<=") return val(x) <= val(v);

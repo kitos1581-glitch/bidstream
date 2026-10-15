@@ -120,6 +120,21 @@ class PaymentService {
     }
   }
 
+  /// Responde a una "segunda oportunidad" (el ganador no pagó y el lote se
+  /// le ofrece al subcampeón por su máximo). Devuelve true si aceptó.
+  Future<bool> respondSecondChance(String lotId, {required bool accept}) async {
+    try {
+      final res = await _functions
+          .httpsCallable('respondSecondChance')
+          .call<dynamic>({'lotId': lotId, 'accept': accept});
+      final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : const <String, dynamic>{};
+      return data['accepted'] == true;
+    } on FirebaseFunctionsException catch (e) {
+      final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : const {};
+      throw PaymentFailure((details['code'] ?? e.code).toString(), e.message ?? 'No se pudo responder.');
+    }
+  }
+
   /// Abre el checkout de Mercado Pago. En móvil abre el navegador (o la
   /// app de MP si está instalada); en web, una pestaña nueva.
   Future<bool> openCheckout(String url) => launchUrl(

@@ -660,6 +660,22 @@ exports.expireUnpaidWins = functions
       }
     }
     functions.logger.info(`Subastas incumplidas castigadas: ${forfeited}`);
+
+    // Segunda oportunidad: ofrecer al subcampeón y vencer ofertas viejas.
+    // (require aquí para evitar la dependencia circular con second_chance.js)
+    const sc = require("./second_chance");
+    for (const doc of snap.docs) {
+      try {
+        await sc.offerSecondChance(doc.ref);
+      } catch (err) {
+        functions.logger.error(`Segunda oportunidad falló en ${doc.id}`, err);
+      }
+    }
+    try {
+      await sc.expireSecondChances();
+    } catch (err) {
+      functions.logger.error("No se pudieron vencer segundas oportunidades", err);
+    }
     return null;
   });
 

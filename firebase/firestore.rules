@@ -135,7 +135,8 @@ service cloud.firestore {
                'payment_status', 'winner_payment_url', 'payment_due_time', 'amount_due',
                'deposit_applied', 'final_price', 'seller_name', 'cancel_reason',
                'seller_rating_avg', 'seller_rating_count', 'seller_sales_count', 'seller_badges',
-               'payment_options', 'spei_charge_id', 'dispute_status', 'paid_with']);
+               'payment_options', 'spei_charge_id', 'dispute_status', 'paid_with',
+               'second_chance', 'forfeited_uids', 'dispute_resolution', 'spei_creating_until']);
 
       // El vendedor solo edita la parte descriptiva. Precio, incremento y
       // fechas solo mientras NO haya pujas. El documento resultante pasa por

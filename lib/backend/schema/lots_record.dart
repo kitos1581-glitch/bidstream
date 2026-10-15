@@ -20,6 +20,11 @@ class LotsRecord extends FirestoreRecord {
   /// new | like_new | used_good | used_fair | for_parts
   String get condition => asString(snapshotData['condition']);
 
+  /// Segunda oportunidad: {uid, name, amount, status, expires_at}.
+  Map<String, dynamic> get secondChance => snapshotData['second_chance'] is Map
+      ? Map<String, dynamic>.from(snapshotData['second_chance'] as Map)
+      : const {};
+
   /// Disputa del comprador: '' | open | resolved.
   String get disputeStatus => asString(snapshotData['dispute_status']);
   String get disputeResolution => asString(snapshotData['dispute_resolution']);

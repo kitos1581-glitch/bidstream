@@ -144,7 +144,7 @@ test("SPEI: el ganador obtiene CLABE; llamar dos veces devuelve la MISMA referen
   const b = await choose({ lotId: "T1", method: "spei" });
   assert.strictEqual(b.clabe, a.clabe);
   assert.strictEqual(op.creates.length, 1, "no se crea una segunda referencia");
-  assert.strictEqual(op.creates[0].orderId, "win_T1");
+  assert.strictEqual(op.creates[0].orderId, "win_T1_ana");
   assert.strictEqual(get("lots/T1").payment_method_chosen, "spei");
   assert.strictEqual(get("payments/openpay_charge_tr_1").lot_id, "T1");
   // El lote es público: no debe contener la CLABE.
@@ -232,7 +232,7 @@ test("webhook: cargo no completado, monto menor u otro order_id no liquida", asy
   completeCharge("tr_1", { orderId: "otro" });
   await spei.handleOpenpayEvent({ type: "charge.succeeded", transaction: { id: "tr_1" } });
   assert.strictEqual(get("lots/T1").payment_status, "pending");
-  completeCharge("tr_1", { orderId: "win_T1", amount: 1000 });
+  completeCharge("tr_1", { orderId: "win_T1_ana", amount: 1000 });
   await spei.handleOpenpayEvent({ type: "charge.succeeded", transaction: { id: "tr_1" } });
   assert.strictEqual(get("lots/T1").payment_status, "pending", "monto menor no liquida");
   assert.strictEqual(get("payments/refund_openpay_tr_1").status, "manual_required");

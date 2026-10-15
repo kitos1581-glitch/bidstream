@@ -38,6 +38,9 @@ const disputes = require("./disputes");
 exports.openDispute = disputes.openDispute;
 exports.adminResolveDispute = disputes.adminResolveDispute;
 
+// Segunda oportunidad al subcampeón cuando el ganador no paga.
+exports.respondSecondChance = require("./second_chance").respondSecondChance;
+
 // Tarjeta para compartir lotes en redes (Open Graph).
 exports.lotPreview = require("./share").lotPreview;
 

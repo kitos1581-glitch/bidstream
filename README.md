@@ -269,6 +269,15 @@ con ese usuario y contraseña; el código de verificación aparece en los logs.
   manual. Si MP rechaza, queda `refund_failed` y se puede reintentar.
 - Panel de administración → pestaña **Reclamos**.
 
+## 7.4 Segunda oportunidad (Fase 1.3)
+
+Si el ganador no paga (se castiga igual que antes y el vendedor conserva su
+depósito), el sistema ofrece el lote al **subcampeón** (máximo secreto más alto
+de otro postor; empate → quien ofertó primero) **por su máximo**, con 24 h para
+aceptar (`respondSecondChance`). Rechazar o dejar vencer no tiene castigo. Si
+acepta, se vuelve el ganador y corre el cobro normal (24 h, depósito aplicado);
+si después no paga, se castiga normal. Una sola segunda oportunidad por lote.
+
 ## 8. Notificaciones push
 
 Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda

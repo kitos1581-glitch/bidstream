@@ -264,6 +264,12 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                             fontWeight: FontWeight.w700, color: theme.error),
                       ),
                     ],
+                    if (lot.secondChance['status'] == 'offered' &&
+                        currentUserUid.isNotEmpty &&
+                        lot.secondChance['uid'] == currentUserUid) ...[
+                      const SizedBox(height: 10),
+                      _SecondChanceCard(lot: lot),
+                    ],
                     if (lot.status == 'ended') ...[
                       const SizedBox(height: 10),
                       Text(
@@ -1031,6 +1037,73 @@ class _DisputeFormState extends State<_DisputeForm> {
           BigButton(label: 'Enviar reclamo', loading: _busy, onPressed: _send),
         ]),
       ),
+    );
+  }
+}
+
+
+/// "Segunda oportunidad": el ganador no pagó y se te ofrece por tu máximo.
+class _SecondChanceCard extends StatefulWidget {
+  const _SecondChanceCard({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  State<_SecondChanceCard> createState() => _SecondChanceCardState();
+}
+
+class _SecondChanceCardState extends State<_SecondChanceCard> {
+  bool _busy = false;
+
+  Future<void> _respond(bool accept) async {
+    setState(() => _busy = true);
+    try {
+      final ok = await PaymentService.instance
+          .respondSecondChance(widget.lot.reference.id, accept: accept);
+      if (!mounted) return;
+      showMessage(context, ok ? '¡Es tuyo! Ahora elige cómo pagar.' : 'Listo, rechazaste la oferta.');
+    } on PaymentFailure catch (e) {
+      if (mounted) showMessage(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final sc = widget.lot.secondChance;
+    final amount = (sc['amount'] as num?)?.toDouble() ?? 0;
+    final expires = sc['expires_at'];
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1C7),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('Segunda oportunidad', style: theme.titleMedium.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(
+          'El ganador no pagó. Llévatelo por tu máximo de ${formatMoney(amount)}'
+          '${expires is DateTime ? ' (acepta antes del ${formatDateTime(expires)})' : ''}. '
+          'Si no te interesa, rechazar no tiene ninguna penalización.',
+          style: theme.bodySmall,
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _busy ? null : () => _respond(false),
+              style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+              child: const Text('No, gracias'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: BigButton(label: 'Lo quiero', loading: _busy, onPressed: () => _respond(true)),
+          ),
+        ]),
+      ]),
     );
   }
 }

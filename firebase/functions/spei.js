@@ -178,7 +178,8 @@ async function chooseWinnerPaymentMethodImpl(data, uid, nowMs = Date.now()) {
 
   const winnerSnap = await db.collection("users").doc(uid).get();
   const winner = winnerSnap.exists ? winnerSnap.data() : {};
-  const orderId = `win_${lotId}`;
+  // Incluye al ganador: con segunda oportunidad, el lote puede tener otro.
+  const orderId = `win_${lotId}_${uid}`;
   let charge;
   try {
     charge = await client.createSpeiCharge({
