@@ -231,6 +231,11 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
     //    máximo, no se publica nada: sería revelar información secreta.
     if (r.publicEvent) {
       const history = lotRef.collection("history");
+      // Hora del historial estrictamente creciente: dos pujas en el mismo
+      // milisegundo nunca quedan desordenadas.
+      const lastMs = lot.last_bid_time && lot.last_bid_time.toMillis ? lot.last_bid_time.toMillis() : 0;
+      const histMs = Math.max(nowMs, lastMs + 1);
+      const histAt = Timestamp.fromMillis(histMs);
       if (r.outcome === "outbid") {
         // El retador ofreció M y el proxy del líder respondió automáticamente.
         tx.set(history.doc(), {
@@ -238,14 +243,14 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
           bidder_name: bidderName,
           amount: r.bidderEffective,
           auto: false,
-          created_time: now,
+          created_time: histAt,
         });
         tx.set(history.doc(), {
           bidder_uid: r.newLeaderUid,
           bidder_name: leaderName,
           amount: r.newCurrentBid,
           auto: true,
-          created_time: Timestamp.fromMillis(nowMs + 1), // orden estable
+          created_time: Timestamp.fromMillis(histMs + 1), // orden estable
         });
       } else {
         tx.set(history.doc(), {
@@ -253,7 +258,7 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
           bidder_name: bidderName,
           amount: r.newCurrentBid,
           auto: false,
-          created_time: now,
+          created_time: histAt,
         });
       }
 
@@ -262,7 +267,7 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
         bid_count: FieldValue.increment(r.outcome === "outbid" ? 2 : 1),
         highest_bidder_uid: r.newLeaderUid,
         highest_bidder_name: leaderName,
-        last_bid_time: now,
+        last_bid_time: Timestamp.fromMillis(r.outcome === "outbid" ? histMs + 1 : histMs),
         end_time: Timestamp.fromMillis(r.newEndTimeMs),
         ...(reserve > 0 ? { reserve_met: r.reserveMet } : {}),
       });
