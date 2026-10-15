@@ -79,27 +79,24 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
       debugLogDiagnostics: true,
       refreshListenable: appStateNotifier,
       navigatorKey: appNavigatorKey,
-      errorBuilder: (context, state) => appStateNotifier.loggedIn
-          ? AuctionDashboardWidget()
-          : BidderAccessWidget(),
+      // Cualquiera puede ver el catálogo; la cuenta se pide al pujar o publicar.
+      errorBuilder: (context, state) => const AuctionDashboardWidget(),
       routes: [
         FFRoute(
           name: '_initialize',
           path: '/',
-          builder: (context, _) => appStateNotifier.loggedIn
-              ? AuctionDashboardWidget()
-              : BidderAccessWidget(),
+          builder: (context, _) => const AuctionDashboardWidget(),
         ),
         FFRoute(
           name: AuctionDashboardWidget.routeName,
           path: AuctionDashboardWidget.routePath,
-          requireAuth: true,
+          requireAuth: false,
           builder: (context, params) => const AuctionDashboardWidget(),
         ),
         FFRoute(
           name: LotDetailViewWidget.routeName,
           path: LotDetailViewWidget.routePath,
-          requireAuth: true,
+          requireAuth: false,
           builder: (context, params) => LotDetailViewWidget(
             lotId: params.getParam('lotId', ParamType.String) ?? '',
           ),
@@ -107,7 +104,7 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: LiveStreamAuctionWidget.routeName,
           path: LiveStreamAuctionWidget.routePath,
-          requireAuth: true,
+          requireAuth: false,
           builder: (context, params) => LiveStreamAuctionWidget(
             lotId: params.getParam('lotId', ParamType.String) ?? '',
           ),
@@ -155,6 +152,14 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           path: AdminPanelWidget.routePath,
           requireAuth: true,
           builder: (context, params) => const AdminPanelWidget(),
+        ),
+        FFRoute(
+          name: HelpCenterWidget.routeName,
+          path: HelpCenterWidget.routePath,
+          requireAuth: false,
+          builder: (context, params) => HelpCenterWidget(
+            topic: params.getParam('tema', ParamType.String) ?? '',
+          ),
         ),
         FFRoute(
           name: BidderAccessWidget.routeName,

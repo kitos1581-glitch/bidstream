@@ -236,6 +236,15 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
                             style: theme.bodyMedium
                                 .copyWith(color: theme.primary)),
                       ),
+                    TextButton(
+                      onPressed: () => context.canPop()
+                          ? context.pop()
+                          : context.goNamed('AuctionDashboard'),
+                      child: Text('Ver subastas sin cuenta',
+                          style: theme.bodyMedium.copyWith(
+                              color: theme.secondaryText,
+                              decoration: TextDecoration.underline)),
+                    ),
                     if (_isSignUp)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),

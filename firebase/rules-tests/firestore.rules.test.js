@@ -184,3 +184,15 @@ test("características (specs): mapa aceptado, otro tipo o demasiadas se rechaza
   for (let i = 0; i < 31; i++) many["k" + i] = "v";
   await assertFails(updateDoc(doc(db, "lots/L1"), { specs: many }));
 });
+
+test("sin cuenta: se ve el catálogo y el historial, pero no máximos, ni se escribe", async () => {
+  const anon = env.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(anon, "lots/L1")));
+  await assertSucceeds(getDocs(query(collection(anon, "lots"), where("status", "==", "active"))));
+  await assertSucceeds(getDoc(doc(anon, "lots/L1/history/h1")));
+  await assertFails(getDoc(doc(anon, "lots/L1/bids/b1")));
+  await assertFails(getDoc(doc(anon, "lots/L1/private/proxy_state")));
+  await assertFails(getDoc(doc(anon, "users/vero")));
+  await assertFails(setDoc(doc(anon, "lots/N9"), validLot({ seller_uid: "nadie" })));
+  await assertFails(updateDoc(doc(anon, "lots/L1"), { title: "Hackeado" }));
+});

@@ -117,7 +117,7 @@ service cloud.firestore {
 
     // ---------------- Lotes ----------------
     match /lots/{lotId} {
-      allow read: if signedIn();
+      allow read: if true; // Catálogo público: se puede ver sin cuenta.
 
       // Para vender: correo verificado, identidad verificada (INE), cuenta
       // no suspendida, y datos válidos (MISMA validación que al actualizar).
@@ -166,7 +166,7 @@ service cloud.firestore {
 
       // Historial público de pujas (sin máximos). Solo el servidor escribe.
       match /history/{entryId} {
-        allow read: if signedIn();
+        allow read: if true; // Historial público (sin máximos secretos).
         allow write: if false;
       }
 

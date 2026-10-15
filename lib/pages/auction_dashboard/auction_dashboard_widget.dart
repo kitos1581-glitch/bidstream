@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/pages/help_center/help_center_widget.dart';
 import '/ui/ui_kit.dart';
 
 /// Inicio estilo marketplace: buscador, banner, categorías, filas de
@@ -121,6 +123,8 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                         onSelect: (c) => setState(() => _category = c),
                       ),
                     ),
+                    const SliverToBoxAdapter(child: SectionTitle('Así funciona')),
+                    const SliverToBoxAdapter(child: HowItWorks()),
                     if (live.isNotEmpty) ...[
                       SliverToBoxAdapter(
                         child: SectionTitle('🔴 En vivo ahora',
@@ -191,6 +195,7 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                         ),
                       ),
                     ),
+                  const SliverToBoxAdapter(child: HelpLinks()),
                 ]);
               },
             ),
@@ -237,15 +242,33 @@ class _Header extends StatelessWidget {
           logo,
           const Spacer(),
           IconButton(
+            tooltip: 'Ayuda',
+            icon: const Icon(Icons.help_outline_rounded),
+            onPressed: () => context.pushNamed('HelpCenter'),
+          ),
+          IconButton(
             tooltip: 'Avisos',
             icon: const Icon(Icons.notifications_none_rounded),
             onPressed: () => context.goNamed('AuctionNotifications'),
           ),
-          IconButton(
-            tooltip: 'Mi cuenta',
-            icon: const Icon(Icons.person_outline_rounded),
-            onPressed: () => context.goNamed('UserProfileActivity'),
-          ),
+          if (currentUserUid.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.primary,
+                  shape: const StadiumBorder(),
+                ),
+                onPressed: () => context.pushNamed('BidderAccess'),
+                child: const Text('Entrar', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Mi cuenta',
+              icon: const Icon(Icons.person_outline_rounded),
+              onPressed: () => context.goNamed('UserProfileActivity'),
+            ),
         ]),
         const SizedBox(height: 10),
         Padding(

@@ -1,0 +1,17 @@
+{
+  "name": "Subástalo Aquí",
+  "short_name": "Subástalo",
+  "description": "Subastas en línea y en vivo: vehículos, ganado, caballos, maquinaria y más.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "lang": "es-MX",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1B3A6B",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "icons/Icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/Icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

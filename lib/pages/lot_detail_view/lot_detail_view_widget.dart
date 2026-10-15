@@ -246,13 +246,13 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                       Text(
                         lot.winnerUid.isEmpty
                             ? 'Terminó sin pujas.'
-                            : (lot.winnerUid == currentUserUid
+                            : (currentUserUid.isNotEmpty && lot.winnerUid == currentUserUid
                                 ? '¡Ganaste esta subasta!'
                                 : 'Ganó ${lot.winnerName}.'),
                         style: theme.bodyMedium
                             .copyWith(fontWeight: FontWeight.w700),
                       ),
-                      if (lot.winnerUid == currentUserUid) ...[
+                      if (currentUserUid.isNotEmpty && lot.winnerUid == currentUserUid) ...[
                         const SizedBox(height: 8),
                         _WinnerPaymentBox(lot: lot),
                       ],

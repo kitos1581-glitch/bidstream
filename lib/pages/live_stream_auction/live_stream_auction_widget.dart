@@ -61,6 +61,11 @@ class _LiveStreamAuctionWidgetState extends State<LiveStreamAuctionWidget> {
   }
 
   Future<void> _quickBid(LotsRecord lot, double amount, UsersRecord? profile) async {
+    if (currentUserUid.isEmpty) {
+      showMessage(context, 'Crea tu cuenta o inicia sesión para pujar. Ver es gratis.');
+      context.pushNamed('BidderAccess');
+      return;
+    }
     if (!AuctionService.instance.emailVerified ||
         !(profile?.isProfileComplete ?? false)) {
       showMessage(context, 'Completa tu cuenta para pujar.', error: true);

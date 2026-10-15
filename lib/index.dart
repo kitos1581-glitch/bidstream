@@ -19,3 +19,4 @@ export '/bidder_access/bidder_access_widget.dart' show BidderAccessWidget;
 export '/pages/identity_verification/identity_verification_widget.dart'
     show IdentityVerificationWidget;
 export '/pages/admin_panel/admin_panel_widget.dart' show AdminPanelWidget;
+export '/pages/help_center/help_center_widget.dart' show HelpCenterWidget;
