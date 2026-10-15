@@ -113,7 +113,7 @@ test("actualizar: la misma validación que al crear", async () => {
   await assertSucceeds(updateDoc(doc(db, "lots/L1"), { title: "Bicicleta de montaña" }));
   await assertSucceeds(updateDoc(doc(db, "lots/L1"), { starting_price: 1200, current_bid: 1200 }));
   await assertFails(updateDoc(doc(db, "lots/L1"), { title: "x" }));
-  await assertFails(updateDoc(doc(db, "lots/L1"), { starting_price: 1200 })); // current_bid ≠ starting
+  await assertFails(updateDoc(doc(db, "lots/L1"), { starting_price: 1500 })); // current_bid (1200) ≠ starting
   await assertFails(updateDoc(doc(db, "lots/L1"), { current_bid: 5 }));
   await assertFails(updateDoc(doc(db, "lots/L1"), { status: "ended" }));
   await assertFails(updateDoc(doc(db, "lots/L1"), { bid_count: 5 }));

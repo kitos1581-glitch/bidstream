@@ -33,8 +33,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = FlutterFlowTheme.themeMode;
-
   late AppStateNotifier _appStateNotifier;
   late GoRouter _router;
   String getRoute([RouteMatch? routeMatch]) {
@@ -87,10 +85,9 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  void setThemeMode(ThemeMode mode) => safeSetState(() {
-        _themeMode = mode;
-        FlutterFlowTheme.saveThemeMode(mode);
-      });
+  // Por ahora la app usa siempre el tema claro (el oscuro aún no está
+  // diseñado); se guarda la preferencia para cuando exista.
+  void setThemeMode(ThemeMode mode) => FlutterFlowTheme.saveThemeMode(mode);
 
   @override
   Widget build(BuildContext context) {
