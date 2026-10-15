@@ -12,7 +12,7 @@ const {
   assertSucceeds,
   assertFails,
 } = require("@firebase/rules-unit-testing");
-const { doc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, Timestamp } =
+const { doc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, Timestamp, serverTimestamp } =
   require("firebase/firestore");
 
 let env;
@@ -258,4 +258,20 @@ test("código de entrega: solo el comprador lo lee; nadie lo escribe; la huella 
   await assertFails(getDoc(doc(as("vero"), "users/beto/delivery_codes/L1")));
   await assertFails(setDoc(doc(as("beto"), "users/beto/delivery_codes/L2"), { code: "000000" }));
   await assertFails(getDoc(doc(as("vero"), "lots/L1/private/delivery_code")));
+});
+
+test("AUDITORÍA v1.0.0: al publicar solo se aceptan los campos de la app (lista blanca)", async () => {
+  const db = as("vero");
+  // Lo que manda la app real (con created_time del servidor): permitido.
+  await assertSucceeds(setDoc(doc(db, "lots/W1"), validLot({
+    created_time: serverTimestamp(), specs: { marca: "Trek" }, municipality: "camargo",
+    delivery: { pickup: true, regional: false },
+  })));
+  // Campos que solo escribe el servidor y que antes no estaban en la lista negra.
+  await assertFails(setDoc(doc(db, "lots/W2"), validLot({ processing_fee: -500 })));
+  await assertFails(setDoc(doc(db, "lots/W3"), validLot({ closed_time: Timestamp.fromMillis(Date.now()) })));
+  await assertFails(setDoc(doc(db, "lots/W4"), validLot({ paid_time: Timestamp.fromMillis(Date.now()) })));
+  await assertFails(setDoc(doc(db, "lots/W5"), validLot({ promoted_until: Timestamp.fromMillis(Date.now() + H) })));
+  // Fecha de creación falsificada.
+  await assertFails(setDoc(doc(db, "lots/W6"), validLot({ created_time: Timestamp.fromMillis(Date.now() - 30 * 24 * H) })));
 });

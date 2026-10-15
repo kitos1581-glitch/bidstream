@@ -55,7 +55,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // PENDIENTE ROADMAP R-05: definir el ID definitivo ANTES de publicar en Play Store
+        // (cambiarlo exige re-registrar la app en Firebase y bajar otro google-services.json).
         applicationId "com.mycompany.bidstream"
         minSdkVersion 24
         targetSdkVersion 36
@@ -74,8 +75,8 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // PENDIENTE ROADMAP R-04: firmar con keystore propio (android/key.properties, fuera de git).
+            // Mientras tanto se firma con llaves debug: sirve para pruebas, Play Store lo rechaza.
             signingConfig signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

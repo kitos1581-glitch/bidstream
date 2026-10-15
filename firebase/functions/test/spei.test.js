@@ -17,8 +17,8 @@ process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || "demo-bidstream";
 process.env.MP_ACCESS_TOKEN = "TEST-token";
 process.env.MP_WEBHOOK_SECRET = "secreto";
 const OP_ENV = {
-  OPENPAY_MERCHANT_ID: "mzdtln0bmtms6o3kck8f",
-  OPENPAY_PRIVATE_KEY: "sk_e568c42a6c384b7ab02cd47d2e407cab",
+  OPENPAY_MERCHANT_ID: "m0000000000000000000",
+  OPENPAY_PRIVATE_KEY: "sk_00000000000000000000000000000000",
   OPENPAY_SANDBOX: "true",
   OPENPAY_WEBHOOK_USER: "webhook",
   OPENPAY_WEBHOOK_PASS: "una-clave-larga-1234",
@@ -109,7 +109,7 @@ test("config de Openpay: falta o inválida → error explícito, nunca valores p
   assert.throws(() => openpay.readOpenpayConfig({ ...OP_ENV, OPENPAY_PRIVATE_KEY: "pk_123" }), /sk_/);
   assert.throws(() => openpay.readOpenpayConfig({ ...OP_ENV, OPENPAY_WEBHOOK_PASS: "corta" }), /WEBHOOK/);
   const c = openpay.readOpenpayConfig(OP_ENV);
-  assert.strictEqual(c.baseUrl, "https://sandbox-api.openpay.mx/v1/mzdtln0bmtms6o3kck8f");
+  assert.strictEqual(c.baseUrl, "https://sandbox-api.openpay.mx/v1/m0000000000000000000");
   assert.strictEqual(openpay.readOpenpayConfig({ ...OP_ENV, OPENPAY_SANDBOX: "false" }).baseUrl.startsWith("https://api.openpay.mx"), true);
 });
 

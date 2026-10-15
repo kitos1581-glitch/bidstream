@@ -199,7 +199,7 @@ nano .env              # (o tu editor)
 | `COMMISSION_MIN` | No | `0` | Comisión mínima por venta, en MXN. | `50` |
 | `COMMISSION_PROMO` | No | sin campaña | Ventana de 0 % en formato ISO con zona horaria, `inicio/fin`, de 62 días como máximo. Hay **una sola** ventana; "campañas con nombre" (`CAMPAIGN_*`) **no existen** (ROADMAP R-46). | `2026-11-13T00:00:00-06:00/2026-11-17T23:59:59-06:00` |
 | `ZERO_COMMISSION_FEE_PAYER` | No | `seller` | Con 0 %, quién paga el costo real del procesador: `seller` o `platform`. | `seller` |
-| `OPENPAY_MERCHANT_ID` | Solo con SPEI | — | ID de comercio de Openpay. | `mzdtln0bmtms6o3kck8f` |
+| `OPENPAY_MERCHANT_ID` | Solo con SPEI | — | ID de comercio de Openpay. | `m0000000000000000000` |
 | `OPENPAY_PRIVATE_KEY` | Solo con SPEI | — | Llave privada `sk_…`. **Nunca va en la app.** | `sk_0000…` |
 | `OPENPAY_SANDBOX` | Solo con SPEI | — (obligatoria) | `true` (pruebas) o `false` (producción). | `true` |
 | `OPENPAY_WEBHOOK_USER` | Solo con SPEI | — | Usuario de autenticación básica del webhook; **lo eliges tú**. Mínimo 6 caracteres. | `openpay-hook` |
