@@ -129,7 +129,9 @@ class AdminService {
   Stream<List<PaymentDoc>> failedRefunds() => _db
       .collection('payments')
       .where('kind', isEqualTo: 'refund')
-      .where('status', isEqualTo: 'failed')
+      // failed: Mercado Pago rechazó el reembolso. manual_required: SPEI
+      // tardío/duplicado, se devuelve por transferencia desde el panel.
+      .where('status', whereIn: ['failed', 'manual_required'])
       .limit(100)
       .snapshots()
       .map((s) => s.docs.map((d) => PaymentDoc(d.id, d.data())).toList());

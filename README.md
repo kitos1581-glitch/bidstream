@@ -215,6 +215,34 @@ Pagos). Corrige el `.env`, redespliega funciones y pulsa **Recalcular**. Es marg
 tramos. Recuerda que de la comisión se paga la tarifa de Mercado Pago
 (≈3.49% + $4 + IVA por cobro con liberación inmediata).
 
+## 7.1 Pago final por SPEI (Openpay) — opcional
+
+El ganador elige entre **Mercado Pago** (tarjeta o saldo) y **transferencia
+SPEI** (recomendada en montos altos: comisión mucho menor y sin contracargos).
+
+- `chooseWinnerPaymentMethod({lotId, method})` → respuesta tipada
+  `{ok, method, url}` (MP) o `{ok, method, clabe, bank, reference, amount, dueTime}` (SPEI).
+  Errores con `details.code`: `NOT_WINNER`, `NOT_PENDING`, `PAYMENT_EXPIRED`,
+  `METHOD_NOT_AVAILABLE`, `PROVIDER_NOT_CONFIGURED`, `PROVIDER_ERROR`, `IN_PROGRESS`.
+- Una sola referencia por lote (`order_id = win_{lotId}`); la CLABE se guarda en
+  `payments/openpay_charge_{id}` (privado), nunca en el lote (público).
+- `openpayWebhook` (autenticación básica) consulta el cargo en Openpay antes de
+  aplicarlo; candado `payments/openpay_{chargeId}`.
+- SPEI tardío o duplicado: no se puede devolver por API → `payments` con
+  `status: manual_required`, visible en el panel (Pagos → reembolsos).
+- Si Openpay no está configurado, el lote solo ofrece Mercado Pago.
+
+Variables en `functions/.env`:
+```
+OPENPAY_MERCHANT_ID=...
+OPENPAY_PRIVATE_KEY=sk_...
+OPENPAY_SANDBOX=true            # obligatorio: true | false
+OPENPAY_WEBHOOK_USER=...        # ≥6 caracteres
+OPENPAY_WEBHOOK_PASS=...        # ≥16 caracteres
+```
+Webhook en Openpay: `https://us-central1-<proyecto>.cloudfunctions.net/openpayWebhook`
+con ese usuario y contraseña; el código de verificación aparece en los logs.
+
 ## 8. Notificaciones push
 
 Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda

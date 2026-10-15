@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
@@ -452,21 +453,7 @@ class _WinnerPaymentBox extends StatelessWidget {
     final theme = FlutterFlowTheme.of(context);
     switch (lot.paymentStatus) {
       case 'pending':
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(
-            'Debes pagar ${formatMoney(lot.amountDue)} antes del ${formatDateTime(lot.paymentDueTime)}. '
-            'Si no pagas a tiempo pierdes tu depósito.',
-            style: theme.bodySmall,
-          ),
-          const SizedBox(height: 8),
-          BigButton(
-            label: 'Pagar ahora',
-            icon: Icons.lock_outline,
-            onPressed: lot.winnerPaymentUrl.isEmpty
-                ? null
-                : () => PaymentService.instance.openCheckout(lot.winnerPaymentUrl),
-          ),
-        ]);
+        return _PaymentMethodSelector(lot: lot);
       case 'paid':
         return Tag('Pagado — revisa tus avisos para coordinar la entrega',
             icon: Icons.check_circle_outline);
@@ -475,6 +462,201 @@ class _WinnerPaymentBox extends StatelessWidget {
       default:
         return Text('Estamos generando tu enlace de pago…', style: theme.bodySmall);
     }
+  }
+}
+
+/// Selección del método para el PAGO FINAL (distinto del depósito de
+/// garantía, que se deja antes de pujar desde "Mi cuenta").
+class _PaymentMethodSelector extends StatefulWidget {
+  const _PaymentMethodSelector({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  State<_PaymentMethodSelector> createState() => _PaymentMethodSelectorState();
+}
+
+class _PaymentMethodSelectorState extends State<_PaymentMethodSelector> {
+  late FinalPaymentMethod _method = _initial();
+  bool _busy = false;
+  FinalPaymentChoice? _spei;
+
+  bool get _speiAvailable => widget.lot.paymentOptions.contains('spei');
+
+  FinalPaymentMethod _initial() {
+    final lot = widget.lot;
+    if (lot.hasSpeiReference) return FinalPaymentMethod.spei;
+    // SPEI primero en montos altos: comisión mucho menor y sin contracargos.
+    if (lot.paymentOptions.contains('spei') && lot.amountDue >= 20000) {
+      return FinalPaymentMethod.spei;
+    }
+    return FinalPaymentMethod.mercadopago;
+  }
+
+  Future<void> _continue() async {
+    setState(() => _busy = true);
+    try {
+      final r = await PaymentService.instance
+          .chooseFinalPayment(widget.lot.reference.id, _method);
+      if (!mounted) return;
+      if (r.method == FinalPaymentMethod.mercadopago) {
+        await PaymentService.instance.openCheckout(r.url);
+      } else {
+        setState(() => _spei = r);
+      }
+    } on PaymentFailure catch (e) {
+      if (mounted) showMessage(context, e.message, error: true);
+    } catch (e) {
+      if (mounted) showMessage(context, friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final lot = widget.lot;
+    final spei = _spei;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(
+        'Debes pagar ${formatMoney(lot.amountDue)} antes del ${formatDateTime(lot.paymentDueTime)}. '
+        'Si no pagas a tiempo pierdes tu depósito.',
+        style: theme.bodySmall,
+      ),
+      const SizedBox(height: 10),
+      if (spei != null)
+        _SpeiInstructions(choice: spei)
+      else ...[
+        Text('¿Cómo quieres pagar?',
+            style: theme.titleSmall.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        if (_speiAvailable)
+          _MethodTile(
+            selected: _method == FinalPaymentMethod.spei,
+            icon: Icons.account_balance_outlined,
+            title: 'Transferencia SPEI',
+            subtitle: 'Desde tu banco. Recomendado para montos altos.',
+            onTap: () => setState(() => _method = FinalPaymentMethod.spei),
+          ),
+        _MethodTile(
+          selected: _method == FinalPaymentMethod.mercadopago,
+          icon: Icons.credit_card,
+          title: 'Tarjeta o saldo Mercado Pago',
+          subtitle: 'Crédito, débito o tu cuenta de Mercado Pago.',
+          onTap: () => setState(() => _method = FinalPaymentMethod.mercadopago),
+        ),
+        const SizedBox(height: 8),
+        BigButton(
+          label: _method == FinalPaymentMethod.spei
+              ? (lot.hasSpeiReference ? 'Ver datos para transferir' : 'Obtener datos para transferir')
+              : 'Pagar ahora',
+          icon: Icons.lock_outline,
+          loading: _busy,
+          onPressed: _continue,
+        ),
+      ],
+    ]);
+  }
+}
+
+class _MethodTile extends StatelessWidget {
+  const _MethodTile({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: selected ? theme.primary : theme.alternate, width: selected ? 2 : 1),
+            color: selected ? theme.primaryContainer : theme.secondaryBackground,
+          ),
+          child: Row(children: [
+            Icon(icon, color: theme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
+                Text(subtitle, style: theme.bodySmall.copyWith(color: theme.secondaryText)),
+              ]),
+            ),
+            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? theme.primary : theme.secondaryText),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpeiInstructions extends StatelessWidget {
+  const _SpeiInstructions({required this.choice});
+  final FinalPaymentChoice choice;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    Widget row(String label, String value, {bool copy = false}) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(children: [
+            SizedBox(
+                width: 110,
+                child: Text(label, style: theme.bodySmall.copyWith(color: theme.secondaryText))),
+            Expanded(
+                child: SelectableText(value,
+                    style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w700))),
+            if (copy)
+              IconButton(
+                tooltip: 'Copiar',
+                icon: const Icon(Icons.copy, size: 18),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: value));
+                  showMessage(context, '$label copiada');
+                },
+              ),
+          ]),
+        );
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.primaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Transfiere desde tu banco por SPEI',
+            style: theme.titleSmall.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        row('CLABE', choice.clabe, copy: true),
+        if (choice.bank.isNotEmpty) row('Banco', choice.bank),
+        if (choice.reference.isNotEmpty) row('Referencia', choice.reference, copy: true),
+        row('Monto exacto', formatMoney(choice.amount)),
+        if (choice.dueTime != null) row('Antes del', formatDateTime(choice.dueTime)),
+        const SizedBox(height: 4),
+        Text(
+          'Transfiere el monto exacto. Te avisamos en cuanto se confirme; '
+          'no necesitas mandar comprobante.',
+          style: theme.bodySmall,
+        ),
+      ]),
+    );
   }
 }
 

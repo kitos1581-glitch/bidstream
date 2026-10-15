@@ -29,6 +29,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = require("mercadopago");
+const { openpayConfigured } = require("./openpay");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -498,6 +499,8 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
       amount_due: amountDue,
       deposit_applied: depositApplied,
       payment_due_time: Timestamp.fromMillis(dueMs),
+      // Métodos que el ganador puede elegir (SPEI solo si Openpay está configurado).
+      payment_options: openpayConfigured() ? ["mercadopago", "spei"] : ["mercadopago"],
     });
     return { settled: false, amountDue, depositApplied, excess: 0, depositMpId };
   });
@@ -729,6 +732,98 @@ exports.requestDepositRefund = functions.region(REGION).https.onCall(async (data
 // ---------------------------------------------------------------------
 
 /**
+ * Lógica común del pago del ganador, para cualquier proveedor (Mercado Pago,
+ * Openpay/SPEI). Corre DENTRO de una transacción que ya leyó lockRef.
+ * Devuelve { action: "none" } o { action: "refund", ... } si el pago no
+ * corresponde (tardío, duplicado o monto menor).
+ */
+async function applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amount, currency }) {
+  const lotRef = db.collection("lots").doc(lotId);
+  const winnerRef = db.collection("users").doc(winnerUid);
+  const [lotSnap, winnerSnap] = await Promise.all([tx.get(lotRef), tx.get(winnerRef)]);
+  const lot = lotSnap.exists ? lotSnap.data() : null;
+  const sellerSnap = lot ? await tx.get(db.collection("users").doc(lot.seller_uid)) : null;
+
+  const valid =
+    lot &&
+    lot.winner_uid === winnerUid &&
+    lot.payment_status === "pending" &&
+    currency === "MXN" &&
+    amount + EPS >= Number(lot.amount_due || 0);
+
+  if (!valid) {
+    // Pago tardío (ya castigado), duplicado o monto incorrecto: devolver.
+    tx.set(lockRef, {
+      ...base,
+      kind: "winner_payment",
+      uid: winnerUid,
+      lot_id: lotId,
+      status: "rejected_late_or_invalid",
+    });
+    return { action: "refund", uid: winnerUid, lotId, reason: "winner_late_or_invalid", lot };
+  }
+
+  tx.update(lotRef, {
+    payment_status: "paid",
+    winner_payment_url: null,
+    payment_due_time: null,
+    paid_time: FieldValue.serverTimestamp(),
+    paid_with: base.provider || "mercadopago",
+  });
+  const dep = winnerSnap.exists ? winnerSnap.data().deposit || {} : {};
+  if (dep.status === "reserved" && dep.lot_id === lotId) {
+    tx.update(winnerRef, {
+      "deposit.status": "applied",
+      "deposit.updated_time": FieldValue.serverTimestamp(),
+    });
+  }
+  tx.set(lockRef, {
+    ...base,
+    kind: "winner_payment",
+    uid: winnerUid,
+    lot_id: lotId,
+    status: "approved",
+  });
+  writeSettlement(
+    tx,
+    lotId,
+    lot,
+    winnerUid,
+    sellerSnap && sellerSnap.exists ? sellerSnap.data() : {},
+    winnerSnap.exists ? winnerSnap.data() : {}
+  );
+  return { action: "none" };
+}
+
+/**
+ * Pago del ganador confirmado por un proveedor distinto de Mercado Pago.
+ * Candado de idempotencia: payments/{provider}_{providerPaymentId}.
+ */
+async function applyProviderWinnerPayment({ provider, providerPaymentId, lotId, winnerUid, amount, currency }) {
+  const lockRef = db.collection("payments").doc(`${provider}_${providerPaymentId}`);
+  return db.runTransaction(async (tx) => {
+    const lock = await tx.get(lockRef);
+    if (lock.exists) return { action: "none", duplicate: true };
+    const base = {
+      provider,
+      provider_payment_id: String(providerPaymentId),
+      amount: round2(amount),
+      currency,
+      created_time: FieldValue.serverTimestamp(),
+      updated_time: FieldValue.serverTimestamp(),
+    };
+    return applyWinnerPaymentTx(tx, {
+      lockRef,
+      base,
+      lotId,
+      winnerUid,
+      amount: round2(amount),
+      currency,
+    });
+  });
+}
+
+/**
  * Aplica un pago aprobado. Toda la decisión ocurre en UNA transacción con
  * un documento payments/mp_{id} como candado de idempotencia: aunque MP
  * mande la misma notificación varias veces, se aplica una sola vez.
@@ -799,60 +894,7 @@ async function applyApprovedPayment(payment) {
     // ---------------- Pago del ganador ----------------
     if (ref.startsWith("win:")) {
       const [, lotId, winnerUid] = ref.split(":");
-      const lotRef = db.collection("lots").doc(lotId);
-      const winnerRef = db.collection("users").doc(winnerUid);
-      const [lotSnap, winnerSnap] = await Promise.all([tx.get(lotRef), tx.get(winnerRef)]);
-      const lot = lotSnap.exists ? lotSnap.data() : null;
-      const sellerSnap = lot ? await tx.get(db.collection("users").doc(lot.seller_uid)) : null;
-
-      const valid =
-        lot &&
-        lot.winner_uid === winnerUid &&
-        lot.payment_status === "pending" &&
-        currency === "MXN" &&
-        amount + EPS >= Number(lot.amount_due || 0);
-
-      if (!valid) {
-        // Pago tardío (ya castigado), duplicado o monto incorrecto: devolver.
-        tx.set(lockRef, {
-          ...base,
-          kind: "winner_payment",
-          uid: winnerUid,
-          lot_id: lotId,
-          status: "rejected_late_or_invalid",
-        });
-        return { action: "refund", uid: winnerUid, lotId, reason: "winner_late_or_invalid", lot };
-      }
-
-      tx.update(lotRef, {
-        payment_status: "paid",
-        winner_payment_url: null,
-        payment_due_time: null,
-        paid_time: FieldValue.serverTimestamp(),
-      });
-      const dep = winnerSnap.exists ? winnerSnap.data().deposit || {} : {};
-      if (dep.status === "reserved" && dep.lot_id === lotId) {
-        tx.update(winnerRef, {
-          "deposit.status": "applied",
-          "deposit.updated_time": FieldValue.serverTimestamp(),
-        });
-      }
-      tx.set(lockRef, {
-        ...base,
-        kind: "winner_payment",
-        uid: winnerUid,
-        lot_id: lotId,
-        status: "approved",
-      });
-      writeSettlement(
-        tx,
-        lotId,
-        lot,
-        winnerUid,
-        sellerSnap && sellerSnap.exists ? sellerSnap.data() : {},
-        winnerSnap.exists ? winnerSnap.data() : {}
-      );
-      return { action: "none" };
+      return applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amount, currency });
     }
 
     tx.set(lockRef, { ...base, kind: "unknown", status: "ignored" });
@@ -939,6 +981,7 @@ module.exports = {
   startWinnerPayment,
   forfeitWin,
   applyApprovedPayment,
+  applyProviderWinnerPayment,
   validateMpSignature,
   refundAndRecord,
   round2,

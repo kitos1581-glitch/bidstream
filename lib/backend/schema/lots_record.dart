@@ -20,6 +20,15 @@ class LotsRecord extends FirestoreRecord {
   /// new | like_new | used_good | used_fair | for_parts
   String get condition => asString(snapshotData['condition']);
 
+  /// Métodos con los que el ganador puede pagar (los fija el servidor).
+  List<String> get paymentOptions {
+    final raw = snapshotData['payment_options'];
+    return raw is List ? raw.map((e) => '$e').toList() : const ['mercadopago'];
+  }
+
+  /// true si ya se generó una referencia SPEI (los datos se piden al servidor).
+  bool get hasSpeiReference => asString(snapshotData['spei_charge_id']).isNotEmpty;
+
   /// Características declaradas por el vendedor (ver lot_specs.dart).
   Map<String, String> get specs {
     final raw = snapshotData['specs'];

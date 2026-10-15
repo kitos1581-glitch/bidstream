@@ -20,6 +20,11 @@ exports.requestDepositRefund = payments.requestDepositRefund;
 exports.expireUnpaidWins = payments.expireUnpaidWins;
 exports.mpWebhook = payments.mpWebhook;
 
+// Pago final por SPEI (Openpay), opcional junto a Mercado Pago.
+const spei = require("./spei");
+exports.chooseWinnerPaymentMethod = spei.chooseWinnerPaymentMethod;
+exports.openpayWebhook = spei.openpayWebhook;
+
 // Verificación de identidad y panel de administrador.
 const adminFns = require("./admin");
 exports.submitIdentityVerification = adminFns.submitIdentityVerification;
