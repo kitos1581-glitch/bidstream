@@ -32,7 +32,7 @@ const crypto = require("crypto");
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = require("mercadopago");
 const { openpayConfigured } = require("./openpay");
 const { recordSale } = require("./reputation");
-const { saleCommission } = require("./commission_policy");
+const { saleCommission, readFeePayer, mpProcessingFee, PromoConfigError } = require("./commission_policy");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -321,6 +321,7 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   recordSale(writer, lot.seller_uid);
   let commission;
   let policy = "standard";
+  let feePayer = "seller";
   // Envío regional cobrado al comprador: es del vendedor (él envía), sin comisión.
   const shipping = round2(Number(lot.shipping_charge) || 0);
   try {
@@ -331,6 +332,9 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
       closedMs,
       computeStandard: (p) => computeCommission(p),
     }));
+    const fp = readFeePayer();
+    if (fp.error) throw new PromoConfigError(fp.error);
+    feePayer = fp.payer;
   } catch (err) {
     // Configuración inválida: el pago SÍ se registra (el dinero ya entró),
     // pero la liquidación al vendedor queda en revisión, sin inventar montos.
@@ -371,7 +375,12 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
     }
     return { finalPrice, commission: null, sellerAmount: null, needsReview: true };
   }
-  const sellerAmount = round2(finalPrice - commission + shipping);
+  // Con 0 % de comisión (tienda o campaña), el costo real del procesador se
+  // descuenta al vendedor (o lo absorbe la plataforma, según configuración).
+  const knownFee = lot.processing_fee === undefined || lot.processing_fee === null ? null : round2(lot.processing_fee);
+  const zeroCommission = policy !== "standard";
+  const feeDeducted = zeroCommission && feePayer === "seller" && knownFee !== null ? knownFee : 0;
+  const sellerAmount = round2(finalPrice - commission + shipping - feeDeducted);
 
   // Retenida hasta confirmar la entrega (o liberación automática sin reclamo).
   const releaseAt = RELEASE.days ? Timestamp.fromMillis(Date.now() + RELEASE.days * 86400_000) : null;
@@ -384,6 +393,9 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
     commission,
     commission_policy: policy, // store | promo | standard
     shipping,
+    processing_fee: knownFee, // lo que cobró el procesador (si se conoce)
+    processing_fee_deducted: feeDeducted,
+    processing_fee_unknown: zeroCommission && feePayer === "seller" && knownFee === null,
     currency: "MXN",
     status: "held", // held → ready (entrega confirmada / plazo) → sent (admin)
     release_after: releaseAt,
@@ -398,9 +410,9 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
       `¡Cobrada! ${lot.title}`,
       `Recibimos ${money(finalPrice + shipping)}. Te transferiremos ${money(sellerAmount)} (${
         policy === "store"
-          ? "sin comisión por tu membresía de Tienda Oficial"
+          ? `sin comisión por tu membresía de Tienda Oficial${feeDeducted > 0 ? `; solo el costo del cobro, ${money(feeDeducted)}` : ""}`
           : policy === "promo"
-            ? "sin comisión por la campaña de lanzamiento"
+            ? `sin comisión por la campaña${feeDeducted > 0 ? `; solo el costo del cobro, ${money(feeDeducted)}` : ""}`
             : `comisión ${money(commission)}`
       }${shipping > 0 ? `, incluye ${money(shipping)} de envío` : ""}) cuando el comprador confirme que recibió${
         RELEASE.days ? ` o, si no hay reclamo, en ${RELEASE.days} días` : ""
@@ -808,7 +820,7 @@ exports.requestDepositRefund = functions.region(REGION).https.onCall(async (data
  * Devuelve { action: "none" } o { action: "refund", ... } si el pago no
  * corresponde (tardío, duplicado o monto menor).
  */
-async function applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amount, currency }) {
+async function applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amount, currency, processingFee = null }) {
   const lotRef = db.collection("lots").doc(lotId);
   const winnerRef = db.collection("users").doc(winnerUid);
   const [lotSnap, winnerSnap] = await Promise.all([tx.get(lotRef), tx.get(winnerRef)]);
@@ -840,6 +852,7 @@ async function applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amoun
     payment_due_time: null,
     paid_time: FieldValue.serverTimestamp(),
     paid_with: base.provider || "mercadopago",
+    processing_fee: processingFee,
   });
   const dep = winnerSnap.exists ? winnerSnap.data().deposit || {} : {};
   if (dep.status === "reserved" && dep.lot_id === lotId) {
@@ -858,7 +871,7 @@ async function applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amoun
   writeSettlement(
     tx,
     lotId,
-    lot,
+    { ...lot, processing_fee: processingFee },
     winnerUid,
     sellerSnap && sellerSnap.exists ? sellerSnap.data() : {},
     winnerSnap.exists ? winnerSnap.data() : {}
@@ -870,7 +883,7 @@ async function applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amoun
  * Pago del ganador confirmado por un proveedor distinto de Mercado Pago.
  * Candado de idempotencia: payments/{provider}_{providerPaymentId}.
  */
-async function applyProviderWinnerPayment({ provider, providerPaymentId, lotId, winnerUid, amount, currency }) {
+async function applyProviderWinnerPayment({ provider, providerPaymentId, lotId, winnerUid, amount, currency, processingFee = null }) {
   const lockRef = db.collection("payments").doc(`${provider}_${providerPaymentId}`);
   return db.runTransaction(async (tx) => {
     const lock = await tx.get(lockRef);
@@ -890,6 +903,7 @@ async function applyProviderWinnerPayment({ provider, providerPaymentId, lotId, 
       winnerUid,
       amount: round2(amount),
       currency,
+      processingFee,
     });
   });
 }
@@ -965,7 +979,16 @@ async function applyApprovedPayment(payment) {
     // ---------------- Pago del ganador ----------------
     if (ref.startsWith("win:")) {
       const [, lotId, winnerUid] = ref.split(":");
-      return applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amount, currency });
+      const processingFee = mpProcessingFee(payment);
+      return applyWinnerPaymentTx(tx, {
+        lockRef,
+        base: { ...base, processing_fee: processingFee },
+        lotId,
+        winnerUid,
+        amount,
+        currency,
+        processingFee,
+      });
     }
 
     tx.set(lockRef, { ...base, kind: "unknown", status: "ignored" });

@@ -181,6 +181,10 @@ function createOpenpayClient(config, opts = {}) {
         amount: Number(json.amount),
         currency: String(json.currency || "MXN").toUpperCase(),
         orderId: String(json.order_id || ""),
+        // Comisión de Openpay por este cargo (con IVA), si la reporta.
+        fee: json.fee && Number.isFinite(Number(json.fee.amount))
+          ? Math.round((Number(json.fee.amount) + (Number(json.fee.tax) || 0)) * 100) / 100
+          : null,
       };
     },
   };

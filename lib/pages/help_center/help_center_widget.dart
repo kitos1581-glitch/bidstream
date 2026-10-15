@@ -95,7 +95,9 @@ const kHelpTopics = <HelpTopic>[
     'Ejemplos: venta de \$5,000 → comisión \$500. Venta de \$50,000 → \$4,200. Venta de \$300,000 → \$20,200.',
     'La tarifa de Mercado Pago ya está incluida en la comisión.',
     'Tiendas Oficiales: con membresía mensual o anual no pagan comisión por venta y llevan el distintivo "Tienda Oficial".',
-    'En campañas especiales (por ejemplo, el lanzamiento) puede aplicar 0 % de comisión; cuenta la fecha en que cierra la subasta.',
+    'En campañas especiales (por ejemplo, el Buen Fin) la comisión es 0 %; cuenta la fecha en que cierra la subasta.',
+    'Con 0 % de comisión solo se descuenta al vendedor el costo real que cobra el procesador de pagos por esa venta (aprox. 3–3.5 % + \$4 con tarjeta). Siempre lo verás desglosado.',
+    'Al comprador nunca se le cobra un cargo extra por pagar con tarjeta: paga exactamente el precio final.',
   ]),
   HelpTopic('entregas', Icons.local_shipping_outlined, 'Entregas', [
     'Cuando el comprador paga, ambos reciben el contacto del otro para coordinar la entrega.',

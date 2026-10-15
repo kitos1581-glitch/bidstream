@@ -61,4 +61,39 @@ function saleCommission({ finalPrice, seller, closedMs, computeStandard, promoCo
   return { commission: computeStandard(finalPrice), policy: "standard" };
 }
 
-module.exports = { readPromo, saleCommission, storeActive, PromoConfigError };
+/**
+ * ¿Quién absorbe el costo del procesador de pagos cuando la comisión es 0 %
+ * (Tienda Oficial o campaña)? ZERO_COMMISSION_FEE_PAYER:
+ *   "seller"   (por defecto) → se descuenta de la liquidación del vendedor
+ *   "platform" → lo absorbe Subástalo Aquí
+ * Nunca se le cobra al comprador como recargo (Profeco: precio total final,
+ * sin comisión extra por pagar con tarjeta).
+ */
+function readFeePayer(env = process.env) {
+  const raw = env.ZERO_COMMISSION_FEE_PAYER;
+  if (raw === undefined || raw === "") return { payer: "seller" };
+  const v = String(raw).trim().toLowerCase();
+  if (v !== "seller" && v !== "platform") {
+    return { error: `ZERO_COMMISSION_FEE_PAYER inválido: "${raw}" (seller | platform)` };
+  }
+  return { payer: v };
+}
+
+/** Costo real que cobró Mercado Pago por un pago (null si no viene). */
+function mpProcessingFee(payment) {
+  if (!payment) return null;
+  const amount = Number(payment.transaction_amount);
+  const net = payment.transaction_details && Number(payment.transaction_details.net_received_amount);
+  if (Number.isFinite(amount) && Number.isFinite(net) && net > 0 && net <= amount) {
+    return Math.round((amount - net) * 100) / 100;
+  }
+  if (Array.isArray(payment.fee_details) && payment.fee_details.length) {
+    const sum = payment.fee_details
+      .filter((f) => !f.fee_payer || f.fee_payer === "collector")
+      .reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+    return Math.round(sum * 100) / 100;
+  }
+  return null;
+}
+
+module.exports = { readPromo, saleCommission, storeActive, PromoConfigError, readFeePayer, mpProcessingFee };

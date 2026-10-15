@@ -301,6 +301,7 @@ async function handleOpenpayEvent(body) {
     winnerUid: index.uid,
     amount: charge.amount,
     currency: charge.currency,
+    processingFee: charge.fee === undefined ? null : charge.fee,
   });
 
   if (result.action === "refund") {

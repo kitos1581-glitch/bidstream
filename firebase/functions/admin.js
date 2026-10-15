@@ -7,7 +7,7 @@
  */
 const functions = require("firebase-functions");
 const { assertAppCheck } = require("./appcheck");
-const { saleCommission } = require("./commission_policy");
+const { saleCommission, readFeePayer } = require("./commission_policy");
 const admin = require("firebase-admin");
 const { startWinnerPayment, computeCommission } = require("./payments");
 
@@ -270,12 +270,20 @@ exports.adminRecalculatePayout = functions
           `La configuración de comisiones sigue inválida: ${err.message}`
         );
       }
-      const amount = Math.round((p.final_price - commission + shipping) * 100) / 100;
+      const fp = readFeePayer();
+      if (fp.error) {
+        throw new functions.https.HttpsError("failed-precondition", `Configuración inválida: ${fp.error}`);
+      }
+      const knownFee = lot.processing_fee === undefined || lot.processing_fee === null ? null : Number(lot.processing_fee);
+      const feeDeducted = policy !== "standard" && fp.payer === "seller" && knownFee !== null ? knownFee : 0;
+      const amount = Math.round((p.final_price - commission + shipping - feeDeducted) * 100) / 100;
       tx.update(ref, {
         amount,
         commission,
         commission_policy: policy,
         shipping,
+        processing_fee: knownFee,
+        processing_fee_deducted: feeDeducted,
         status: "ready",
         error: null,
         updated_time: FieldValue.serverTimestamp(),

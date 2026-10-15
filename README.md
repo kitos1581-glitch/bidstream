@@ -315,7 +315,14 @@ si después no paga, se castiga normal. Una sola segunda oportunidad por lote.
    (Buen Fin 2026). Formato inválido → liquidación en revisión, nunca otro % en silencio.
 3. Si no, comisión normal por tramos (`COMMISSION_TIERS`).
 La liquidación guarda `commission_policy` (store | promo | standard).
-**Ojo:** con 0 % la plataforma absorbe la tarifa del procesador (~3.5–4 %).
+**Costo del procesador con 0 %** (`ZERO_COMMISSION_FEE_PAYER`, por defecto
+`seller`): se descuenta al vendedor el costo REAL del cobro (Mercado Pago:
+`transaction_amount − transaction_details.net_received_amount`; Openpay: `fee`).
+Con `platform` lo absorbe Subástalo Aquí. Nunca se cobra al comprador como
+recargo (Profeco: precio total final). Si el procesador no reporta el costo, no se
+descuenta y la liquidación queda marcada `processing_fee_unknown`.
+**Tip:** como el pago ya se retiene 7 días, configurar en Mercado Pago la
+liberación del dinero a 7 días baja la tarifa (3.49 % → 3.19 % + $4 al día de hoy).
 
 **Entrega** (`lots.delivery`): `pickup` (a acordar, sin costo) y/o `regional`
 (costo fijo o incluido, municipios de destino). Una modalidad → se aplica sola al

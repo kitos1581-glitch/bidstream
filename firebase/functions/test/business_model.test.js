@@ -146,3 +146,52 @@ test("con dos modalidades, no se puede pagar por SPEI sin elegir la entrega", as
   S.get("lots/B1").data.payment_options = ["mercadopago", "spei"];
   await assert.rejects(spei.chooseWinnerPaymentMethodImpl({ lotId: "B1", method: "spei" }, "ana"), (e) => e.details.code === "DELIVERY_REQUIRED");
 });
+
+// ---------------- Costo del procesador con 0 % ----------------
+test("mpProcessingFee: toma el costo real de Mercado Pago (neto recibido o fee_details)", () => {
+  assert.strictEqual(policy.mpProcessingFee({ transaction_amount: 10000, transaction_details: { net_received_amount: 9600.5 } }), 399.5);
+  assert.strictEqual(policy.mpProcessingFee({ transaction_amount: 100, fee_details: [{ type: "mercadopago_fee", amount: 7.5, fee_payer: "collector" }] }), 7.5);
+  assert.strictEqual(policy.mpProcessingFee({ transaction_amount: 100 }), null);
+  assert.deepStrictEqual(policy.readFeePayer({}), { payer: "seller" });
+  assert.ok(policy.readFeePayer({ ZERO_COMMISSION_FEE_PAYER: "comprador" }).error, "nunca al comprador");
+});
+
+test("campaña 0 %: el vendedor paga solo el costo real del cobro; el comprador paga el precio exacto", async () => {
+  process.env.COMMISSION_PROMO = "2020-01-01T00:00:00Z/2020-02-01T00:00:00Z";
+  try {
+    await sale({ lotOver: { closed_time: Timestamp.fromMillis(Date.parse("2020-01-15T00:00:00Z")) } });
+    assert.strictEqual(get("lots/B1").amount_due, 10000, "sin recargo al comprador");
+    await pay.applyApprovedPayment({
+      id: "P9", status: "approved", external_reference: "win:B1:ana", transaction_amount: 10000, currency_id: "MXN",
+      transaction_details: { net_received_amount: 9608.6 },
+    });
+    const p = get("payments/payout-B1");
+    assert.strictEqual(p.commission_policy, "promo");
+    assert.strictEqual(p.commission, 0);
+    assert.strictEqual(p.processing_fee, 391.4);
+    assert.strictEqual(p.processing_fee_deducted, 391.4);
+    assert.strictEqual(p.amount, 9608.6);
+  } finally {
+    delete process.env.COMMISSION_PROMO;
+  }
+});
+
+test("comisión normal: el costo del procesador lo absorbe la comisión (no se descuenta aparte)", async () => {
+  await sale();
+  await pay.applyApprovedPayment({
+    id: "P10", status: "approved", external_reference: "win:B1:ana", transaction_amount: 10000, currency_id: "MXN",
+    transaction_details: { net_received_amount: 9608.6 },
+  });
+  const p = get("payments/payout-B1");
+  assert.strictEqual(p.commission_policy, "standard");
+  assert.strictEqual(p.processing_fee_deducted, 0);
+  assert.strictEqual(p.amount, 10000 - p.commission);
+});
+
+test("0 % sin dato del costo real: no se descuenta nada y queda marcado para revisar", async () => {
+  await sale({ seller: { seller_plan: "store", store_plan_until: Timestamp.fromMillis(Date.now() + 86400_000 * 30) } });
+  await pay.applyApprovedPayment({ id: "P11", status: "approved", external_reference: "win:B1:ana", transaction_amount: 10000, currency_id: "MXN" });
+  const p = get("payments/payout-B1");
+  assert.strictEqual(p.amount, 10000);
+  assert.strictEqual(p.processing_fee_unknown, true);
+});
