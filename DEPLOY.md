@@ -99,7 +99,7 @@ firebase projects:list              # el proyecto debe aparecer marcado como (cu
 1. **Authentication** → Método de acceso → **Correo/contraseña**: activado.
    - En Plantillas, pon el idioma en **español**.
    - En **Dominios autorizados**, agrega:
-     - el dominio final (§g);
+     - `subastaloaqui.com` y `www.subastaloaqui.com` (§g);
      - `bidstream-656cf.web.app`;
      - `kitos1581-glitch.github.io` (staging).
 2. **Firestore**: la base ya existe; confirma su ubicación.
@@ -161,7 +161,8 @@ cd ..                                   # raíz del repo
 flutter build web --release \
   --dart-define=APP_CHECK_SITE_KEY=<site key reCAPTCHA v3> \
   --dart-define=FCM_VAPID_KEY=<clave VAPID> \
-  --dart-define=SHARE_BASE_URL=https://<dominio-final>
+  --dart-define=SHARE_BASE_URL=https://subastaloaqui.com \
+  --dart-define=WEB_APP_URL=https://subastaloaqui.com
 # NUNCA uses --dart-define=DEMO_LOTS=true en producción: es solo para GitHub Pages.
 cd firebase && firebase deploy --only hosting
 ```
@@ -189,7 +190,7 @@ nano .env              # (o tu editor)
 | `MP_ACCESS_TOKEN` | **Sí** | — | Token de Mercado Pago (depósito y pago del ganador). Primero `TEST-…`, en producción `APP_USR-…`. | `TEST-0000…-000000000` |
 | `MP_WEBHOOK_SECRET` | **Sí** | — | Clave secreta que **genera MP** en Webhooks (§d.1). Valida la firma `x-signature`. Sin ella, todo webhook responde 401. | `9f3c…` (64 hex) |
 | `WEBHOOK_URL` | **Sí** | vacío | URL de `mpWebhook`. Se manda como `notification_url` en cada cobro. | `https://us-central1-bidstream-656cf.cloudfunctions.net/mpWebhook` |
-| `SITE_URL` | **Sí** (en la práctica) | `https://bidstream.web.app` ⚠️ **ese default NO es tu sitio** | Página a la que MP regresa al comprador después de pagar. | `https://subastaloaqui.mx` |
+| `SITE_URL` | **Sí** (en la práctica) | `https://bidstream.web.app` ⚠️ **ese default NO es tu sitio** | Página a la que MP regresa al comprador después de pagar. | `https://subastaloaqui.com` |
 | `DEPOSIT_AMOUNT` | No | `200` | Depósito de garantía en MXN. | `200` |
 | `WINNER_PAYMENT_WINDOW_HOURS` | No | `24` | Horas que tiene el ganador para pagar. | `24` |
 | `VERIFIED_BID_THRESHOLD` | No | `20000` | Las pujas mayores a este monto exigen INE verificada. | `20000` |
@@ -388,7 +389,7 @@ Mide a diario:
 
 ---
 
-## g. Firebase Hosting, tarjetas OG y dominio — decisión pendiente (HUMANO)
+## g. Firebase Hosting, tarjetas OG y dominio — DOMINIO COMPRADO; conexión LISTA PARA EJECUTAR HUMANO
 
 **Por qué Hosting y no solo GitHub Pages.** La liga `/l/{id}` muestra foto y
 precio al compartir en WhatsApp o Facebook. La genera la función
@@ -396,28 +397,49 @@ precio al compartir en WhatsApp o Facebook. La genera la función
 `firebase.json`. GitHub Pages **no puede** ejecutar funciones; se queda como
 **staging** (con `DEMO_LOTS=true`).
 
-**Decisión de dominio.** Dejé tres caminos; la recomendación es la A.
+**Decisión (2026-10-15).** Dominio principal: **`subastaloaqui.com`**.
+`subastaloaqui.com.mx` se compró como protección y redirige al `.com`. Ambos
+están registrados en **Neubox** y vencen el **15/10/2027**.
+> ⚠️ La renovación automática está **apagada** porque no hay tarjeta guardada
+> en Neubox. Activa la renovación o pon un recordatorio: si el dominio vence,
+> la app y las ligas dejan de funcionar.
 
-| Opción | Ejemplo | Ventajas | Contras |
-|---|---|---|---|
-| **A. Dominio propio .mx o .com.mx** | `subastaloaqui.mx` | Da confianza para el Buen Fin y el dominio es tuyo. | Costo anual. Hay que comprobar disponibilidad y precio con el registrador. |
-| B. Dominio .com | `subastaloaqui.com` | Fácil de recordar. | Puede estar ocupado. |
-| C. Solo `bidstream-656cf.web.app` | — | Gratis y listo hoy. | Se ve poco profesional y lleva el nombre viejo. |
+**DNS recomendado: Cloudflare** (gratis). Ahí se manejan los registros de
+Firebase y además da **Email Routing** gratuito para `contacto@subastaloaqui.com`.
+
+0. Configura Cloudflare:
+   1. En Cloudflare → **Add a site** → `subastaloaqui.com` → plan **Free**.
+      Cloudflare te da **2 nameservers**.
+   2. En Neubox → Mis Dominios → 🔧 de `subastaloaqui.com` → **Nameservers /
+      DNS** → personalizados → pega los 2 de Cloudflare.
+   3. Repite los dos pasos anteriores con `subastaloaqui.com.mx`.
+   4. Espera a que Cloudflare marque los dominios como **Active**: entre
+      minutos y 24 h.
 
 Pasos, ya con el dominio comprado:
 1. En Consola → Hosting → **Agregar dominio personalizado**:
-   1. Escribe el dominio.
-   2. Agrega en tu registrador los registros **TXT** y **A** que indique la
-      consola.
-   3. Espera la verificación (hasta 24 h). El SSL se emite solo.
+   1. Agrega `subastaloaqui.com`.
+   2. Agrega en **Cloudflare → DNS** los registros **TXT** y **A** que indique
+      la consola. Ponlos en **"DNS only" (nube gris)**: con la nube naranja
+      (proxy), Firebase no puede emitir el certificado y la verificación falla.
+   3. Agrega también `www.subastaloaqui.com` y `subastaloaqui.com.mx`. Para
+      ambos elige **"Redirigir a un dominio existente" → subastaloaqui.com** y
+      pon sus registros en Cloudflare, también con nube gris.
+   4. Espera la verificación (hasta 24 h). El SSL se emite solo.
+   - El dominio se puede conectar con el plan gratuito. La liga `/l/{id}` solo
+     funciona cuando las funciones estén desplegadas (Blaze, §a).
+2. **Correo** (opcional, gratis):
+   1. En Cloudflare → **Email** → **Email Routing**, crea
+      `contacto@subastaloaqui.com` y que reenvíe a tu Gmail.
+   2. Usa ese correo en las fichas de Play Store y App Store y en los avisos.
 2. Pon el dominio en todos estos lugares:
-   - `SITE_URL` en `.env`, y despliega funciones;
+   - `SITE_URL=https://subastaloaqui.com` en `.env`, y despliega funciones;
    - Authentication → Dominios autorizados;
    - los dominios de la clave reCAPTCHA;
-   - `--dart-define=SHARE_BASE_URL=https://<dominio>` y
-     `WEB_APP_URL=https://<dominio>` al compilar.
+   - `--dart-define=SHARE_BASE_URL=https://subastaloaqui.com` y
+     `WEB_APP_URL=https://subastaloaqui.com` al compilar.
 3. Compila y despliega Hosting (§b.5).
-4. Prueba en tu celular. Abre `https://<dominio>/l/<idDeUnLote>`: debe
+4. Prueba en tu celular. Abre `https://subastaloaqui.com/l/<idDeUnLote>`: debe
    redirigir al lote. Pega la liga en WhatsApp: debe salir la tarjeta con foto.
    Si la tarjeta no se actualiza, depúrala en
    developers.facebook.com/tools/debug.
