@@ -138,3 +138,9 @@ test("dos aceptaciones simultáneas: un solo cambio de ganador y un solo cobro",
   assert.strictEqual(rs.filter((r) => r.status === "fulfilled").length, 1);
   assert.strictEqual(mp.__calls.preferences.filter((p) => String(p.external_reference).includes("beto")).length, 1);
 });
+
+test("la segunda oportunidad nunca baja de la reserva del vendedor", async () => {
+  await forfeitedLot();
+  put("lots/C1/private/reserve", { amount: 55000 });
+  assert.strictEqual(await sc.offerSecondChance(lotRef()), null);
+});

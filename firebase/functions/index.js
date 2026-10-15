@@ -7,6 +7,7 @@ if (!admin.apps.length) admin.initializeApp();
 
 const {
   resolveProxyBid,
+  applyReserve,
   legacyState,
   publicName,
   userBidEligibilityError,
@@ -37,6 +38,9 @@ exports.onSaleRecorded = reputation.onSaleRecorded;
 const disputes = require("./disputes");
 exports.openDispute = disputes.openDispute;
 exports.adminResolveDispute = disputes.adminResolveDispute;
+
+// Precio de reserva (secreto) para subastas por tiempo.
+exports.setReservePrice = require("./reserve").setReservePrice;
 
 // Segunda oportunidad al subcampeón cuando el ganador no paga.
 exports.respondSecondChance = require("./second_chance").respondSecondChance;
@@ -129,14 +133,17 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
   const lotRef = db.collection("lots").doc(lotId);
   // Estado privado del proxy: nadie lo puede leer desde la app (firestore.rules).
   const stateRef = lotRef.collection("private").doc("proxy_state");
+  // Precio de reserva: también privado (nadie lo lee desde la app).
+  const reserveRef = lotRef.collection("private").doc("reserve");
 
   const result = await db.runTransaction(async (tx) => {
     // En una transacción, TODAS las lecturas van antes de las escrituras.
     const userRef = db.collection("users").doc(uid);
-    const [lotSnap, stateSnap, freshUser] = await Promise.all([
+    const [lotSnap, stateSnap, freshUser, reserveSnap] = await Promise.all([
       tx.get(lotRef),
       tx.get(stateRef),
       tx.get(userRef),
+      tx.get(reserveRef),
     ]);
     if (!lotSnap.exists) {
       throw new functions.https.HttpsError("not-found", "El lote no existe.");
@@ -159,7 +166,8 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
     // La hora se toma DENTRO de la transacción: si Firestore la reintenta,
     // se vuelve a calcular con el momento real del reintento.
     const nowMs = Date.now();
-    const r = resolveProxyBid(
+    const reserve = reserveSnap.exists ? Number(reserveSnap.data().amount) || 0 : 0;
+    const r0 = resolveProxyBid(
       {
         ...lot,
         start_time_ms: lot.start_time ? lot.start_time.toMillis() : null,
@@ -170,6 +178,7 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
       maxAmount,
       nowMs
     );
+    const r = applyReserve(r0, reserve);
     if (!r.ok) {
       if (r.integrity || r.code === "internal") {
         functions.logger.error(`Lote ${lotId} rechazó una puja por integridad: ${r.message}`);
@@ -250,6 +259,7 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
         highest_bidder_name: leaderName,
         last_bid_time: now,
         end_time: Timestamp.fromMillis(r.newEndTimeMs),
+        ...(reserve > 0 ? { reserve_met: r.reserveMet } : {}),
       });
     }
 
@@ -281,7 +291,7 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
       });
     }
 
-    return { ...r, lotTitle: lot.title || "" };
+    return { ...r, lotTitle: lot.title || "", hasReserve: reserve > 0 };
   });
 
   const messages = {
@@ -299,7 +309,12 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
     your_max: result.maxAmount,
     extended: result.extended,
     endTime: result.newEndTimeMs,
-    message: messages[result.outcome],
+    message:
+      messages[result.outcome] +
+      (result.hasReserve && !result.reserveMet && result.newLeaderUid === uid
+        ? " Aún no se alcanza el precio de reserva del vendedor."
+        : ""),
+    reserve_met: result.hasReserve ? result.reserveMet : null,
     // Compatibilidad con la app actual:
     amount: result.newCurrentBid,
   };
@@ -317,7 +332,23 @@ async function closeLot(lotRef) {
     if (lot.status !== "active") return null;
     if (!lot.end_time || lot.end_time.toMillis() > Date.now()) return null;
 
-    const hasWinner = (lot.bid_count || 0) > 0 && lot.highest_bidder_uid;
+    const reserveSnap = await tx.get(lotRef.collection("private").doc("reserve"));
+    const reserve = reserveSnap.exists ? Number(reserveSnap.data().amount) || 0 : 0;
+    const hadBids = (lot.bid_count || 0) > 0 && lot.highest_bidder_uid;
+    if (hadBids && reserve > 0 && Number(lot.current_bid) < reserve) {
+      // Reserva no alcanzada: no hay venta, nadie paga, sin comisión.
+      tx.update(lotRef, {
+        status: "ended_unsold_reserve",
+        closed_time: FieldValue.serverTimestamp(),
+        winner_uid: null,
+        winner_name: null,
+        final_price: null,
+        payment_status: "none",
+        reserve_met: false,
+      });
+      return { lot, hasWinner: false, reserveNotMet: true };
+    }
+    const hasWinner = hadBids;
     tx.update(lotRef, {
       status: "ended",
       closed_time: FieldValue.serverTimestamp(),
@@ -332,7 +363,29 @@ async function closeLot(lotRef) {
   });
   if (!outcome) return false;
 
-  const { lot, hasWinner } = outcome;
+  const { lot, hasWinner, reserveNotMet } = outcome;
+
+  if (reserveNotMet) {
+    const batch = db.batch();
+    batch.set(notificationRef(lot.seller_uid), {
+      type: "unsold_reserve",
+      title: `No se alcanzó tu reserva: ${lot.title}`,
+      body: `La puja más alta fue ${formatMoney(lot.current_bid)}, debajo de tu precio de reserva. No hay venta ni comisión. Puedes republicar con otra reserva.`,
+      lot_id: lotRef.id,
+      read: false,
+      created_time: FieldValue.serverTimestamp(),
+    });
+    batch.set(notificationRef(lot.highest_bidder_uid), {
+      type: "reserve_not_met",
+      title: `Reserva no alcanzada: ${lot.title}`,
+      body: "Ibas ganando, pero no se llegó al precio mínimo del vendedor. No tienes que pagar nada y tu depósito sigue disponible.",
+      lot_id: lotRef.id,
+      read: false,
+      created_time: FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+    return true;
+  }
 
   if (hasWinner) {
     // Generar el cobro del ganador (precio final − depósito).

@@ -216,3 +216,14 @@ test("reputación: el vendedor no puede inventarse insignias ni calificación al
   await assertFails(setDoc(doc(as("vero"), "lots/N6"), validLot({ seller_rating_avg: 5, seller_rating_count: 99 })));
   await assertFails(updateDoc(doc(as("vero"), "lots/L1"), { seller_badges: ["destacado"] }));
 });
+
+test("precio de reserva: secreto para todos (ni el vendedor lo lee desde la app) y nadie lo escribe", async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "lots/L1/private/reserve"), { amount: 5000 });
+  });
+  await assertFails(getDoc(doc(as("vero"), "lots/L1/private/reserve")));
+  await assertFails(getDoc(doc(as("beto"), "lots/L1/private/reserve")));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "lots/L1/private/reserve")));
+  await assertFails(setDoc(doc(as("vero"), "lots/L1/private/reserve"), { amount: 1 }));
+  await assertFails(setDoc(doc(as("vero"), "lots/N7"), validLot({ has_reserve: true, reserve_met: true })));
+});

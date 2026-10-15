@@ -186,6 +186,17 @@ class AuctionService {
       .snapshots()
       .map((s) => s.docs.map(LotsRecord.fromSnapshot).toList());
 
+  /// Fija, baja o quita (null) el precio de reserva. Lo valida el servidor.
+  Future<void> setReservePrice(String lotId, double? amount) async {
+    try {
+      await _functions
+          .httpsCallable('setReservePrice')
+          .call<dynamic>({'lotId': lotId, 'amount': amount});
+    } on FirebaseFunctionsException catch (e) {
+      throw StateError(e.message ?? 'No se pudo guardar la reserva.');
+    }
+  }
+
   /// Lotes activos de un vendedor (perfil público).
   Stream<List<LotsRecord>> sellerActiveLots(String sellerUid) {
     if (sellerUid == 'demo-seller') return Stream.value(demoLots());

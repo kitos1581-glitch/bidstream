@@ -142,6 +142,32 @@ function resolveProxyBid(lot, state, uid, maxAmount, nowMs) {
   return r;
 }
 
+/**
+ * Precio de reserva (secreto). Se aplica DESPUÉS de resolver la puja proxy:
+ *  - Si el máximo del líder alcanza la reserva y el precio visible quedó
+ *    debajo, el precio sube directo a la reserva (como eBay).
+ *  - Nunca rebasa el máximo del líder ni baja el precio.
+ * Devuelve el resultado con reserveMet (true/false; true si no hay reserva).
+ */
+function applyReserve(r, reserve) {
+  if (!r || !r.ok) return r;
+  const res = Number(reserve);
+  if (!(res > 0)) return { ...r, reserveMet: true, reserveJump: false };
+  const resC = toCents(res);
+  const met = toCents(r.newLeaderMax) >= resC;
+  if (!met || toCents(r.newCurrentBid) >= resC) return { ...r, reserveMet: met, reserveJump: false };
+  const price = fromCents(resC);
+  const out = { ...r, newCurrentBid: price, reserveMet: true, reserveJump: true, publicEvent: true };
+  if (r.outcome === "outbid") {
+    // El líder sigue siendo el anterior: su puja efectiva sube a la reserva.
+    out.previousLeaderEffective = price;
+  } else {
+    // first / leading / max_raised: el líder es quien acaba de ofertar.
+    out.bidderEffective = price;
+  }
+  return out;
+}
+
 function resolveProxyBidUnchecked(lot, state, uid, maxAmount, nowMs) {
   // ---------------- Validaciones generales ----------------
   if (!lot) return { ok: false, code: "not-found", message: "El lote no existe." };
@@ -364,6 +390,7 @@ function publicName(fullName) {
 }
 
 module.exports = {
+  applyReserve,
   userBidEligibilityError,
   resolveProxyBid,
   lotIntegrityError,

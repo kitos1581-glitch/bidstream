@@ -171,6 +171,7 @@ const db = {
         },
         set: (ref, data, opts) => { writes.push([ref.path, data, opts || {}]); return tx; },
         update: (ref, data) => { writes.push([ref.path, data, { update: true }]); return tx; },
+        delete: (ref) => { writes.push([ref.path, null, { del: true }]); return tx; },
       };
       const result = await fn(tx);
       await tick();
@@ -180,7 +181,7 @@ const db = {
       if (db.failWrites && writes.some(([p]) => db.failWrites.test(p))) {
         throw new Error("UNAVAILABLE: escritura fallida (simulada)");
       }
-      writes.forEach(([p, d, o]) => applyWrite(p, d, o));
+      writes.forEach(([p, d, o]) => (o.del ? store.delete(p) : applyWrite(p, d, o)));
       return result;
     }
     throw new Error("ABORTED: demasiados reintentos");

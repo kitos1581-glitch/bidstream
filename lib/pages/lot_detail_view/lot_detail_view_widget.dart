@@ -217,6 +217,8 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                               Text(
                                   lot.status == 'ended'
                                       ? 'Precio final'
+                                      : lot.endedUnsoldReserve
+                                          ? 'Puja más alta'
                                       : (lot.bidCount == 0
                                           ? 'Precio inicial'
                                           : 'Puja actual'),
@@ -269,6 +271,15 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                         lot.secondChance['uid'] == currentUserUid) ...[
                       const SizedBox(height: 10),
                       _SecondChanceCard(lot: lot),
+                    ],
+                    if (lot.hasReserve && lot.status == 'active') ...[
+                      const SizedBox(height: 10),
+                      _ReserveRow(lot: lot, isSeller: isSeller),
+                    ],
+                    if (lot.endedUnsoldReserve) ...[
+                      const SizedBox(height: 10),
+                      Text('Terminó sin venta: no se alcanzó el precio de reserva del vendedor.',
+                          style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
                     ],
                     if (lot.status == 'ended') ...[
                       const SizedBox(height: 10),
@@ -1105,5 +1116,58 @@ class _SecondChanceCardState extends State<_SecondChanceCard> {
         ]),
       ]),
     );
+  }
+}
+
+
+/// "Tiene precio de reserva": alcanzada o no (el monto nunca se muestra).
+/// El vendedor puede bajarla o quitarla.
+class _ReserveRow extends StatelessWidget {
+  const _ReserveRow({required this.lot, required this.isSeller});
+  final LotsRecord lot;
+  final bool isSeller;
+
+  Future<void> _change(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Cambiar precio de reserva'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            prefixText: '\$ ',
+            helperText: 'Con pujas solo puedes bajarla. Déjalo vacío para quitarla.',
+            helperMaxLines: 2,
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(c, ctrl.text.trim()), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (result == null || !context.mounted) return;
+    try {
+      await AuctionService.instance.setReservePrice(
+          lot.reference.id, result.isEmpty ? null : double.tryParse(result.replaceAll(',', '')));
+      if (context.mounted) showMessage(context, 'Reserva actualizada.');
+    } catch (e) {
+      if (context.mounted) showMessage(context, '$e'.replaceFirst('Bad state: ', ''), error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Row(children: [
+      Tag(lot.reserveMet ? 'Reserva alcanzada' : 'Reserva no alcanzada',
+          icon: lot.reserveMet ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+          background: lot.reserveMet ? theme.primaryContainer : theme.surfaceVariant),
+      const Spacer(),
+      if (isSeller && !lot.isDemo)
+        TextButton(onPressed: () => _change(context), child: const Text('Cambiar reserva')),
+    ]);
   }
 }

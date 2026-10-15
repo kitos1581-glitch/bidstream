@@ -20,6 +20,11 @@ class LotsRecord extends FirestoreRecord {
   /// new | like_new | used_good | used_fair | for_parts
   String get condition => asString(snapshotData['condition']);
 
+  /// Precio de reserva: solo se sabe SI hay y SI se alcanzó (el monto es secreto).
+  bool get hasReserve => snapshotData['has_reserve'] == true;
+  bool get reserveMet => snapshotData['reserve_met'] == true;
+  bool get endedUnsoldReserve => status == 'ended_unsold_reserve';
+
   /// Segunda oportunidad: {uid, name, amount, status, expires_at}.
   Map<String, dynamic> get secondChance => snapshotData['second_chance'] is Map
       ? Map<String, dynamic>.from(snapshotData['second_chance'] as Map)

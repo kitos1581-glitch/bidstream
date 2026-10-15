@@ -91,7 +91,10 @@ async function offerSecondChance(lotRef, nowMs = Date.now()) {
     bidsSnap.docs.map((d) => d.data()),
     [lot.seller_uid, lot.winner_uid, ...(lot.forfeited_uids || [])].filter(Boolean)
   );
-  const minimum = Number(lot.starting_price) || 0;
+  // Nunca por debajo del precio inicial ni de la reserva del vendedor.
+  const resSnap = await lotRef.collection("private").doc("reserve").get();
+  const reserve = resSnap.exists ? Number(resSnap.data().amount) || 0 : 0;
+  const minimum = Math.max(Number(lot.starting_price) || 0, reserve);
   if (!runner || runner.amount < minimum) return null;
 
   const runnerRef = db.collection("users").doc(runner.uid);

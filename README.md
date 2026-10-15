@@ -278,6 +278,18 @@ aceptar (`respondSecondChance`). Rechazar o dejar vencer no tiene castigo. Si
 acepta, se vuelve el ganador y corre el cobro normal (24 h, depósito aplicado);
 si después no paga, se castiga normal. Una sola segunda oportunidad por lote.
 
+## 7.5 Precio de reserva (Fase 2.3)
+
+- `setReservePrice({lotId, amount|null})`: solo el vendedor, solo subastas por
+  tiempo, mayor que el precio inicial. Con pujas solo se puede bajar o quitar.
+- El monto vive en `lots/{id}/private/reserve` (nadie lo lee desde la app, ni el
+  vendedor). En el lote solo quedan `has_reserve` y `reserve_met`.
+- En la puja: si el máximo del líder alcanza la reserva, el precio sube directo a
+  la reserva (también al bajarla el vendedor por debajo de ese máximo).
+- Al cerrar sin alcanzarla: `status = ended_unsold_reserve`, sin ganador, sin cobro
+  ni comisión; avisos al vendedor y al líder (su depósito sigue disponible).
+- La segunda oportunidad nunca ofrece por debajo de la reserva.
+
 ## 8. Notificaciones push
 
 Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda

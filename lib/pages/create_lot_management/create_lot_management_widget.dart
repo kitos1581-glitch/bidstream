@@ -37,6 +37,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   final _price = TextEditingController();
   final _increment = TextEditingController();
   final _streamUrl = TextEditingController();
+  final _reserve = TextEditingController();
   late final Stream<UsersRecord?> _profile = AuctionService.instance.myProfile();
 
   String? _category;
@@ -60,6 +61,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
     _price.dispose();
     _increment.dispose();
     _streamUrl.dispose();
+    _reserve.dispose();
     _aiNotes.dispose();
     super.dispose();
   }
@@ -224,8 +226,23 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
             if ((_specs[f.key] ?? '').trim().isNotEmpty) f.key: _specs[f.key]!.trim(),
         },
       );
+      final reserve = double.tryParse(_reserve.text);
+      var reserveFailed = false;
+      if (_format == 'timed' && reserve != null && reserve > 0) {
+        setState(() => _progress = 'Guardando precio de reserva…');
+        try {
+          await AuctionService.instance.setReservePrice(id, reserve);
+        } catch (e) {
+          reserveFailed = true;
+        }
+      }
       if (!mounted) return;
-      showMessage(context, '¡Tu lote ya está publicado!');
+      showMessage(
+          context,
+          reserveFailed
+              ? 'Tu lote se publicó, pero no pudimos guardar la reserva. Agrégala desde el lote antes de que alguien puje.'
+              : '¡Tu lote ya está publicado!',
+          error: reserveFailed);
       context.pushReplacementNamed('LotDetailView',
           queryParameters: {'lotId': id});
     } catch (e) {
@@ -582,7 +599,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                 'Con transmisión'),
           ]),
           const SizedBox(height: 14),
-          if (_format == 'timed')
+          if (_format == 'timed') ...[
             Wrap(spacing: 8, children: [
               for (final d in [1, 3, 5, 7])
                 ChoiceChip(
@@ -591,8 +608,26 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                   selectedColor: theme.surfaceVariant,
                   onSelected: (_) => setState(() => _timedDays = d),
                 ),
-            ])
-          else ...[
+            ]),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _reserve,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: _dec('Precio de reserva (opcional, secreto)',
+                  prefix: '\$ ',
+                  helper:
+                      'El mínimo al que aceptas vender. Nadie lo ve; si no se alcanza, no hay venta ni comisión. '
+                      'Puedes empezar con un precio inicial bajo para atraer pujas.'),
+              validator: (v) {
+                final r = double.tryParse(v ?? '');
+                if ((v ?? '').isEmpty) return null;
+                final p = double.tryParse(_price.text) ?? 0;
+                if (r == null || r <= p) return 'Debe ser mayor que el precio inicial';
+                return null;
+              },
+            ),
+          ] else ...[
             OutlinedButton.icon(
               onPressed: _pickLiveStart,
               icon: const Icon(Icons.event),

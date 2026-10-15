@@ -115,6 +115,10 @@ LotsRecord _build(_Demo d, DateTime now) {
     'seller_badges': ['verificado', 'destacado'],
     'highest_bidder_uid': d.bids > 0 ? 'demo-bidder' : null,
     'highest_bidder_name': d.bids > 0 ? 'Juan P.' : null,
+    if (d.id == 'demo-3') 'has_reserve': true,
+    if (d.id == 'demo-3') 'reserve_met': false,
+    if (d.id == 'demo-2') 'has_reserve': true,
+    if (d.id == 'demo-2') 'reserve_met': true,
     if (_demoSpecs[d.id] != null) 'specs': Map<String, dynamic>.from(_demoSpecs[d.id]!),
   });
 }
