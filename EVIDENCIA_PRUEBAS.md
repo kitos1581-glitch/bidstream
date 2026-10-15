@@ -1,29 +1,41 @@
 # Evidencia de pruebas — Subástalo Aquí
 
-## Estado actual (2026-10-15 mañana, CI de GitHub Actions)
+## Estado al cierre de v1.0.0 (2026-10-15, CI de GitHub Actions)
 
-Cada fila dice qué se ejecutó de verdad y dónde. "CI" = GitHub Actions
-(`.github/workflows/pruebas.yml`, 3 trabajos) sobre el commit indicado en el
-historial del repositorio.
+En cada fila se indica qué se ejecutó de verdad y dónde. "CI" significa GitHub
+Actions (`.github/workflows/pruebas.yml`, 3 trabajos) sobre el commit
+etiquetado `v1.0.0`.
 
 | Módulo / verificación | Estado | Detalle |
 |---|---|---|
-| Pruebas backend (Cloud Functions) | **EJECUTADO en CI: 163/163 pasan** | Firestore, Mercado Pago, Openpay, FCM y Claude **simulados** |
-| Reglas Firestore + Storage en emulador oficial | **EJECUTADO en CI** | 19 casos Firestore + 3 Storage (`firebase/rules-tests`) |
-| `flutter analyze` / `flutter test` / `flutter build web` | **EJECUTADO en CI** | 0 errores, 0 advertencias (solo infos); 13 pruebas Dart |
-| Pago final por SPEI (Openpay) | **EJECUTADO (simulado): 15 pruebas** | Sin cuenta de Openpay todavía: nunca se llamó a la API real |
-| Fase 0.1 App Check | **EJECUTADO (lógica): 4 pruebas** | Modo por defecto `monitor`. **NO activado** en Firebase (requiere consola + despliegue) |
-| Fase 0.2 Verificación remota | **NO EJECUTADO** | El backend **no está desplegado** (falta plan Blaze y autorización). `verificar_remoto.sh` listo |
-| Fase 0.3 Fotos de lotes sin sesión | **EJECUTADO en emulador** | Regla `lots/` pública + prueba; las URL con token ya funcionaban sin sesión |
-| Fase 0.4 Tarjetas para compartir (Open Graph) | **EJECUTADO (simulado): 3 pruebas** | Requiere Firebase Hosting desplegado (`/l/{id}`); en la vista previa de GitHub Pages no aplica |
-| Fase 1.1 Reputación | **EJECUTADO: 10 pruebas backend + 2 de reglas** | Incluye abuso: quien no compró, doble calificación simultánea, disputa abierta |
-| Fase 1.2 Disputas | **EJECUTADO: 11 pruebas** | Reembolsos MP idempotentes, clawback, reintento tras rechazo de MP |
-| Fase 1.3 Segunda oportunidad | **EJECUTADO: 7 pruebas** | Subcampeón inválido (vendedor, suspendido, bajo el mínimo), aceptación doble |
-| Fase 2.3 Precio de reserva | **EJECUTADO: 8 pruebas + 1 de reglas** | Encontró y corrigió un error real (bajar la reserva no subía el precio) |
-| Pago retenido hasta la entrega + strike al vendedor | **EJECUTADO: 7 pruebas** | Liberación por confirmación o plazo; con reclamo abierto no se libera |
-| Modelo híbrido (Tienda Oficial, campaña 0 %), entrega y municipios | **EJECUTADO: 9 pruebas + 2 de reglas** | Configuración de campaña inválida → liquidación en revisión |
-| Prueba intermitente de 10 pujas simultáneas | **CORREGIDO** | Causa real: historial con la misma hora en pujas del mismo milisegundo. 0 fallas en 30 corridas |
-| Pruebas en dispositivo real / de punta a punta | **NO EJECUTADO** | Sin backend desplegado no hay flujo real de dinero |
+| Pruebas backend (Cloud Functions) | **EJECUTADO en CI y en local: 172/172 pasan** | Firestore, Mercado Pago, Openpay, FCM y Claude **simulados**. |
+| Reglas Firestore + Storage en emulador oficial | **EJECUTADO en CI** | 21 casos de Firestore y 3 de Storage. Incluye el caso nuevo de lista blanca al publicar (auditoría v1.0.0). |
+| `flutter analyze` / `flutter test` / `flutter build web` | **EJECUTADO en CI** | 0 errores y 0 advertencias. |
+| Código de entrega en persona | **EJECUTADO: 5 pruebas + reglas** | Código erróneo, límite de 5 intentos, liberación instantánea y que el vendedor no puede leer el código. |
+| Costo real del procesador con 0 % | **EJECUTADO: 4 pruebas** | Neto de MP, `fee` de Openpay, `platform` absorbe el costo y costo desconocido → `processing_fee_unknown`. |
+| Pago final por SPEI (Openpay) | **EJECUTADO (simulado): 15 pruebas** | Sin cuenta de Openpay todavía: nunca se llamó a la API real. |
+| Fase 0.1 App Check | **EJECUTADO (lógica): 4 pruebas** | Está en las 22 funciones callable, en modo `monitor`. **NO activado** en la consola (DEPLOY §e). |
+| Fase 0.3 Fotos de lotes sin sesión | **EJECUTADO en emulador** | El CORS del bucket está documentado (DEPLOY §b.2) y **NO aplicado**. |
+| Fase 0.4 Tarjetas Open Graph | **EJECUTADO (simulado): 3 pruebas** | Requiere tener Hosting desplegado. |
+| Fases 1.1, 1.2 y 1.3 (reputación, disputas, segunda oportunidad) | **EJECUTADO: 9 + 13 + 8 pruebas** | Incluye casos de abuso. |
+| Fase 2.3 Precio de reserva | **EJECUTADO: 7 pruebas + reglas** | — |
+| Escrow + strike al vendedor | **EJECUTADO: 10 pruebas** | — |
+| Modelo híbrido, entrega y municipios | **EJECUTADO: 13 + 6 + 2 pruebas** | — |
+| Auditoría de secretos, reglas e índices | **EJECUTADO** | Ver `docs/AUDITORIA_v1.0.0.md`. |
+| Validación de `.env.example` con los lectores de configuración del código | **EJECUTADO (local)** | Comisiones, campaña, costo del procesador, días de retención y App Check son válidos. Sin llave, la IA da el error esperado. |
+| **Despliegue a producción** (DEPLOY.md) | **NO EJECUTADO** | Faltan plan Blaze, Storage y autorización del dueño. **LISTO PARA EJECUTAR HUMANO.** |
+| **Verificación remota** (`verificar_remoto.sh`) | **NO EJECUTADO** | No hay nada desplegado que verificar. Se debe correr después de DEPLOY §h y pegar la salida aquí. |
+| **Webhooks reales** de MP y Openpay | **NO EJECUTADO** | No hay cuentas de producción ni sandbox configuradas. Además, la simulación de SPEI en el sandbox de Openpay **no se verificó**. |
+| **Prueba de punta a punta** (`CHECKLIST_E2E.md`) | **NO EJECUTADO** | Depende del despliegue. |
+| Pruebas en dispositivo real | **NO EJECUTADO** | Sin backend desplegado, no hay flujo real de dinero. |
+
+### Verificación remota
+
+_(Vacío. Aquí se pega la salida de `bash scripts/verificar_remoto.sh` con la fecha, después de desplegar.)_
+
+### Resultados de CHECKLIST_E2E
+
+_(Vacío. Aquí se pega la tabla de resultados cuando se ejecute.)_
 
 ---
 
