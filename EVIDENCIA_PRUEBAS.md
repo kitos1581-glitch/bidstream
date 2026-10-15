@@ -1,6 +1,6 @@
 # Evidencia de pruebas — Subástalo Aquí
 
-## Estado actual (2026-10-15, CI de GitHub Actions)
+## Estado actual (2026-10-15 mañana, CI de GitHub Actions)
 
 Cada fila dice qué se ejecutó de verdad y dónde. "CI" = GitHub Actions
 (`.github/workflows/pruebas.yml`, 3 trabajos) sobre el commit indicado en el
@@ -8,8 +8,8 @@ historial del repositorio.
 
 | Módulo / verificación | Estado | Detalle |
 |---|---|---|
-| Pruebas backend (Cloud Functions) | **EJECUTADO en CI: 139/139 pasan** | Firestore, Mercado Pago, Openpay, FCM y Claude **simulados** |
-| Reglas Firestore + Storage en emulador oficial | **EJECUTADO en CI** | 16 casos Firestore + 3 Storage (`firebase/rules-tests`) |
+| Pruebas backend (Cloud Functions) | **EJECUTADO en CI: 163/163 pasan** | Firestore, Mercado Pago, Openpay, FCM y Claude **simulados** |
+| Reglas Firestore + Storage en emulador oficial | **EJECUTADO en CI** | 19 casos Firestore + 3 Storage (`firebase/rules-tests`) |
 | `flutter analyze` / `flutter test` / `flutter build web` | **EJECUTADO en CI** | 0 errores, 0 advertencias (solo infos); 13 pruebas Dart |
 | Pago final por SPEI (Openpay) | **EJECUTADO (simulado): 15 pruebas** | Sin cuenta de Openpay todavía: nunca se llamó a la API real |
 | Fase 0.1 App Check | **EJECUTADO (lógica): 4 pruebas** | Modo por defecto `monitor`. **NO activado** en Firebase (requiere consola + despliegue) |
@@ -19,6 +19,10 @@ historial del repositorio.
 | Fase 1.1 Reputación | **EJECUTADO: 10 pruebas backend + 2 de reglas** | Incluye abuso: quien no compró, doble calificación simultánea, disputa abierta |
 | Fase 1.2 Disputas | **EJECUTADO: 11 pruebas** | Reembolsos MP idempotentes, clawback, reintento tras rechazo de MP |
 | Fase 1.3 Segunda oportunidad | **EJECUTADO: 7 pruebas** | Subcampeón inválido (vendedor, suspendido, bajo el mínimo), aceptación doble |
+| Fase 2.3 Precio de reserva | **EJECUTADO: 8 pruebas + 1 de reglas** | Encontró y corrigió un error real (bajar la reserva no subía el precio) |
+| Pago retenido hasta la entrega + strike al vendedor | **EJECUTADO: 7 pruebas** | Liberación por confirmación o plazo; con reclamo abierto no se libera |
+| Modelo híbrido (Tienda Oficial, campaña 0 %), entrega y municipios | **EJECUTADO: 9 pruebas + 2 de reglas** | Configuración de campaña inválida → liquidación en revisión |
+| Prueba intermitente de 10 pujas simultáneas | **CORREGIDO** | Causa real: historial con la misma hora en pujas del mismo milisegundo. 0 fallas en 30 corridas |
 | Pruebas en dispositivo real / de punta a punta | **NO EJECUTADO** | Sin backend desplegado no hay flujo real de dinero |
 
 ---
