@@ -135,6 +135,16 @@ class PaymentService {
     }
   }
 
+  /// El comprador confirma que recibió el artículo: libera el pago al vendedor.
+  Future<void> confirmReceipt(String lotId) async {
+    try {
+      await _functions.httpsCallable('confirmReceipt').call<dynamic>({'lotId': lotId});
+    } on FirebaseFunctionsException catch (e) {
+      final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : const {};
+      throw PaymentFailure((details['code'] ?? e.code).toString(), e.message ?? 'No se pudo confirmar.');
+    }
+  }
+
   /// Abre el checkout de Mercado Pago. En móvil abre el navegador (o la
   /// app de MP si está instalada); en web, una pestaña nueva.
   Future<bool> openCheckout(String url) => launchUrl(

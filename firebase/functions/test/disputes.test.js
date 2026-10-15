@@ -40,7 +40,7 @@ async function paidSale() {
   await pay.startWinnerPayment(fake.firestore().collection("lots").doc("S1"), get("lots/S1"), "ana");
   await pay.applyApprovedPayment({ id: "MP9", status: "approved", external_reference: "win:S1:ana", transaction_amount: 9800, currency_id: "MXN" });
   assert.strictEqual(get("lots/S1").payment_status, "paid");
-  assert.strictEqual(get("payments/payout-S1").status, "ready");
+  assert.strictEqual(get("payments/payout-S1").status, "held", "retenida hasta confirmar la entrega");
 }
 const open = (over = {}, uid = "ana", now) =>
   dis.openDisputeImpl({ lotId: "S1", reason: "not_as_described", details: "La silla llegó con la piel rota y no se dijo.", ...over }, uid, now);
@@ -60,7 +60,7 @@ test("abrir disputa congela la liquidación, marca el lote y el perfil 'en dispu
   assert.ok(children("users/vendedor/notifications").some((n) => n.type === "dispute_opened"));
 });
 
-test("abuso al abrir: no comprador, sin pago, fuera de 72 h, doble reclamo, fotos ajenas", async () => {
+test("abuso al abrir: no comprador, sin pago, fuera de plazo, doble reclamo, fotos ajenas", async () => {
   await paidSale();
   await rejectsWith(open({}, "beto"), "NOT_BUYER");
   await rejectsWith(open({}, null), "UNAUTHENTICATED");
@@ -68,7 +68,7 @@ test("abuso al abrir: no comprador, sin pago, fuera de 72 h, doble reclamo, foto
   await rejectsWith(open({ details: "corto" }), "INVALID_ARGUMENT");
   await rejectsWith(open({ photos: ["verifications/vero/ine.png"] }), "INVALID_ARGUMENT");
   await rejectsWith(open({ photos: ["disputes/ana/../vero/x.jpg"] }), "INVALID_ARGUMENT");
-  await rejectsWith(open({}, "ana", Date.now() + dis.DISPUTE_WINDOW_MS + 60_000), "WINDOW_CLOSED");
+  await rejectsWith(open({}, "ana", Date.now() + 8 * 86400_000), "WINDOW_CLOSED");
   await open();
   await rejectsWith(open(), "ALREADY_EXISTS");
   S.get("lots/S1").data.payment_status = "pending";
@@ -103,13 +103,13 @@ test("reembolso total: devuelve pago (9,800) + depósito (200), cancela liquidac
   assert.ok(children("admin_log").some((l) => l.action === "dispute_resolved"));
 });
 
-test("reembolso parcial: baja la liquidación en ese monto y la libera", async () => {
+test("reembolso parcial: baja la liquidación en ese monto y la deja retenida como antes", async () => {
   await paidSale();
   const before = get("payments/payout-S1").amount;
   await open();
   await dis.adminResolveDisputeImpl({ disputeId: "S1", resolution: "refund_partial", amount: 1500 }, "jefe");
   const payout = get("payments/payout-S1");
-  assert.strictEqual(payout.status, "ready");
+  assert.strictEqual(payout.status, "held");
   assert.strictEqual(payout.amount, before - 1500);
   assert.deepStrictEqual(mp.__calls.refunds.map((x) => [x.payment_id, x.amount]), [["MP9", 1500]]);
 });
@@ -124,11 +124,11 @@ test("reembolso parcial inválido (0, negativo o ≥ precio) se rechaza sin toca
   assert.strictEqual(get("disputes/S1").status, "open");
 });
 
-test("rechazar: la liquidación vuelve a 'ready' sin reembolsos", async () => {
+test("rechazar: la liquidación vuelve a como estaba (retenida) sin reembolsos", async () => {
   await paidSale();
   await open();
   await dis.adminResolveDisputeImpl({ disputeId: "S1", resolution: "reject" }, "jefe");
-  assert.strictEqual(get("payments/payout-S1").status, "ready");
+  assert.strictEqual(get("payments/payout-S1").status, "held");
   assert.strictEqual(mp.__calls.refunds.length, 0);
   assert.ok(children("users/ana/notifications").some((n) => n.type === "dispute_resolved"));
 });
@@ -161,4 +161,30 @@ test("solo administradores resuelven", () => {
   assert.throws(() => dis.requireAdminUid({}), (e) => e.details.code === "UNAUTHENTICATED");
   assert.throws(() => dis.requireAdminUid({ auth: { uid: "ana", token: {} } }), (e) => e.details.code === "PERMISSION_DENIED");
   assert.strictEqual(dis.requireAdminUid({ auth: { uid: "jefe", token: { admin: true } } }), "jefe");
+});
+
+
+test("reembolso total da strike al vendedor; al segundo se suspende; el admin puede evitarlo", async () => {
+  await paidSale();
+  await open();
+  const r = await dis.adminResolveDisputeImpl({ disputeId: "S1", resolution: "refund_full" }, "jefe");
+  assert.strictEqual(r.sellerStrikes, 1);
+  assert.strictEqual(get("users/vendedor").banned, undefined);
+  await paidSale();
+  S.get("users/vendedor").data.seller_strikes = 1;
+  await open();
+  const r2 = await dis.adminResolveDisputeImpl({ disputeId: "S1", resolution: "refund_full" }, "jefe");
+  assert.strictEqual(r2.sellerStrikes, 2);
+  assert.strictEqual(get("users/vendedor").banned, true);
+  await paidSale();
+  await open();
+  const r3 = await dis.adminResolveDisputeImpl({ disputeId: "S1", resolution: "refund_full", sellerStrike: false }, "jefe");
+  assert.strictEqual(r3.sellerStrikes, null);
+});
+
+test("después de confirmar de recibido ya no se puede reclamar", async () => {
+  await paidSale();
+  const esc = require(path.join(__dirname, "..", "escrow.js"));
+  await esc.confirmReceiptImpl({ lotId: "S1" }, "ana");
+  await rejectsWith(open(), "WINDOW_CLOSED");
 });

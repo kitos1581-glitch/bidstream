@@ -94,9 +94,19 @@ async function openDisputeImpl(data, uid, nowMs = Date.now()) {
     if (lot.payment_status !== "paid") {
       throw fail("failed-precondition", ERROR_CODES.NOT_PAID, "Puedes reclamar cuando tu pago esté confirmado.");
     }
+    // Se puede reclamar mientras el pago al vendedor siga retenido: hasta que
+    // el comprador confirme que recibió, o hasta la liberación automática.
+    // (Lotes sin fecha de liberación: 72 h desde el pago.)
     const paidMs = millis(lot.paid_time);
-    if (!paidMs || nowMs > paidMs + DISPUTE_WINDOW_MS) {
-      throw fail("failed-precondition", ERROR_CODES.WINDOW_CLOSED, "El plazo de 72 horas para reclamar ya terminó.");
+    const releaseMs = millis(lot.escrow_release_at) || (paidMs ? paidMs + DISPUTE_WINDOW_MS : 0);
+    if (!paidMs || lot.received_time || nowMs > releaseMs) {
+      throw fail(
+        "failed-precondition",
+        ERROR_CODES.WINDOW_CLOSED,
+        lot.received_time
+          ? "Ya confirmaste que recibiste; el plazo para reclamar terminó."
+          : "El plazo para reclamar ya terminó."
+      );
     }
     if (dispSnap.exists) throw fail("already-exists", ERROR_CODES.ALREADY_EXISTS, "Ya hay un reclamo para esta compra.");
 
@@ -118,7 +128,7 @@ async function openDisputeImpl(data, uid, nowMs = Date.now()) {
       updated_time: FieldValue.serverTimestamp(),
     });
     tx.update(lotRef, { dispute_status: "open" });
-    if (payout && ["ready", "needs_review"].includes(payout.status)) {
+    if (payout && ["held", "ready", "needs_review"].includes(payout.status)) {
       tx.update(payoutRef, {
         status: "on_hold",
         hold_previous_status: payout.status,
@@ -325,7 +335,33 @@ async function adminResolveDisputeImpl(data, adminUid) {
     created_time: FieldValue.serverTimestamp(),
   });
   await batch.commit();
-  return { ok: true, disputeId, resolution, refundAmount: amount, manualRefund: manual };
+
+  // Strike al vendedor cuando se le da la razón completa al comprador
+  // (el admin puede evitarlo con sellerStrike: false, p. ej. falla de paquetería).
+  let sellerStrikes = null;
+  if (resolution === "refund_full" && !(data && data.sellerStrike === false)) {
+    const sellerRef = db.collection("users").doc(d.seller_uid);
+    sellerStrikes = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(sellerRef);
+      const strikes = (snap.exists ? Number(snap.data().seller_strikes) || 0 : 0) + 1;
+      const patch = { seller_strikes: strikes };
+      if (strikes >= 2) patch.banned = true;
+      tx.set(sellerRef, patch, { merge: true });
+      tx.set(
+        sellerRef.collection("notifications").doc(),
+        notification(
+          "seller_strike",
+          strikes >= 2 ? "Tu cuenta fue suspendida" : "Recibiste un strike como vendedor",
+          strikes >= 2
+            ? "Es el segundo reclamo resuelto a favor del comprador. Contacta a soporte si crees que es un error."
+            : "Un reclamo se resolvió a favor del comprador. Otro más suspenderá tu cuenta.",
+          disputeId
+        )
+      );
+      return strikes;
+    });
+  }
+  return { ok: true, disputeId, resolution, refundAmount: amount, manualRefund: manual, sellerStrikes };
 }
 
 function requireAdminUid(context) {

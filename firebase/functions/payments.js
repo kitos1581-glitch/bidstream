@@ -43,6 +43,25 @@ const REGION = "us-central1";
 const DEPOSIT_AMOUNT = Number(process.env.DEPOSIT_AMOUNT || 200);
 
 /**
+ * Retención del pago al vendedor (escrow). El dinero del comprador se libera
+ * al vendedor cuando el comprador confirma que recibió, o automáticamente
+ * PAYOUT_RELEASE_DAYS días después del pago si no hay reclamo (por defecto 7).
+ * Un valor inválido NO se reemplaza en silencio: las liquidaciones quedan
+ * retenidas sin fecha de liberación automática (solo por confirmación o admin)
+ * y se registra el error.
+ */
+function readReleaseDays(env = process.env) {
+  if (env.PAYOUT_RELEASE_DAYS === undefined || env.PAYOUT_RELEASE_DAYS === "") return { days: 7 };
+  const n = Number(env.PAYOUT_RELEASE_DAYS);
+  if (!Number.isInteger(n) || n < 1 || n > 60) {
+    return { days: null, error: `PAYOUT_RELEASE_DAYS inválido: "${env.PAYOUT_RELEASE_DAYS}" (entero de 1 a 60)` };
+  }
+  return { days: n };
+}
+const RELEASE = readReleaseDays();
+if (RELEASE.error) functions.logger.error(RELEASE.error);
+
+/**
  * Comisión por tramos (marginal, como el ISR): cada tramo del precio paga
  * su porcentaje, así no hay "brincos" al pasar de un tramo a otro.
  *
@@ -344,6 +363,8 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   }
   const sellerAmount = round2(finalPrice - commission);
 
+  // Retenida hasta confirmar la entrega (o liberación automática sin reclamo).
+  const releaseAt = RELEASE.days ? Timestamp.fromMillis(Date.now() + RELEASE.days * 86400_000) : null;
   writer.set(db.collection("payments").doc(`payout-${lotId}`), {
     kind: "payout",
     reason: "sale",
@@ -352,10 +373,12 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
     amount: sellerAmount,
     commission,
     currency: "MXN",
-    status: "ready", // el admin lo marca 'sent' desde el panel
+    status: "held", // held → ready (entrega confirmada / plazo) → sent (admin)
+    release_after: releaseAt,
     created_time: FieldValue.serverTimestamp(),
     updated_time: FieldValue.serverTimestamp(),
   });
+  writer.set(db.collection("lots").doc(lotId), { escrow_release_at: releaseAt }, { merge: true });
   writer.set(
     notificationRef(lot.seller_uid),
     notificationData(
@@ -363,7 +386,9 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
       `¡Cobrada! ${lot.title}`,
       `Recibimos ${money(finalPrice)}. Te transferiremos ${money(sellerAmount)} (comisión ${money(
         commission
-      )}). Coordina la entrega con el comprador: ${contactString(winner)}.`,
+      )}) cuando el comprador confirme que recibió${
+        RELEASE.days ? ` o, si no hay reclamo, en ${RELEASE.days} días` : ""
+      }. Coordina la entrega con el comprador: ${contactString(winner)}.`,
       lotId
     )
   );
@@ -1014,4 +1039,6 @@ module.exports = {
   CommissionConfigError,
   getCommissionConfigError: () => COMMISSION_CONFIG_ERROR,
   WINNER_PAYMENT_WINDOW_HOURS,
+  readReleaseDays,
+  RELEASE,
 };

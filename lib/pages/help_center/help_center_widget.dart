@@ -102,10 +102,11 @@ const kHelpTopics = <HelpTopic>[
     'Recomendación: entrega en un lugar público o en el domicilio declarado, de día, y revisa el artículo antes de llevártelo.',
   ]),
   HelpTopic('problemas', Icons.support_agent_outlined, 'Si el vendedor no entrega o el artículo llega distinto', [
-    'Puedes reclamar desde la app dentro de las 72 horas después de recibir, con fotos o video.',
+    'Tu pago queda retenido: el vendedor lo recibe cuando confirmas que te llegó bien, o a los 7 días si no reclamas.',
+    'Mientras el pago siga retenido puedes reclamar desde la app, con fotos.',
     'Aplica si no llegó, si no coincide con las fotos, el estado o las características declaradas, si faltan documentos o si tiene un defecto que no se dijo.',
     'Mientras haya un reclamo, el pago al vendedor queda retenido. El equipo revisa y decide: reembolso total, parcial o liberar el pago.',
-    'El vendedor que no entrega recibe un strike; con dos, se suspende su cuenta.',
+    'El vendedor que pierde un reclamo (reembolso total) recibe un strike; con dos, se suspende su cuenta.',
     'Si el ganador no paga, pierde su depósito de \$200 (se entrega al vendedor) y recibe un strike.',
     'Paga siempre dentro de la app: un pago "por fuera" no está protegido.',
   ]),

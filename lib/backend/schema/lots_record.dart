@@ -1,3 +1,24 @@
+  DateTime? get receivedTime {
+    final v = snapshotData['received_time'];
+    return v is DateTime ? v : null;
+  }
+
+  /// Hasta cuándo el pago al vendedor queda retenido (y se puede reclamar).
+  DateTime? get escrowReleaseAt {
+    final v = snapshotData['escrow_release_at'];
+    if (v is DateTime) return v;
+    return paidTime?.add(const Duration(hours: 72));
+  }
+
+  /// ¿Todavía puede reclamar? (mientras el pago siga retenido y no haya
+  /// confirmado de recibido)
+  bool get canOpenDispute =>
+      paymentStatus == 'paid' &&
+      disputeStatus.isEmpty &&
+      receivedTime == null &&
+      escrowReleaseAt != null &&
+      DateTime.now().isBefore(escrowReleaseAt!);
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '/backend/schema/util/firestore_util.dart';

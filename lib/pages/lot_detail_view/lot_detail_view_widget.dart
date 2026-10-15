@@ -927,8 +927,49 @@ class _DisputeBox extends StatelessWidget {
           : 'Reclamo resuelto con reembolso';
       return Tag(txt, icon: Icons.task_alt);
     }
+    if (lot.receivedTime != null) {
+      return Tag('Confirmaste que recibiste. ¡Gracias!', icon: Icons.inventory_2_outlined);
+    }
     if (!lot.canOpenDispute) return const SizedBox.shrink();
-    final until = lot.paidTime!.add(const Duration(hours: 72));
+    final until = lot.escrowReleaseAt!;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(
+        'Tu pago está protegido: el vendedor lo recibe cuando confirmes que te llegó '
+        '(o el ${formatDateTime(until)} si no reclamas).',
+        style: theme.bodySmall,
+      ),
+      const SizedBox(height: 8),
+      BigButton(
+        label: 'Ya lo recibí y está bien',
+        icon: Icons.check_circle_outline,
+        onPressed: () async {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (c) => AlertDialog(
+              title: const Text('¿Confirmas que recibiste el artículo?'),
+              content: const Text(
+                  'Al confirmar, liberamos el pago al vendedor y ya no podrás abrir un reclamo.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Todavía no')),
+                TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sí, lo recibí')),
+              ],
+            ),
+          );
+          if (ok != true || !context.mounted) return;
+          try {
+            await PaymentService.instance.confirmReceipt(lot.reference.id);
+            if (context.mounted) showMessage(context, 'Listo. Ahora puedes calificar al vendedor.');
+          } on PaymentFailure catch (e) {
+            if (context.mounted) showMessage(context, e.message, error: true);
+          }
+        },
+      ),
+      const SizedBox(height: 8),
+      _disputeButton(context, theme, until),
+    ]);
+  }
+
+  Widget _disputeButton(BuildContext context, FlutterFlowTheme theme, DateTime until) {
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
         foregroundColor: theme.error,

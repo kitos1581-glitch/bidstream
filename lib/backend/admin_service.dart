@@ -116,6 +116,16 @@ class AdminService {
       .snapshots()
       .map((s) => s.docs.map((d) => PaymentDoc(d.id, d.data())).toList());
 
+  /// Liquidaciones retenidas: esperan que el comprador confirme la entrega
+  /// (o el plazo de liberación). Todavía no se transfieren.
+  Stream<List<PaymentDoc>> heldPayouts() => _db
+      .collection('payments')
+      .where('kind', isEqualTo: 'payout')
+      .where('status', whereIn: ['held', 'on_hold'])
+      .limit(100)
+      .snapshots()
+      .map((s) => s.docs.map((d) => PaymentDoc(d.id, d.data())).toList());
+
   /// Liquidaciones que quedaron en revisión (p. ej. configuración de
   /// comisiones inválida en el servidor).
   Stream<List<PaymentDoc>> payoutsNeedingReview() => _db

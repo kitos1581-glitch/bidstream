@@ -290,6 +290,19 @@ si después no paga, se castiga normal. Una sola segunda oportunidad por lote.
   ni comisión; avisos al vendedor y al líder (su depósito sigue disponible).
 - La segunda oportunidad nunca ofrece por debajo de la reserva.
 
+## 7.6 Pago retenido hasta la entrega (escrow)
+
+- Al confirmarse el pago, la liquidación al vendedor queda **`held`** (retenida).
+- Se libera (`ready`, el admin ya puede transferir) cuando el comprador toca
+  **"Ya lo recibí y está bien"** (`confirmReceipt`), o automáticamente a los
+  `PAYOUT_RELEASE_DAYS` días (por defecto 7) si no hay reclamo
+  (`releaseDuePayoutsJob`, cada hora). Valor inválido → sin liberación automática
+  y error en los logs (nunca un valor por defecto silencioso).
+- El comprador puede reclamar mientras el pago siga retenido; al confirmar de
+  recibido se cierra la ventana.
+- Reclamo resuelto con **reembolso total** → strike al vendedor (`seller_strikes`);
+  al segundo se suspende. El admin puede evitarlo (`sellerStrike: false`).
+
 ## 8. Notificaciones push
 
 Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda

@@ -39,6 +39,11 @@ const disputes = require("./disputes");
 exports.openDispute = disputes.openDispute;
 exports.adminResolveDispute = disputes.adminResolveDispute;
 
+// Retención del pago al vendedor hasta confirmar la entrega.
+const escrow = require("./escrow");
+exports.confirmReceipt = escrow.confirmReceipt;
+exports.releaseDuePayoutsJob = escrow.releaseDuePayoutsJob;
+
 // Precio de reserva (secreto) para subastas por tiempo.
 exports.setReservePrice = require("./reserve").setReservePrice;
 

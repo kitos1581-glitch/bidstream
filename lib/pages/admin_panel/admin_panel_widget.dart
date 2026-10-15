@@ -253,6 +253,25 @@ class _PaymentsTab extends StatelessWidget {
           ]);
         },
       ),
+      const SectionTitle('Retenidas (esperando la entrega)'),
+      StreamBuilder<List<PaymentDoc>>(
+        stream: AdminService.instance.heldPayouts(),
+        builder: (context, snap) {
+          if (snap.hasError) return ErrorState(error: snap.error);
+          if (!snap.hasData) return const Loading();
+          if (snap.data!.isEmpty) {
+            return const EmptyState(icon: Icons.hourglass_empty, title: 'Nada retenido');
+          }
+          return Column(children: [
+            for (final p in snap.data!)
+              _Row(
+                title: '${formatMoney(p.amount)} · ${p.status == 'on_hold' ? 'En disputa' : 'Esperando entrega'}',
+                subtitle: 'Lote ${p.lotId} · se libera al confirmar el comprador o por plazo',
+                onOpen: () => context.pushNamed('LotDetailView', queryParameters: {'lotId': p.lotId}),
+              ),
+          ]);
+        },
+      ),
       const SectionTitle('Liquidaciones en revisión'),
       StreamBuilder<List<PaymentDoc>>(
         stream: AdminService.instance.payoutsNeedingReview(),
