@@ -196,3 +196,23 @@ test("sin cuenta: se ve el catálogo y el historial, pero no máximos, ni se esc
   await assertFails(setDoc(doc(anon, "lots/N9"), validLot({ seller_uid: "nadie" })));
   await assertFails(updateDoc(doc(anon, "lots/L1"), { title: "Hackeado" }));
 });
+
+test("reputación: calificaciones y perfiles públicos se leen sin cuenta; nadie los escribe", async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "feedback/L1"), { rating: 5, seller_uid: "vero", author_uid: "beto" });
+    await setDoc(doc(db, "public_profiles/vero"), { display_name: "Vero V.", rating_avg: 5 });
+  });
+  const anon = env.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(anon, "feedback/L1")));
+  await assertSucceeds(getDoc(doc(anon, "public_profiles/vero")));
+  await assertFails(setDoc(doc(as("beto"), "feedback/L2"), { rating: 5, seller_uid: "vero", author_uid: "beto" }));
+  await assertFails(updateDoc(doc(as("vero"), "public_profiles/vero"), { rating_avg: 5, badges: ["destacado"] }));
+  await assertFails(setDoc(doc(as("vero"), "public_profiles/vero"), { rating_avg: 5 }));
+});
+
+test("reputación: el vendedor no puede inventarse insignias ni calificación al publicar", async () => {
+  await assertFails(setDoc(doc(as("vero"), "lots/N5"), validLot({ seller_badges: ["destacado"] })));
+  await assertFails(setDoc(doc(as("vero"), "lots/N6"), validLot({ seller_rating_avg: 5, seller_rating_count: 99 })));
+  await assertFails(updateDoc(doc(as("vero"), "lots/L1"), { seller_badges: ["destacado"] }));
+});

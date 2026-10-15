@@ -154,6 +154,14 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           builder: (context, params) => const AdminPanelWidget(),
         ),
         FFRoute(
+          name: SellerProfileWidget.routeName,
+          path: SellerProfileWidget.routePath,
+          requireAuth: false,
+          builder: (context, params) => SellerProfileWidget(
+            uid: params.getParam('uid', ParamType.String) ?? '',
+          ),
+        ),
+        FFRoute(
           name: HelpCenterWidget.routeName,
           path: HelpCenterWidget.routePath,
           requireAuth: false,

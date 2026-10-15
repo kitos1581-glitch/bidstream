@@ -318,9 +318,14 @@ class LotCard extends StatelessWidget {
                       style: theme.titleLarge.copyWith(
                           fontWeight: FontWeight.w800, fontSize: 20)),
                   Text(
-                      lot.bidCount == 0
-                          ? 'Precio inicial · sin pujas'
-                          : '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}',
+                      (lot.bidCount == 0
+                              ? 'Precio inicial · sin pujas'
+                              : '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}') +
+                          (lot.sellerRatingCount > 0
+                              ? ' · ★ ${lot.sellerRatingAvg.toStringAsFixed(1)}'
+                              : ''),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.bodySmall.copyWith(color: theme.secondaryText)),
                 ],
               ),
@@ -729,5 +734,58 @@ class ErrorState extends StatelessWidget {
             style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ]),
     );
+  }
+}
+
+
+/// Estrellas de calificación (solo lectura).
+class RatingStars extends StatelessWidget {
+  const RatingStars({super.key, required this.value, this.size = 16});
+  final double value;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFFF5AF02);
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      for (var i = 1; i <= 5; i++)
+        Icon(
+          value >= i
+              ? Icons.star_rounded
+              : (value >= i - 0.5 ? Icons.star_half_rounded : Icons.star_outline_rounded),
+          size: size,
+          color: color,
+        ),
+    ]);
+  }
+}
+
+/// Insignias del vendedor (Verificado, Vendedor destacado, Nuevo).
+class SellerBadges extends StatelessWidget {
+  const SellerBadges({super.key, required this.badges});
+  final List<String> badges;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    Widget chip(String key) {
+      final (label, icon, bg, fg) = switch (key) {
+        'verificado' => ('Verificado', Icons.verified_rounded, theme.primaryContainer, theme.primary),
+        'destacado' => ('Vendedor destacado', Icons.workspace_premium_rounded, const Color(0xFFFFF1C7), const Color(0xFF8A5A00)),
+        'nuevo' => ('Nuevo', Icons.fiber_new_rounded, theme.secondaryContainer, theme.secondaryText),
+        _ => (key, Icons.label_outline, theme.secondaryContainer, theme.secondaryText),
+      };
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 4),
+          Text(label, style: theme.labelSmall.copyWith(color: fg, fontWeight: FontWeight.w700)),
+        ]),
+      );
+    }
+
+    return Wrap(spacing: 6, runSpacing: 6, children: [for (final b in badges) chip(b)]);
   }
 }

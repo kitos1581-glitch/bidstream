@@ -31,6 +31,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = require("mercadopago");
 const { openpayConfigured } = require("./openpay");
+const { recordSale } = require("./reputation");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -296,6 +297,8 @@ function contactString(u) {
  */
 function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   const finalPrice = round2(Number(lot.current_bid) || 0);
+  // Una venta más en el perfil público del vendedor (reputación).
+  recordSale(writer, lot.seller_uid);
   let commission;
   try {
     commission = computeCommission(finalPrice);

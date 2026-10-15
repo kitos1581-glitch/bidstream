@@ -20,3 +20,4 @@ export '/pages/identity_verification/identity_verification_widget.dart'
     show IdentityVerificationWidget;
 export '/pages/admin_panel/admin_panel_widget.dart' show AdminPanelWidget;
 export '/pages/help_center/help_center_widget.dart' show HelpCenterWidget;
+export '/pages/seller_profile/seller_profile_widget.dart' show SellerProfileWidget;

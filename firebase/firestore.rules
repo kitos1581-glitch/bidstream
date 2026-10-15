@@ -133,7 +133,9 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny(
               ['highest_bidder_uid', 'highest_bidder_name', 'winner_uid', 'winner_name',
                'payment_status', 'winner_payment_url', 'payment_due_time', 'amount_due',
-               'deposit_applied', 'final_price', 'seller_name', 'cancel_reason']);
+               'deposit_applied', 'final_price', 'seller_name', 'cancel_reason',
+               'seller_rating_avg', 'seller_rating_count', 'seller_sales_count', 'seller_badges',
+               'payment_options', 'spei_charge_id', 'dispute_status', 'paid_with']);
 
       // El vendedor solo edita la parte descriptiva. Precio, incremento y
       // fechas solo mientras NO haya pujas. El documento resultante pasa por
@@ -179,6 +181,19 @@ service cloud.firestore {
     // ---------------- Pagos (solo el servidor) ----------------
     // Depósitos, pagos de ganador, reembolsos y payouts. El dueño puede
     // leer los suyos; nadie escribe desde el cliente.
+    // Calificaciones: públicas, solo las escribe el servidor (submitFeedback).
+    match /feedback/{lotId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Perfil público del vendedor: SOLO nombre público, verificado,
+    // calificación, ventas e insignias. Lo mantiene el servidor.
+    match /public_profiles/{uid} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /payments/{paymentId} {
       allow read: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
       allow write: if false;

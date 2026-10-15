@@ -8,6 +8,7 @@ import '/backend/lot_specs.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/backend/payment_service.dart';
+import '/backend/reputation_service.dart';
 import '/ui/ui_kit.dart';
 
 /// Detalle de un lote: fotos, precio, cuenta regresiva e historial de pujas.
@@ -198,9 +199,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                                 ? theme.surfaceVariant
                                 : theme.secondaryBackground),
                       ),
-                    Text('Vende: ${lot.sellerName}',
-                        style: theme.bodySmall
-                            .copyWith(color: theme.secondaryText)),
+                    _SellerCard(lot: lot),
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(14),
@@ -277,6 +276,10 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                       if (currentUserUid.isNotEmpty && lot.winnerUid == currentUserUid) ...[
                         const SizedBox(height: 8),
                         _WinnerPaymentBox(lot: lot),
+                        if (lot.paymentStatus == 'paid') ...[
+                          const SizedBox(height: 12),
+                          _FeedbackBox(lot: lot),
+                        ],
                       ],
                     ],
                     if (lot.isLiveFormat) ...[
@@ -717,6 +720,169 @@ class _SpecsTable extends StatelessWidget {
             ]),
           ),
       ]),
+    );
+  }
+}
+
+
+/// Tarjeta del vendedor: nombre público, estrellas, ventas e insignias.
+/// Lleva al perfil público (sin datos de contacto).
+class _SellerCard extends StatelessWidget {
+  const _SellerCard({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => context.pushNamed('SellerProfile', queryParameters: {'uid': lot.sellerUid}),
+      child: Container(
+        margin: const EdgeInsets.only(top: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.alternate),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(children: [
+          CircleAvatar(
+            backgroundColor: theme.primaryContainer,
+            child: Icon(Icons.storefront_outlined, color: theme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(lot.sellerName.isEmpty ? 'Vendedor' : lot.sellerName,
+                  style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              if (lot.sellerRatingCount > 0)
+                Row(children: [
+                  RatingStars(value: lot.sellerRatingAvg, size: 14),
+                  const SizedBox(width: 6),
+                  Text('${lot.sellerRatingAvg.toStringAsFixed(1)} · ${lot.sellerSalesCount} ventas',
+                      style: theme.bodySmall),
+                ])
+              else
+                Text('Vendedor nuevo', style: theme.bodySmall.copyWith(color: theme.secondaryText)),
+              if (lot.sellerBadges.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                SellerBadges(badges: lot.sellerBadges),
+              ],
+            ]),
+          ),
+          Icon(Icons.chevron_right, color: theme.secondaryText),
+        ]),
+      ),
+    );
+  }
+}
+
+/// El comprador califica al vendedor (una vez; editable 7 días).
+class _FeedbackBox extends StatefulWidget {
+  const _FeedbackBox({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  State<_FeedbackBox> createState() => _FeedbackBoxState();
+}
+
+class _FeedbackBoxState extends State<_FeedbackBox> {
+  late final Stream<FeedbackEntry?> _existing =
+      ReputationService.instance.feedbackFor(widget.lot.reference.id);
+  final _comment = TextEditingController();
+  int _rating = 0;
+  bool _busy = false;
+  bool _editing = false;
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save(bool edit) async {
+    if (_rating == 0) {
+      showMessage(context, 'Elige de 1 a 5 estrellas.', error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ReputationService.instance
+          .submit(widget.lot.reference.id, _rating, _comment.text, edit: edit);
+      if (!mounted) return;
+      setState(() => _editing = false);
+      showMessage(context, '¡Gracias! Tu opinión ayuda a otros compradores.');
+    } on ReputationFailure catch (e) {
+      if (mounted) showMessage(context, e.message, error: true);
+    } catch (e) {
+      if (mounted) showMessage(context, friendlyError(e), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    if (widget.lot.isDemo) return const SizedBox.shrink();
+    return StreamBuilder<FeedbackEntry?>(
+      stream: _existing,
+      builder: (context, s) {
+        final existing = s.data;
+        if (existing != null && !_editing) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Tu opinión', style: theme.titleSmall.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            RatingStars(value: existing.rating.toDouble()),
+            if (existing.comment.isNotEmpty) Text(existing.comment, style: theme.bodySmall),
+            if (existing.canEdit)
+              TextButton(
+                onPressed: () => setState(() {
+                  _editing = true;
+                  _rating = existing.rating;
+                  _comment.text = existing.comment;
+                }),
+                child: const Text('Editar (hasta 7 días)'),
+              ),
+          ]);
+        }
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.secondaryContainer,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('¿Cómo te fue con el vendedor?',
+                style: theme.titleSmall.copyWith(fontWeight: FontWeight.w700)),
+            Row(children: [
+              for (var i = 1; i <= 5; i++)
+                IconButton(
+                  tooltip: '$i',
+                  onPressed: () => setState(() => _rating = i),
+                  icon: Icon(i <= _rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: const Color(0xFFF5AF02), size: 30),
+                ),
+            ]),
+            TextField(
+              controller: _comment,
+              maxLength: 500,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText: '¿Llegó como se describió? ¿Cumplió en la entrega?',
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+              ),
+            ),
+            const SizedBox(height: 6),
+            BigButton(
+              label: existing != null ? 'Guardar cambios' : 'Publicar opinión',
+              loading: _busy,
+              onPressed: () => _save(existing != null),
+            ),
+          ]),
+        );
+      },
     );
   }
 }

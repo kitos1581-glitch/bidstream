@@ -4,33 +4,74 @@
       "collectionGroup": "lots",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "end_time", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "end_time",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "lots",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "seller_uid", "order": "ASCENDING" },
-        { "fieldPath": "created_time", "order": "DESCENDING" }
+        {
+          "fieldPath": "seller_uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_time",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "lots",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "winner_uid", "order": "ASCENDING" },
-        { "fieldPath": "end_time", "order": "DESCENDING" }
+        {
+          "fieldPath": "winner_uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "end_time",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "lots",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "payment_status", "order": "ASCENDING" },
-        { "fieldPath": "payment_due_time", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "payment_status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "payment_due_time",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "feedback",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "seller_uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created_time",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],

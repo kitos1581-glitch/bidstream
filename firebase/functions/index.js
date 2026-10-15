@@ -26,6 +26,13 @@ const spei = require("./spei");
 exports.chooseWinnerPaymentMethod = spei.chooseWinnerPaymentMethod;
 exports.openpayWebhook = spei.openpayWebhook;
 
+// Reputación: calificaciones y perfil público del vendedor.
+const reputation = require("./reputation");
+exports.submitFeedback = reputation.submitFeedback;
+exports.updateFeedback = reputation.updateFeedback;
+exports.onPublicProfileInputs = reputation.onPublicProfileInputs;
+exports.onSaleRecorded = reputation.onSaleRecorded;
+
 // Tarjeta para compartir lotes en redes (Open Graph).
 exports.lotPreview = require("./share").lotPreview;
 
@@ -407,7 +414,19 @@ exports.onLotCreated = functions
   .firestore.document("lots/{lotId}")
   .onCreate(async (snap) => {
     const lot = snap.data();
-    const userSnap = await db.collection("users").doc(lot.seller_uid).get();
+    const [userSnap, profSnap] = await Promise.all([
+      db.collection("users").doc(lot.seller_uid).get(),
+      db.collection("public_profiles").doc(lot.seller_uid).get(),
+    ]);
     const fullName = userSnap.exists ? userSnap.data().full_name : "";
-    await snap.ref.update({ seller_name: publicName(fullName) });
+    const prof = profSnap.exists ? profSnap.data() : {};
+    // Copia de la reputación al publicar, para mostrarla en las tarjetas
+    // sin una lectura extra por lote (puede quedar unos días atrás).
+    await snap.ref.update({
+      seller_name: publicName(fullName),
+      seller_rating_avg: Number(prof.rating_avg) || 0,
+      seller_rating_count: Number(prof.rating_count) || 0,
+      seller_sales_count: Number(prof.sales_count) || 0,
+      seller_badges: Array.isArray(prof.badges) ? prof.badges : [],
+    });
   });

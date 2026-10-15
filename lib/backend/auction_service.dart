@@ -186,6 +186,20 @@ class AuctionService {
       .snapshots()
       .map((s) => s.docs.map(LotsRecord.fromSnapshot).toList());
 
+  /// Lotes activos de un vendedor (perfil público).
+  Stream<List<LotsRecord>> sellerActiveLots(String sellerUid) {
+    if (sellerUid == 'demo-seller') return Stream.value(demoLots());
+    return LotsRecord.collection
+        .where('seller_uid', isEqualTo: sellerUid)
+        .orderBy('created_time', descending: true)
+        .limit(60)
+        .snapshots()
+        .map((s) => s.docs
+            .map(LotsRecord.fromSnapshot)
+            .where((l) => l.status == 'active')
+            .toList());
+  }
+
   Stream<List<LotsRecord>> wonLots() => LotsRecord.collection
       .where('winner_uid', isEqualTo: _uid)
       .orderBy('end_time', descending: true)

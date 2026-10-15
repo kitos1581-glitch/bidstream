@@ -20,6 +20,14 @@ class LotsRecord extends FirestoreRecord {
   /// new | like_new | used_good | used_fair | for_parts
   String get condition => asString(snapshotData['condition']);
 
+  /// Reputación del vendedor copiada al publicar (la mantiene el servidor).
+  double get sellerRatingAvg => (snapshotData['seller_rating_avg'] as num?)?.toDouble() ?? 0;
+  int get sellerRatingCount => (snapshotData['seller_rating_count'] as num?)?.toInt() ?? 0;
+  int get sellerSalesCount => (snapshotData['seller_sales_count'] as num?)?.toInt() ?? 0;
+  List<String> get sellerBadges => snapshotData['seller_badges'] is List
+      ? (snapshotData['seller_badges'] as List).map((e) => '$e').toList()
+      : const [];
+
   /// Métodos con los que el ganador puede pagar (los fija el servidor).
   List<String> get paymentOptions {
     final raw = snapshotData['payment_options'];
