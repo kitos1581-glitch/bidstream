@@ -63,7 +63,7 @@ class PushService {
         final n = m.notification;
         if (n == null) return;
         onForegroundMessage?.call(
-            n.title ?? 'BidStream', n.body ?? '', _linkOf(m));
+            n.title ?? 'Subástalo Aquí', n.body ?? '', _linkOf(m));
       });
 
       _openedSub ??= FirebaseMessaging.onMessageOpenedApp

@@ -175,3 +175,12 @@ test("pagos: dueño y admin leen; nadie escribe desde la app", async () => {
 test("cuota de IA: solo lectura propia", async () => {
   await assertFails(setDoc(doc(as("vero"), "users/vero/ai_usage/2026-10-14"), { count: 0 }));
 });
+
+test("características (specs): mapa aceptado, otro tipo o demasiadas se rechazan", async () => {
+  const db = as("vero");
+  await assertSucceeds(updateDoc(doc(db, "lots/L1"), { specs: { marca: "Trek", talla: "Rodada 29" } }));
+  await assertFails(updateDoc(doc(db, "lots/L1"), { specs: "Trek" }));
+  const many = {};
+  for (let i = 0; i < 31; i++) many["k" + i] = "v";
+  await assertFails(updateDoc(doc(db, "lots/L1"), { specs: many }));
+});

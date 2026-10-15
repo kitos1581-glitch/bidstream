@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
+import '/backend/lot_specs.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/backend/payment_service.dart';
@@ -275,6 +276,23 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                 ),
               ),
 
+              // ---------------- Características ----------------
+              if (specRows(lot.category, lot.specs).isNotEmpty) ...[
+                const SectionTitle('Características del artículo'),
+                _SpecsTable(rows: [
+                  if (kLotConditions[lot.condition] != null)
+                    ('Estado', kLotConditions[lot.condition]!),
+                  ...specRows(lot.category, lot.specs),
+                ]),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: Text(
+                    'Datos declarados por el vendedor, que responde por ellos según el reglamento.',
+                    style: theme.bodySmall.copyWith(color: theme.secondaryText),
+                  ),
+                ),
+              ],
+
               // ---------------- Descripción ----------------
               if (lot.description.isNotEmpty) ...[
                 const SectionTitle('Descripción'),
@@ -457,5 +475,45 @@ class _WinnerPaymentBox extends StatelessWidget {
       default:
         return Text('Estamos generando tu enlace de pago…', style: theme.bodySmall);
     }
+  }
+}
+
+
+/// Tabla de dos columnas (etiqueta | valor), estilo "Características".
+class _SpecsTable extends StatelessWidget {
+  const _SpecsTable({required this.rows});
+  final List<(String, String)> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.alternate),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        for (var i = 0; i < rows.length; i++)
+          Container(
+            color: i.isEven ? theme.secondaryContainer : theme.secondaryBackground,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                flex: 2,
+                child: Text(rows[i].$1,
+                    style: theme.bodyMedium.copyWith(color: theme.secondaryText)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 3,
+                child: Text(rows[i].$2,
+                    style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
+      ]),
+    );
   }
 }

@@ -210,10 +210,12 @@ class AuctionService {
     required String condition,
     required List<String> imageUrls,
     String streamUrl = '',
+    Map<String, String> specs = const {},
   }) async {
     final uid = _uid;
     if (uid == null) throw StateError('Sin sesión');
-    final ref = await LotsRecord.collection.add(createLotsRecordData(
+    final ref = await LotsRecord.collection.add({
+      ...createLotsRecordData(
       title: title.trim(),
       description: description.trim(),
       category: category,
@@ -226,7 +228,9 @@ class AuctionService {
       sellerUid: uid,
       imageUrls: imageUrls,
       streamUrl: streamUrl.trim(),
-    ));
+      ),
+      if (specs.isNotEmpty) 'specs': specs,
+    });
     return ref.id;
   }
 

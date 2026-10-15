@@ -19,6 +19,13 @@ class LotsRecord extends FirestoreRecord {
 
   /// new | like_new | used_good | used_fair | for_parts
   String get condition => asString(snapshotData['condition']);
+
+  /// Características declaradas por el vendedor (ver lot_specs.dart).
+  Map<String, String> get specs {
+    final raw = snapshotData['specs'];
+    if (raw is! Map) return const {};
+    return {for (final e in raw.entries) '${e.key}': '${e.value}'};
+  }
   List<String> get imageUrls => asStringList(snapshotData['image_urls']);
   String get firstImage => imageUrls.isEmpty ? '' : imageUrls.first;
 

@@ -224,8 +224,8 @@ class _Header extends StatelessWidget {
       text: TextSpan(
         style: theme.headlineSmall.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
         children: [
-          TextSpan(text: 'Bid', style: TextStyle(color: theme.primary)),
-          TextSpan(text: 'Stream', style: TextStyle(color: theme.tertiary)),
+          TextSpan(text: 'Subástalo ', style: TextStyle(color: theme.primary)),
+          TextSpan(text: 'Aquí', style: TextStyle(color: theme.tertiary)),
         ],
       ),
     );
@@ -298,9 +298,9 @@ class _HeroSlide {
 class _HeroCarouselState extends State<_HeroCarousel> {
   static const _slides = [
     _HeroSlide('Subastas en vivo, desde tu celular', 'Mira la transmisión y puja en tiempo real.',
-        'Ver subastas', 'AuctionDashboard', '🔴', Color(0xFF3665F3), Color(0xFF6A8DFF)),
+        'Ver subastas', 'AuctionDashboard', '🔴', Color(0xFF1B3A6B), Color(0xFF2F5A9E)),
     _HeroSlide('Vende en 2 minutos con IA', 'Sube fotos y la IA escribe tu publicación.',
-        'Publicar ahora', 'CreateLotManagement', '✨', Color(0xFFF5AF02), Color(0xFFFFD36B)),
+        'Publicar ahora', 'CreateLotManagement', '✨', Color(0xFFF47920), Color(0xFFFFA65C)),
     _HeroSlide('Ganado, caballos y maquinaria', 'Compra y vende con vendedores verificados.',
         'Explorar', 'AuctionDashboard', '🐎', Color(0xFF0E8A00), Color(0xFF6BC25B)),
   ];
@@ -342,8 +342,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
             onPageChanged: (i) => setState(() => _page = i),
             itemBuilder: (context, i) {
               final s = _slides[i];
-              final dark = i != 1;
-              final fg = dark ? Colors.white : const Color(0xFF3A2A00);
+              const fg = Colors.white;
               return Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
@@ -367,8 +366,8 @@ class _HeroCarouselState extends State<_HeroCarousel> {
                         const SizedBox(height: 14),
                         FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: dark ? Colors.white : const Color(0xFF3A2A00),
-                            foregroundColor: dark ? s.c1 : Colors.white,
+                            backgroundColor: Colors.white,
+                            foregroundColor: s.c1,
                             shape: const StadiumBorder(),
                           ),
                           onPressed: () => context.goNamed(s.route),

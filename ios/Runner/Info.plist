@@ -7,15 +7,15 @@
 		<string>remote-notification</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>BidStream usa tus fotos para publicar los lotes que vendes.</string>
+	<string>Subástalo Aquí usa tus fotos para publicar los lotes que vendes.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>BidStream usa la cámara para tomar fotos de los lotes que vendes.</string>
+	<string>Subástalo Aquí usa la cámara para tomar fotos de los lotes que vendes.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>BidStream</string>
+	<string>Subástalo Aquí</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,7 +23,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>BidStream</string>
+	<string>Subástalo Aquí</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 

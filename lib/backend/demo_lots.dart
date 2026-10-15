@@ -53,6 +53,38 @@ final _items = <_Demo>[
       '0xFFC62828', '0xFFFFF9C4', 14000, 16750, 500, 8, Duration(hours: 30)),
 ];
 
+/// Características de ejemplo (como las publicaría un vendedor cuidadoso).
+const _demoSpecs = <String, Map<String, String>>{
+  'demo-1': {
+    'especie': 'Caballo', 'raza': 'Cuarto de milla', 'sexo': 'Macho castrado',
+    'edad': '4 años', 'cabezas': '1', 'peso': '480', 'arete': 'Sí, todos',
+    'guia': 'Sí', 'fierro': 'Sí', 'vacunas': 'Al corriente (mayo 2026)',
+    'registro': 'Sí', 'ubicacion': 'Camargo, Chih.',
+  },
+  'demo-2': {
+    'marca': 'Ford', 'modelo': 'Lobo XLT 4x4', 'anio': '2015', 'km': '120000',
+    'transmision': 'Automática', 'combustible': 'Gasolina',
+    'documento': 'Factura original', 'situacion_legal': 'Nacional',
+    'tenencias': 'Sí', 'repuve': 'Sí', 'placas': 'Chihuahua',
+    'fallas': 'Ninguna conocida',
+  },
+  'demo-3': {
+    'marca': 'John Deere', 'modelo': '5075E', 'anio': '2018', 'horas': '3200',
+    'funciona': 'Sí, con detalles', 'documento': 'Factura',
+    'incluye': 'Rastra de 20 discos', 'ubicacion': 'Delicias, Chih.',
+  },
+  'demo-4': {
+    'marca': 'Apple', 'modelo': 'iPhone 15 Pro', 'capacidad': '256 GB',
+    'funciona': 'Sí, al 100%', 'liberado': 'Sí', 'bateria': '94%',
+    'incluye': 'Caja y cable', 'garantia': 'Sin garantía',
+  },
+  'demo-5': {
+    'especie': 'Bovino', 'raza': 'Charolais', 'sexo': 'Macho', 'edad': '14 meses',
+    'cabezas': '10', 'peso': '350', 'arete': 'Sí, todos', 'guia': 'Sí',
+    'fierro': 'Sí', 'ubicacion': 'Jiménez, Chih.',
+  },
+};
+
 DocumentReference _ref(String id) =>
     FirebaseFirestore.instance.collection('lots').doc(id);
 
@@ -79,6 +111,7 @@ LotsRecord _build(_Demo d, DateTime now) {
     'seller_name': 'Vendedor Demo',
     'highest_bidder_uid': d.bids > 0 ? 'demo-bidder' : null,
     'highest_bidder_name': d.bids > 0 ? 'Juan P.' : null,
+    if (_demoSpecs[d.id] != null) 'specs': _demoSpecs[d.id],
   });
 }
 

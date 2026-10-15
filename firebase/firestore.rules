@@ -51,6 +51,7 @@ service cloud.firestore {
         && d.format in ['timed', 'live']
         && d.get('condition', 'used_good') in
              ['new', 'like_new', 'used_good', 'used_fair', 'for_parts']
+        && d.get('specs', {}) is map && d.get('specs', {}).size() <= 30
         && d.seller_uid is string;
     }
 
@@ -143,10 +144,10 @@ service cloud.firestore {
         && validLotData(request.resource.data)
         && (
           onlyChanges(['title', 'description', 'category', 'image_urls', 'stream_url',
-                       'condition'])
+                       'condition', 'specs'])
           || (resource.data.bid_count == 0
               && onlyChanges(['title', 'description', 'category', 'image_urls',
-                              'stream_url', 'condition', 'starting_price', 'current_bid',
+                              'stream_url', 'condition', 'specs', 'starting_price', 'current_bid',
                               'minimum_increment', 'end_time', 'start_time', 'format'])
               && request.resource.data.current_bid == request.resource.data.starting_price
               && request.resource.data.end_time > request.time)

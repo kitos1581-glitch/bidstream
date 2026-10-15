@@ -134,7 +134,7 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(22),
                           gradient: LinearGradient(
-                              colors: [theme.primary, const Color(0xFF6A8DFF)]),
+                              colors: [theme.primary, const Color(0xFF2F5A9E)]),
                           boxShadow: softShadow(),
                         ),
                         child: const Icon(Icons.gavel_rounded,
@@ -148,8 +148,8 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
                           style: theme.headlineMedium.copyWith(
                               fontWeight: FontWeight.w800, letterSpacing: -0.5),
                           children: [
-                            TextSpan(text: 'Bid', style: TextStyle(color: theme.primary)),
-                            TextSpan(text: 'Stream', style: TextStyle(color: theme.tertiary)),
+                            TextSpan(text: 'Subástalo ', style: TextStyle(color: theme.primary)),
+                            TextSpan(text: 'Aquí', style: TextStyle(color: theme.tertiary)),
                           ],
                         ),
                       ),

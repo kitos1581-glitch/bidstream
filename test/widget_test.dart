@@ -4,8 +4,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bid_stream/ui/ui_kit.dart';
 import 'package:bid_stream/ui/youtube.dart';
 import 'package:bid_stream/ui/clabe.dart';
+import 'package:bid_stream/backend/lot_specs.dart';
+import 'package:bid_stream/backend/auction_service.dart' show kLotCategories;
 
 void main() {
+  group('características por categoría', () {
+    test('cada categoría del catálogo tiene su lista', () {
+      for (final c in kLotCategories) {
+        expect(kCategorySpecs.containsKey(c), isTrue, reason: c);
+      }
+    });
+    test('detecta la primera obligatoria vacía', () {
+      expect(missingRequiredSpec('Vehículos', {}), 'Marca');
+      expect(missingRequiredSpec('Otros', {}), isNull);
+    });
+    test('specRows respeta el orden y omite vacíos', () {
+      final rows = specRows('Deportes', {'talla': 'M', 'marca': 'Trek', 'modelo': ''});
+      expect(rows, [('Marca', 'Trek'), ('Talla / medida', 'M')]);
+    });
+  });
+
   group('youtubeIdFrom', () {
     test('reconoce los formatos comunes de YouTube', () {
       expect(youtubeIdFrom('https://www.youtube.com/watch?v=abc123XYZ'), 'abc123XYZ');

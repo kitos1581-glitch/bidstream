@@ -4,6 +4,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '/backend/backend.dart';
+import '/backend/lot_specs.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/ui/youtube.dart';
@@ -40,6 +41,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
 
   String? _category;
   String? _condition;
+  final Map<String, String> _specs = {};
   final _aiNotes = TextEditingController();
   bool _aiLoading = false;
   AiLotSuggestion? _ai;
@@ -217,6 +219,10 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
         condition: _condition!,
         imageUrls: urls,
         streamUrl: _format == 'live' ? _streamUrl.text : '',
+        specs: {
+          for (final f in specsFor(_category!))
+            if ((_specs[f.key] ?? '').trim().isNotEmpty) f.key: _specs[f.key]!.trim(),
+        },
       );
       if (!mounted) return;
       showMessage(context, '¡Tu lote ya está publicado!');
@@ -229,6 +235,38 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Widget _specField(SpecField f) {
+    final label = f.required ? '${f.label} *' : f.label;
+    String? check(String? v) =>
+        f.required && (v ?? '').trim().isEmpty ? 'Obligatorio' : null;
+    if (f.options != null) {
+      final current = _specs[f.key];
+      return DropdownButtonFormField<String>(
+        key: ValueKey('spec-$_category-${f.key}'),
+        value: f.options!.contains(current) ? current : null,
+        isExpanded: true,
+        decoration: _dec(label),
+        items: [
+          for (final o in f.options!) DropdownMenuItem(value: o, child: Text(o)),
+        ],
+        onChanged: (v) => setState(() => _specs[f.key] = v ?? ''),
+        validator: check,
+      );
+    }
+    return TextFormField(
+      key: ValueKey('spec-$_category-${f.key}'),
+      initialValue: _specs[f.key],
+      maxLength: 120,
+      keyboardType: f.numeric ? TextInputType.number : TextInputType.text,
+      inputFormatters:
+          f.numeric ? [FilteringTextInputFormatter.digitsOnly] : null,
+      decoration: _dec(label, helper: f.hint.isEmpty ? null : 'Ej. ${f.hint}')
+          .copyWith(counterText: ''),
+      onChanged: (v) => _specs[f.key] = v,
+      validator: check,
+    );
   }
 
   InputDecoration _dec(String label, {String? helper, String? prefix}) {
@@ -484,6 +522,22 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                 ? 'Describe el lote (mínimo 20 caracteres)'
                 : null,
           ),
+          if (_category != null && specsFor(_category!).isNotEmpty) ...[
+            SectionTitle('Características del artículo',
+                trailing: Text('* obligatorio',
+                    style: FlutterFlowTheme.of(context).bodySmall)),
+            Text(
+              'Sé específico: los compradores pujan más cuando no tienen que preguntar. '
+              'Lo que declares aquí es parte del reglamento: si no coincide, el comprador puede reclamar.',
+              style: FlutterFlowTheme.of(context).bodySmall.copyWith(
+                  color: FlutterFlowTheme.of(context).secondaryText),
+            ),
+            const SizedBox(height: 10),
+            for (final f in specsFor(_category!)) ...[
+              _specField(f),
+              const SizedBox(height: 10),
+            ],
+          ],
 
           // ---------------- Precio ----------------
           const SectionTitle('Precio'),
