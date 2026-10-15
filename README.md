@@ -303,6 +303,29 @@ si después no paga, se castiga normal. Una sola segunda oportunidad por lote.
 - Reclamo resuelto con **reembolso total** → strike al vendedor (`seller_strikes`);
   al segundo se suspende. El admin puede evitarlo (`sellerStrike: false`).
 
+## 7.7 Modelo de negocio híbrido, entrega y municipios
+
+**Comisión por venta** (`commission_policy.js`, con la fecha de CIERRE del lote):
+1. Tienda Oficial con membresía vigente → 0 % (`users.seller_plan = "store"`,
+   `store_plan_until`). Se activa desde el panel → Usuarios → "Hacer Tienda
+   Oficial" (requiere INE verificada; renovar suma meses). Distintivo
+   "Tienda Oficial" en perfil y tarjetas. El cobro de la membresía hoy es fuera
+   de la app.
+2. Campaña de 0 % por fechas: `COMMISSION_PROMO=2026-11-13T00:00:00-06:00/2026-11-17T23:59:59-06:00`
+   (Buen Fin 2026). Formato inválido → liquidación en revisión, nunca otro % en silencio.
+3. Si no, comisión normal por tramos (`COMMISSION_TIERS`).
+La liquidación guarda `commission_policy` (store | promo | standard).
+**Ojo:** con 0 % la plataforma absorbe la tarifa del procesador (~3.5–4 %).
+
+**Entrega** (`lots.delivery`): `pickup` (a acordar, sin costo) y/o `regional`
+(costo fijo o incluido, municipios de destino). Una modalidad → se aplica sola al
+cerrar; dos → el ganador elige con `chooseDelivery` antes de pagar (el envío se
+suma al cobro y llega completo al vendedor, sin comisión).
+
+**Municipios** (`lots.municipality`): camargo, jimenez, saucillo, delicias,
+parral, meoqui, la_cruz, san_francisco_de_conchos, chihuahua, cuauhtemoc, otro.
+En el inicio, filtro "Toda la región" / municipio (se recuerda en el equipo).
+
 ## 8. Notificaciones push
 
 Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda

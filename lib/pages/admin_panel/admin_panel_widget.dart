@@ -392,7 +392,36 @@ class _UsersTabState extends State<_UsersTab> {
                 Tag(u['verified'] == true ? 'INE verificada' : 'Sin verificar'),
                 Tag('Depósito: $dep'),
                 Tag('Strikes: ${u['strikes'] ?? 0}'),
+                Tag('Strikes vendedor: ${u['seller_strikes'] ?? 0}'),
+                if (u['seller_plan'] == 'store')
+                  Tag('Tienda Oficial: ${u['store_name'] ?? ''}'
+                      '${u['store_plan_until'] is Timestamp ? ' hasta ${formatDateTime((u['store_plan_until'] as Timestamp).toDate())}' : ''}'),
                 if (banned) Tag('Suspendido', background: theme.error, foreground: Colors.white),
+              ]),
+              const SizedBox(height: 6),
+              Wrap(spacing: 8, children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.storefront_outlined, size: 18),
+                  label: Text(u['seller_plan'] == 'store' ? 'Renovar tienda' : 'Hacer Tienda Oficial'),
+                  onPressed: () async {
+                    final name = await _askText(context, 'Nombre de la tienda', 'Ej. Ferretería López');
+                    if (name == null || !context.mounted) return;
+                    final m = await _askText(context, 'Meses de membresía (1 a 24)', 'Ej. 12');
+                    final months = int.tryParse(m ?? '');
+                    if (months == null || !context.mounted) return;
+                    await _run(context, () => AdminService.instance.setStorePlan(d.id, months, storeName: name),
+                        'Membresía actualizada');
+                    _search();
+                  },
+                ),
+                if (u['seller_plan'] == 'store')
+                  TextButton(
+                    onPressed: () async {
+                      await _run(context, () => AdminService.instance.setStorePlan(d.id, 0), 'Membresía cancelada');
+                      _search();
+                    },
+                    child: const Text('Cancelar tienda'),
+                  ),
               ]),
               const SizedBox(height: 8),
               Align(

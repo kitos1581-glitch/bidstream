@@ -193,6 +193,11 @@ class AdminService {
       .httpsCallable('adminRetryWinnerPayment')
       .call<dynamic>({'lotId': lotId});
 
+  /// Activa/renueva (months 1–24) o cancela (months 0) la Tienda Oficial.
+  Future<void> setStorePlan(String uid, int months, {String storeName = ''}) => _fn
+      .httpsCallable('adminSetStorePlan')
+      .call<dynamic>({'uid': uid, 'months': months, 'storeName': storeName});
+
   Future<void> cancelLot(String lotId, String reason) => _fn
       .httpsCallable('adminCancelLot')
       .call<dynamic>({'lotId': lotId, 'reason': reason});
