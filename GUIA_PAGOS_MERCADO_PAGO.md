@@ -79,10 +79,9 @@ En `firebase/functions/`:
    COMMISSION_PCT=0.10
    WINNER_PAYMENT_WINDOW_HOURS=24
    ```
-4. Genera el secreto del webhook:
-   ```bash
-   openssl rand -hex 32
-   ```
+4. `MP_WEBHOOK_SECRET` **no se inventa**: la genera Mercado Pago al
+   configurar el webhook (paso 3) en *Webhooks → Configurar notificaciones →
+   Clave secreta*. Cópiala de ahí. (Corregido 2026-10-15; ver DEPLOY.md §d.1.)
 5. Copia `firestore.rules` y `firestore.indexes.json` de este paquete.
 6. Despliega:
    ```bash
@@ -94,7 +93,7 @@ En `firebase/functions/`:
 ## Paso 3 — Configurar el webhook en Mercado Pago
 
 1. En el panel de MP: **Tus integraciones → Webhooks → Configurar** con la
-   URL `…/mpWebhook` y el **secreto** del paso 2 (MP firma cada notificación
+   URL `…/mpWebhook` y copia la **clave secreta que genera MP** a `MP_WEBHOOK_SECRET` (MP firma cada notificación
    con ese secreto y el servidor la valida; sin él las notificaciones se
    rechazan con 401).
 2. Activa el evento **Pagos**.

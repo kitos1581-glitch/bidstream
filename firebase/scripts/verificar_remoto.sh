@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# Verificación REMOTA de solo lectura del proyecto Firebase de BidStream.
+# Verificación REMOTA de solo lectura del proyecto Firebase de Subástalo Aquí.
 # NO despliega, NO cambia facturación, NO modifica datos.
 # Requiere: firebase login  y  gcloud auth login  con tu cuenta.
 # Uso (desde firebase/):  bash scripts/verificar_remoto.sh
@@ -15,10 +15,13 @@ gcloud billing projects describe "$PROJECT" --format="value(billingEnabled,billi
 
 echo; echo "== 2) Funciones desplegadas (compáralas con la lista esperada)"
 firebase functions:list --project "$PROJECT" || echo "!! No se pudo listar"
-echo "Esperadas: placeBid closeEndedAuctions onLotCreated createDeposit requestDepositRefund"
-echo "           expireUnpaidWins mpWebhook submitIdentityVerification adminReviewVerification"
-echo "           adminSetBan adminMarkPayoutSent adminRetryWinnerPayment adminCancelLot"
-echo "           adminRecalculatePayout generateLotDescription onNotificationCreated"
+echo "Esperadas (32): placeBid closeEndedAuctions onLotCreated createDeposit requestDepositRefund"
+echo "  expireUnpaidWins mpWebhook chooseWinnerPaymentMethod openpayWebhook submitFeedback updateFeedback"
+echo "  onPublicProfileInputs onSaleRecorded openDispute adminResolveDispute confirmReceipt"
+echo "  releaseDuePayoutsJob confirmDeliveryCode chooseDelivery setReservePrice respondSecondChance"
+echo "  lotPreview submitIdentityVerification adminReviewVerification adminSetBan adminMarkPayoutSent"
+echo "  adminRetryWinnerPayment adminCancelLot adminRecalculatePayout adminSetStorePlan"
+echo "  generateLotDescription onNotificationCreated"
 
 echo; echo "== 3) Índices compuestos de Firestore (debe existir lots: status ASC + end_time ASC, en estado READY)"
 gcloud firestore indexes composite list --project "$PROJECT" \
@@ -48,10 +51,10 @@ else
 fi
 
 echo; echo "== 5) Variables de configuración que deben existir en functions/.env (no se muestran valores)"
-for v in MP_ACCESS_TOKEN MP_WEBHOOK_SECRET WEBHOOK_URL ANTHROPIC_API_KEY; do
+for v in MP_ACCESS_TOKEN MP_WEBHOOK_SECRET WEBHOOK_URL SITE_URL ANTHROPIC_API_KEY OPENPAY_MERCHANT_ID OPENPAY_PRIVATE_KEY OPENPAY_WEBHOOK_USER OPENPAY_WEBHOOK_PASS; do
   if grep -q "^$v=" functions/.env 2>/dev/null; then echo "  $v: presente"; else echo "  $v: FALTA"; fi
 done
-for v in COMMISSION_TIERS COMMISSION_PCT COMMISSION_MIN AI_DAILY_LIMIT AI_GLOBAL_DAILY_LIMIT VERIFIED_BID_THRESHOLD; do
+for v in DEPOSIT_AMOUNT WINNER_PAYMENT_WINDOW_HOURS VERIFIED_BID_THRESHOLD PAYOUT_RELEASE_DAYS COMMISSION_TIERS COMMISSION_PCT COMMISSION_MIN COMMISSION_PROMO ZERO_COMMISSION_FEE_PAYER OPENPAY_SANDBOX AI_MODEL AI_DAILY_LIMIT AI_GLOBAL_DAILY_LIMIT APP_CHECK_MODE SEO_NOINDEX; do
   if grep -q "^$v=" functions/.env 2>/dev/null; then echo "  $v=$(grep "^$v=" functions/.env | cut -d= -f2-)"; else echo "  $v: (default)"; fi
 done
 echo; echo "== 6) Validación local de la configuración de comisiones e IA (sin red)"
@@ -59,4 +62,9 @@ echo; echo "== 6) Validación local de la configuración de comisiones e IA (sin
   const p = require("./payments"); const a = require("./ai");
   const ce = p.getCommissionConfigError(); console.log(ce ? "!! Comisiones: " + ce : "OK: comisiones válidas");
   try { a.readAiConfig(); console.log("OK: configuración de IA válida"); } catch (e) { console.log("!! IA: " + e.message); }
+  const cp = require("./commission_policy"); const pr = cp.readPromo(); console.log(pr.error ? "!! " + pr.error : "OK: COMMISSION_PROMO " + (pr.promo ? "activa por fechas" : "sin campaña"));
+  const fp = cp.readFeePayer(); console.log(fp.error ? "!! " + fp.error : "OK: costo del procesador con 0 % lo paga " + fp.payer);
+  const rd = p.readReleaseDays(); console.log(rd.error ? "!! " + rd.error : "OK: liberación automática a " + rd.days + " días");
+  const ac = require("./appcheck").appCheckMode(); console.log(ac.error ? "!! " + ac.error : "OK: App Check en modo " + ac.mode);
+  try { require("./openpay").readOpenpayConfig(); console.log("OK: Openpay configurado"); } catch (e) { console.log("-- Openpay: " + e.message + " (si no usas SPEI, es normal)"); }
 ' 2>/dev/null) || echo "!! No se pudo validar (¿npm install en functions/?)"

@@ -10,7 +10,8 @@
       "ignore": [
         "node_modules",
         "test",
-        "*.local"
+        "*.local",
+        ".env.example"
       ]
     }
   ],

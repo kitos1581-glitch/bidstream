@@ -19,3 +19,15 @@ ui-debug.log
 
 # Sistema
 .DS_Store
+
+# Secretos (NUNCA versionar)
+firebase/functions/.env
+firebase/functions/.env.*
+!firebase/functions/.env.example
+firebase/functions/.secret.local
+*-firebase-adminsdk-*.json
+service-account*.json
+android/key.properties
+*.jks
+*.keystore
+*.p8
