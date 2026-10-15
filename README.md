@@ -1,371 +1,351 @@
-# BidStream
+# Subástalo Aquí
 
-Subastas en línea, por tiempo o en vivo con transmisión de YouTube.
-Flutter (Android, iOS, web) + Firebase (Auth, Firestore, Storage, Cloud Functions).
+Marketplace de subastas para la región centro-sur de Chihuahua: Camargo,
+Jiménez, Saucillo, Delicias, Parral y municipios vecinos.
 
-> Este proyecto **ya no se edita en FlutterFlow**. Si lo vuelves a exportar
-> desde FlutterFlow, se borran todos estos cambios.
+- Usuarios **verificados**: correo e INE.
+- **Puja proxy** con anti-sniping.
+- **Pago retenido hasta la entrega** (escrow).
+- **Reputación** y **protección al comprador**.
 
----
+Funciona en Android, iOS y web, con Flutter + Firebase.
 
-## 1. Qué hace la app
-
-| Pantalla | Qué hace |
-|---|---|
-| Acceso | Iniciar sesión, crear cuenta, recuperar contraseña |
-| Completa tu cuenta | Verificar correo + nombre, teléfono, ciudad, términos |
-| Subastas (inicio) | Búsqueda, categorías, sección "En vivo ahora", catálogo |
-| Detalle del lote | Fotos, precio, cuenta regresiva, historial de pujas en tiempo real |
-| Confirmar puja | Elegir monto (sugeridos u otro) y confirmar |
-| Subasta en vivo | Video de YouTube dentro de la app + pujas rápidas |
-| Publicar | Fotos (hasta 10), datos, precio, por tiempo o en vivo |
-| Avisos | Te superaron / ganaste / vendiste / sin pujas |
-| Mi cuenta | Mis pujas (ganando/superado), ganadas, mis ventas |
-
-### Reglas del negocio (las aplica el servidor)
-- Solo se puede pujar con **correo verificado** y **perfil completo**.
-- **Puja proxy:** cada postor ofrece un máximo secreto. El precio visible solo
-  sube lo necesario: el sistema puja por el líder superando al retador por el
-  incremento, sin rebasar su máximo. En empate gana quien ofertó primero.
-- Primera oferta: mínimo el precio inicial (el precio visible queda en el
-  precio inicial). Retadores: al menos puja actual + incremento.
-- El líder puede subir su máximo; eso no cambia el precio ni el cierre.
-- El vendedor no puede pujar en su propio lote.
-- **Anti-sniping:** una oferta válida con 30 s o menos para el cierre lo mueve
-  a "ahora + 30 s".
-- Tope contra errores de dedo: máximo $50,000,000 por oferta.
-- Se requiere depósito de garantía (ver GUIA_PAGOS_MERCADO_PAGO.md).
-- Cada minuto se cierran las subastas vencidas. El ganador y el vendedor
-  reciben en sus avisos el contacto del otro.
-- En el historial público solo se ve "Nombre + inicial" (ej. "Juan P.").
+> **Versión 1.0.0** (2026-10-15).
+>
+> - Qué incluye: [`CHANGELOG.md`](CHANGELOG.md).
+> - Qué falta: [`ROADMAP.md`](ROADMAP.md).
+> - Cómo desplegar: [`DEPLOY.md`](DEPLOY.md).
+> - Prueba manual: [`CHECKLIST_E2E.md`](CHECKLIST_E2E.md).
+> - Pruebas ejecutadas: [`EVIDENCIA_PRUEBAS.md`](EVIDENCIA_PRUEBAS.md).
+>
+> **Estado:** el código y las pruebas están listos, pero **nada está
+> desplegado todavía** en producción (R-01).
+>
+> El proyecto **ya no se edita en FlutterFlow**. Si se vuelve a exportar,
+> se borra todo.
 
 ---
 
-## 2. Estructura de datos (Firestore)
+## 1. Arquitectura
 
 ```
-users/{uid}                     perfil privado (solo lo lee su dueño)
-  ├─ notifications/{id}         avisos (los crea el servidor)
-  └─ bidding/{lotId}            subastas donde pujó (las mantiene el servidor)
-lots/{lotId}                    lote (público)
-  ├─ bids/{bidId}               ofertas proxy: user_id, max_amount, current_effective_bid,
-  │                             timestamp. PRIVADAS: cada quien solo lee las suyas
-  ├─ history/{id}               historial público (sin máximos); auto=true si la
-  │                             puja la hizo el sistema proxy
-  └─ private/proxy_state        líder y su máximo; solo el servidor lo lee
+ App Flutter (Android / iOS / web)
+   │  lee: catálogo, historial, perfil público, sus propios datos
+   │  escribe SOLO: su perfil, sus fotos, publicar/editar lote sin pujas
+   │  todo lo demás → llamadas a funciones (con App Check)
+   ▼
+ Cloud Functions (Node 20, us-central1)  ── 32 funciones
+   │  pujas, cierre, cobros, escrow, disputas, reputación, admin, IA
+   │  transacciones + documento candado en todo lo que mueve dinero
+   ├──► Firestore    (reglas deny-by-default, lista blanca al publicar)
+   ├──► Storage      (fotos públicas de lotes; INE y pruebas privadas)
+   ├──► Mercado Pago (depósito, pago del ganador, reembolsos) ◄── mpWebhook
+   ├──► Openpay      (pago por SPEI, opcional)               ◄── openpayWebhook
+   ├──► Anthropic    (asistente para redactar la publicación)
+   └──► FCM          (push de cada aviso)
+ Firebase Hosting: la web + /l/{id} (tarjeta para compartir en WhatsApp/Facebook)
 ```
 
-Campos del lote: `title, description, category, image_urls, starting_price,
-current_bid, minimum_increment, bid_count, start_time, end_time, status
-(active|ended), format (timed|live), stream_url, seller_uid, seller_name,
-highest_bidder_uid, highest_bidder_name, winner_uid, winner_name, final_price`.
+**Principios del proyecto:**
 
----
+1. El cliente **nunca** escribe precios, pujas, pagos, reputación ni estado
+   de disputas.
+2. Todo movimiento de dinero es **idempotente**: se protege con un documento
+   candado en `payments/…`.
+3. Ningún secreto se puede leer desde la app ni a través de las reglas. Eso
+   incluye los máximos proxy, el precio de reserva, el código de entrega y
+   las llaves.
+4. Si una configuración es inválida, el sistema da un **error explícito**.
+   Nunca usa otro valor en silencio.
 
-## 3. Primera instalación
+### Módulos del backend (`firebase/functions/`)
 
-Necesitas: Flutter (stable), Node 20 y Firebase CLI (`npm i -g firebase-tools`).
+| Módulo | Qué hace | Funciones exportadas |
+|---|---|---|
+| `index.js` | Pujas proxy, cierre de subastas, alta de lote. | `placeBid`, `closeEndedAuctions` (cada min), `onLotCreated` |
+| `auction_logic.js` | Lógica pura de la puja: proxy, incrementos, anti-sniping, hora creciente del historial. | — |
+| `payments.js` | Depósito, cobro al ganador, webhook de MP, castigo por no pagar, reembolsos, liquidación. | `createDeposit`, `requestDepositRefund`, `expireUnpaidWins` (cada 15 min), `mpWebhook` |
+| `spei.js` + `openpay.js` | Pago del ganador por SPEI. | `chooseWinnerPaymentMethod`, `openpayWebhook` |
+| `commission_policy.js` | Orden tienda → campaña → tramos, y costo real del procesador. | — |
+| `escrow.js` | Retención y liberación; código de entrega en persona. | `confirmReceipt`, `confirmDeliveryCode`, `releaseDuePayoutsJob` (cada hora) |
+| `delivery.js` | El ganador elige recoger o envío regional. | `chooseDelivery` |
+| `reserve.js` | Precio de reserva secreto. | `setReservePrice` |
+| `second_chance.js` | Ofrece el lote al subcampeón si el ganador no paga. | `respondSecondChance` |
+| `disputes.js` | Reclamos con reembolso total o parcial, y clawback. | `openDispute`, `adminResolveDispute` |
+| `reputation.js` | Calificaciones, perfil público, insignias. | `submitFeedback`, `updateFeedback`, `onPublicProfileInputs`, `onSaleRecorded` |
+| `admin.js` | INE, suspensiones, payouts, cancelaciones, Tienda Oficial. | `submitIdentityVerification`, `adminReviewVerification`, `adminSetBan`, `adminMarkPayoutSent`, `adminRetryWinnerPayment`, `adminCancelLot`, `adminRecalculatePayout`, `adminSetStorePlan` |
+| `ai.js` | Asistente de publicación (de las fotos saca título, categoría y descripción). | `generateLotDescription` |
+| `share.js` | Tarjeta Open Graph de cada lote. | `lotPreview` |
+| `push.js` | Envía un push por cada aviso. | `onNotificationCreated` |
+| `appcheck.js` | App Check en las 22 funciones callable (modos `monitor`, `enforce` u `off`). | — |
 
-```bash
-# App
-flutter pub get
-flutter analyze          # revisa que no haya errores
-flutter test             # pruebas unitarias
+### Datos (Firestore)
 
-# Backend
-cd firebase
-firebase login
-cd functions && npm install && npm test && cd ..
 ```
-
-### En la consola de Firebase (proyecto `bidstream-656cf`)
-1. **Plan Blaze** (pago por uso). Cloud Functions y la tarea programada lo
-   exigen. Con poco uso el costo suele ser muy bajo, pero **pon una alerta de
-   presupuesto** en Google Cloud.
-2. **Authentication → Método de acceso → Correo/contraseña:** activado.
-3. **Storage:** crea el bucket si no existe.
-4. Plantilla del correo de verificación en español
-   (Authentication → Plantillas).
-
-### Desplegar backend
-```bash
-cd firebase
-firebase deploy --only firestore:rules,firestore:indexes,storage,functions
-```
-Las variables de Mercado Pago y montos van en `firebase/functions/.env`
-(ver GUIA_PAGOS_MERCADO_PAGO.md). Extra: `VERIFIED_BID_THRESHOLD=20000`.
-Los índices tardan unos minutos en construirse. Mientras tanto, algunas
-listas pueden marcar error de "index".
-
-### Correr la app
-```bash
-flutter run -d chrome          # web
-flutter run                    # celular conectado
-```
-
-### Publicar la versión web en Firebase Hosting
-```bash
-flutter build web --release
-cd firebase && firebase deploy --only hosting
+users/{uid}                 privado (dueño y admin). deposit, strikes, seller_strikes,
+                            verified, seller_plan, store_* → solo el servidor
+  ├─ notifications/{id}     avisos (los crea el servidor; el usuario marca leído)
+  ├─ bidding/{lotId}        subastas donde pujó
+  ├─ delivery_codes/{lotId} código de entrega (solo el comprador)
+  ├─ fcm_tokens/{token}     dispositivos para push
+  └─ ai_usage/{día}         cuota del asistente
+lots/{lotId}                público. status: active | ended | ended_unsold_reserve | cancelled
+                            payment_status: pending | paid | payment_error | forfeited
+  ├─ bids/{id}              máximos proxy (cada quien lee solo los suyos)
+  ├─ history/{id}           historial público (sin máximos)
+  └─ private/*              proxy_state, reserve, delivery_code → nadie desde la app
+payments/{id}               depósitos, cobros, payouts, reembolsos, clawbacks, candados
+disputes/{lotId}            reclamos (comprador, vendedor y admin leen)
+feedback/{lotId}            calificaciones (públicas)
+public_profiles/{uid}       nombre público, ★, ventas, insignias (público, sin contacto)
+verifications/{uid}         solicitud de INE
+admin_log/{id}              bitácora de administradores
 ```
 
 ---
 
-## 4. Cómo probar el flujo completo
+## 2. Reglas de la subasta
 
-Usa **dos cuentas** (ej. en Chrome normal y en ventana de incógnito):
-
-1. Cuenta A: registrarse → verificar correo → completar perfil → publicar un
-   lote "En vivo" que empiece ahora, de 15 min, con un enlace de YouTube.
-2. Cuenta B: registrarse → verificar → completar perfil → entrar al lote →
-   pujar.
-3. Cuenta A no debe poder pujar en su propio lote.
-4. Cuenta B puja otra vez → debe decir "Ya vas ganando".
-5. Una tercera cuenta (o A con otro lote) supera a B → B recibe aviso "Te superaron".
-6. Al terminar el tiempo (≤1 min de retraso) → avisos "Ganaste" y "Vendiste"
-   con los contactos.
+- **Para pujar** se necesita correo verificado, perfil completo y un depósito
+  de garantía activo. Las pujas **mayores a $20,000** además exigen INE
+  verificada (`VERIFIED_BID_THRESHOLD`).
+- **Para vender** se necesita INE aprobada por un admin y una cuenta no
+  suspendida.
+- **Puja proxy:** cada postor ofrece un máximo secreto, y el precio visible
+  sube solo lo necesario. En empate gana quien ofertó primero. El vendedor no
+  puede pujar en sus propios lotes.
+- **Anti-sniping:** una oferta válida en los últimos 30 s mueve el cierre a
+  "ahora + 30 s".
+- **Precio de reserva** (solo en subastas por tiempo):
+  - Es secreto: vive en `private/reserve`.
+  - Si el máximo del líder alcanza la reserva, el precio salta a la reserva.
+  - Si nadie la alcanza, el lote cierra como `ended_unsold_reserve`, sin
+    cobro.
+- **Ganador moroso:**
+  - Pierde su depósito, que se le da al vendedor como compensación.
+  - Recibe un strike; con 2 strikes la cuenta se suspende.
+  - El lote se ofrece **una sola vez** al subcampeón, por su máximo, con 24 h
+    para aceptar.
 
 ---
 
-## 5. Administración
+## 3. Modelo de negocio híbrido
 
-### Darte permisos de administrador
-```bash
-cd firebase/functions && npm install && cd ..
-export GOOGLE_APPLICATION_CREDENTIALS=/ruta/fuera/del/proyecto/llave.json
-node scripts/set_admin.js tu-correo@ejemplo.com
+**Comisión por venta.** Se decide con la **fecha de cierre** del lote, en
+este orden:
+
+| # | Caso | Comisión | Configuración |
+|---|---|---|---|
+| 1 | **Tienda Oficial** con membresía vigente | 0 % | Panel → Usuarios → "Hacer Tienda Oficial". La membresía hoy se cobra fuera de la app (R-42). |
+| 2 | **Campaña** por fechas (p. ej. Buen Fin) | 0 % | `COMMISSION_PROMO=2026-11-13T00:00:00-06:00/2026-11-17T23:59:59-06:00` |
+| 3 | **Normal**, por tramos marginales (como el ISR) | 10 % / 8 % / 6 % | `COMMISSION_TIERS=10000:0.10,100000:0.08,inf:0.06`, `COMMISSION_MIN=50` |
+
+**Costo del procesador con 0 % de comisión.** El vendedor paga solo el costo
+**real** del procesador:
+
+- Mercado Pago: `transaction_amount − net_received_amount`.
+- Openpay: `fee`.
+
+Con `ZERO_COMMISSION_FEE_PAYER=platform`, ese costo lo absorbe la plataforma.
+Si el procesador no reporta el costo, no se descuenta nada y la liquidación
+queda marcada `processing_fee_unknown`.
+
+**Al comprador nunca se le cobra recargo.** Profeco exige precio total final,
+sin comisión extra por pagar con tarjeta.
+
+**Depósito de garantía:** $200 MXN (`DEPOSIT_AMOUNT`). Es una
+**penalización** si el ganador no paga. Si gana y paga, se descuenta del
+cobro. Se puede pedir el reembolso cuando ya no hay compromisos pendientes.
+
+**Precios:** todo en MXN. El precio inicial lo pone cada vendedor.
+
+---
+
+## 4. Entrega regional y municipios
+
+- **Municipios** (`lots.municipality`): camargo, jimenez, saucillo, delicias,
+  parral, meoqui, la_cruz, san_francisco_de_conchos, chihuahua, cuauhtemoc,
+  otro.
+- En el inicio hay un filtro "Toda la región" o por municipio. El equipo
+  recuerda la última elección.
+- **Modalidades** (`lots.delivery`):
+  - `pickup`: entrega a acordar, sin costo.
+  - `regional`: costo fijo o incluido, con municipios de destino.
+- Si el lote tiene una sola modalidad, se aplica sola. Si tiene dos, el
+  ganador elige con `chooseDelivery` antes de pagar.
+- El costo de envío se suma al cobro y llega **completo** al vendedor, sin
+  comisión.
+- Las guías multi-paquetería están pendientes (R-43).
+
+---
+
+## 5. Escrow: pago retenido hasta la entrega
+
+Cuando se confirma el pago, la liquidación al vendedor queda **`held`**
+(retenida). Pasa a **`ready`** (liberada) de una de tres formas:
+
+1. **En persona:** el comprador dicta su código de 6 dígitos y el vendedor lo
+   escribe (`confirmDeliveryCode`, máximo 5 intentos). Se libera **al
+   instante**.
+2. **Por envío:** el comprador toca "Sí, lo recibí" (`confirmReceipt`).
+3. **Por plazo:** si no hay reclamo, se libera sola a los
+   `PAYOUT_RELEASE_DAYS` días, 7 por defecto (`releaseDuePayoutsJob`).
+
+**Reclamos** (`openDispute`): se pueden abrir hasta 72 h después del pago y
+mientras el pago siga retenido. Al abrirse, la liquidación se congela
+(`on_hold`) y el admin elige una de tres resoluciones:
+
+- **Reembolso total:** se cancela la liquidación y el vendedor recibe un
+  strike.
+- **Reembolso parcial:** la liquidación se reduce.
+- **Rechazo:** la liquidación se libera.
+
+Si al vendedor ya se le había transferido, se registra un **clawback**.
+
+**Pago al vendedor:** hoy es manual. El admin transfiere y registra la clave
+de rastreo SPEI en el panel. La automatización está en el roadmap (R-41).
+
+### Flujo del dinero
+
 ```
-(La llave se descarga en Consola de Firebase → Configuración → Cuentas de
-servicio. **Nunca la subas a git ni la compartas.**) Cierra sesión y vuelve a
-entrar: en "Mi cuenta" aparece el botón **Administración**.
+ COMPRADOR                         PLATAFORMA (cuenta MP / Openpay)                  VENDEDOR
+ ─────────                         ────────────────────────────────                  ────────
+ 1. Depósito $200 ───────────────► deposit: held  (habilita pujar)
+    (MP checkout)                    │
+                                     │
+ 2. Gana la subasta                  │ cierre (closeEndedAuctions) → deposit: reserved
+    cobro = final − $200 + envío     │ payment_status: pending (24 h)
+       │                             │
+       ├─ no paga ──────────────────►│ expireUnpaidWins: deposit → forfeited ───────► compensación
+       │                             │ strike + segunda oportunidad al subcampeón
+       │
+ 3. Paga (MP o SPEI) ─────────────►  webhook verificado + candado payments/…
+                                     │ deposit: applied · payment_status: paid
+                                     │ comisión: tienda 0 % | campaña 0 % | tramos
+                                     │ 0 % → se descuenta costo real del procesador
+                                     ▼
+ 4. RETENCIÓN                      payout: HELD ── reclamo ──► ON_HOLD ──► admin resuelve
+                                     │                          (total → cancelled
+                                     │                           parcial → monto menor
+                                     │                           rechazo → sigue)
+ 5. LIBERACIÓN                       │ código en persona  (instante)
+    "Sí, lo recibí" ────────────────►│ confirmación       (instante)
+                                     │ o PAYOUT_RELEASE_DAYS sin reclamo
+                                     ▼
+ 6. PAYOUT                         payout: READY ── admin transfiere SPEI ──► SENT ─────► $ neto
+                                                    (registra clave de rastreo)         + envío
+```
 
-### Qué hace el panel
+---
+
+## 6. Confianza
+
+- **Identidad:** el usuario sube INE (frente y reverso) y una selfie, y un
+  admin la revisa. Las fotos son privadas.
+- **Calificaciones:** solo el comprador que pagó puede calificar, de 1 a 5
+  estrellas con comentario. Puede editarla durante 7 días. Los teléfonos y
+  correos del comentario se ocultan.
+- **Perfil público** (`/vendedor?uid=…`): muestra ★, ventas e insignias
+  (verificado, destacado, nuevo, en disputa, Tienda Oficial). No muestra
+  datos de contacto.
+- **Contacto:** comprador y vendedor reciben el contacto del otro solo cuando
+  el pago está confirmado.
+
+---
+
+## 7. Administración
+
+Para darte permisos de administrador, sigue DEPLOY.md §f
+(`scripts/set_admin.js`).
+
+El panel está en Mi cuenta → Administración. Cada acción queda registrada en
+`admin_log`.
+
 | Pestaña | Para qué |
 |---|---|
-| Identidad | Ver INE + selfie y aprobar/rechazar (con motivo) |
-| Pagos | Transferir a vendedores (muestra su CLABE) y registrar la referencia SPEI; reintentar cobros que fallaron; ver reembolsos fallidos |
-| Usuarios | Buscar por correo, ver depósito/strikes, suspender o reactivar |
-| Lotes | Cancelar subastas activas (fraude, artículo prohibido) |
-
-Cada acción queda registrada en la colección `admin_log`.
-
-### Verificación de identidad (INE)
-- **Obligatoria para vender** (lo exige `firestore.rules`).
-- **Obligatoria para pujas mayores a $20,000** (configurable con
-  `VERIFIED_BID_THRESHOLD` en `functions/.env`).
-- Las fotos son privadas (`verifications/{uid}/` en Storage): solo el dueño y
-  los admins las ven. Revisión manual; para automatizarla (comparación facial,
-  validación contra el INE) se puede integrar un proveedor como Truora,
-  MetaMap o Incode, que cobran por verificación.
-
-### Pagos a vendedores
-Son **manuales** a propósito: el panel muestra cuánto y a qué CLABE, tú
-transfieres y registras la referencia, y el vendedor recibe un aviso.
-Automatizarlo bien requiere el modelo "marketplace" de Mercado Pago (cada
-vendedor conecta su cuenta y el pago se divide solo, con tu comisión), lo cual
-cambia el flujo de cobro. Conviene hacerlo cuando el volumen lo justifique.
+| Reclamos | Resolver disputas: total, parcial o rechazo. |
+| Identidad | Ver INE y selfie; aprobar o rechazar con motivo. |
+| Pagos | Liquidaciones retenidas y listas (marcar enviado con referencia); recalcular; reintentar cobros; reembolsos fallidos o manuales. |
+| Usuarios | Buscar por correo; suspender o reactivar; hacer o cancelar Tienda Oficial. |
+| Lotes | Cancelar subastas activas (fraude, artículo prohibido). |
 
 ---
 
-## 6. Asistente de IA para publicar
+## 8. Asistente de IA
 
-En "Publicar", el vendedor elige el estado (nuevo, como nuevo, usado,
-usado con detalles, para reparar), puede escribir notas (año, km, fallas,
-qué incluye) y toca **Llenar con IA**. Claude lee hasta 4 fotos y propone
-título, categoría y descripción; además avisa:
-- detalles visibles (rayones, golpes) — ya incluidos en la descripción,
-- datos que los compradores van a preguntar,
-- si el estado elegido no coincide con las fotos,
-- si el artículo podría estar prohibido.
+En "Publicar", el botón **Llenar con IA** pone a Claude a leer hasta 4 fotos
+y el estado del artículo. Con eso propone:
 
-La IA nunca publica sola: el vendedor revisa y corrige. Se le prohíbe
-inventar marca, modelo o especificaciones, y se borran teléfonos/correos.
+- título, categoría y descripción;
+- detalles visibles del artículo;
+- datos que los compradores van a preguntar;
+- un aviso si el artículo podría estar prohibido.
 
-Configuración en `functions/.env`:
-```
-ANTHROPIC_API_KEY=sk-ant-...     # console.anthropic.com → API Keys
-AI_MODEL=claude-sonnet-5-5       # opcional
-AI_DAILY_LIMIT=20                # usos por usuario por día (entero 1–1000)
-AI_GLOBAL_DAILY_LIMIT=2000       # tope de toda la plataforma por día
-```
-Requisitos para usarlo: correo verificado, identidad (INE) verificada y
-cuenta no suspendida (los mismos que para vender). Si la llamada a la IA
-falla o la respuesta viene incompleta, **no se descuenta el uso**. Una
-configuración inválida (p. ej. `AI_DAILY_LIMIT=abc`) desactiva solo el
-asistente con un error explícito en los logs; el resto de la app sigue.
-Costo aproximado: unos centavos de dólar por descripción (4 fotos). Pon un
-límite de gasto mensual en la consola de Anthropic.
+**Nunca publica sola.** Tiene prohibido inventar marca o modelo, y borra
+teléfonos y correos.
 
-## 7. Comisión
-
-Por defecto es 10% plano (`COMMISSION_PCT`). Para cobrar por tramos
-(recomendado si hay vehículos, ganado o maquinaria):
-```
-COMMISSION_TIERS=10000:0.10,100000:0.08,inf:0.06
-COMMISSION_MIN=50
-```
-= 10% de los primeros $10,000, 8% de $10,000 a $100,000, 6% del resto, con
-mínimo de $50 por venta.
-
-**Configuración inválida = error explícito.** Si `COMMISSION_TIERS`,
-`COMMISSION_PCT` o `COMMISSION_MIN` son inválidos, el sistema NO usa otro
-porcentaje en silencio: el pago del comprador se registra normalmente, pero
-la liquidación al vendedor queda **"en revisión"** (panel de administración →
-Pagos). Corrige el `.env`, redespliega funciones y pulsa **Recalcular**. Es marginal (como el ISR): no hay brincos entre
-tramos. Recuerda que de la comisión se paga la tarifa de Mercado Pago
-(≈3.49% + $4 + IVA por cobro con liberación inmediata).
-
-## 7.1 Pago final por SPEI (Openpay) — opcional
-
-El ganador elige entre **Mercado Pago** (tarjeta o saldo) y **transferencia
-SPEI** (recomendada en montos altos: comisión mucho menor y sin contracargos).
-
-- `chooseWinnerPaymentMethod({lotId, method})` → respuesta tipada
-  `{ok, method, url}` (MP) o `{ok, method, clabe, bank, reference, amount, dueTime}` (SPEI).
-  Errores con `details.code`: `NOT_WINNER`, `NOT_PENDING`, `PAYMENT_EXPIRED`,
-  `METHOD_NOT_AVAILABLE`, `PROVIDER_NOT_CONFIGURED`, `PROVIDER_ERROR`, `IN_PROGRESS`.
-- Una sola referencia por lote (`order_id = win_{lotId}`); la CLABE se guarda en
-  `payments/openpay_charge_{id}` (privado), nunca en el lote (público).
-- `openpayWebhook` (autenticación básica) consulta el cargo en Openpay antes de
-  aplicarlo; candado `payments/openpay_{chargeId}`.
-- SPEI tardío o duplicado: no se puede devolver por API → `payments` con
-  `status: manual_required`, visible en el panel (Pagos → reembolsos).
-- Si Openpay no está configurado, el lote solo ofrece Mercado Pago.
-
-Variables en `functions/.env`:
-```
-OPENPAY_MERCHANT_ID=...
-OPENPAY_PRIVATE_KEY=sk_...
-OPENPAY_SANDBOX=true            # obligatorio: true | false
-OPENPAY_WEBHOOK_USER=...        # ≥6 caracteres
-OPENPAY_WEBHOOK_PASS=...        # ≥16 caracteres
-```
-Webhook en Openpay: `https://us-central1-<proyecto>.cloudfunctions.net/openpayWebhook`
-con ese usuario y contraseña; el código de verificación aparece en los logs.
-
-## 7.2 Reputación (Fase 1.1)
-
-- `submitFeedback({lotId, rating 1–5, comment ≤500})`: solo el comprador que
-  pagó; una por venta (`feedback/{lotId}`); editable 7 días con `updateFeedback`;
-  bloqueada si hay disputa abierta. Teléfonos y correos se ocultan.
-- `public_profiles/{uid}` (público, lo escribe el servidor): nombre público,
-  verificado, promedio, número de opiniones y ventas, insignias
-  (`verificado`, `destacado` = ≥10 ventas y ≥4.5, `nuevo` = <3 ventas,
-  `en_disputa` mientras haya un reclamo abierto). Sin teléfono ni correo.
-- Al publicar, el lote copia la reputación del vendedor para mostrar ★ en las
-  tarjetas sin lecturas extra.
-- Perfil público: `/vendedor?uid=...` (lotes activos y opiniones).
-
-## 7.3 Protección al comprador: disputas (Fase 1.2)
-
-- `openDispute({lotId, reason, details, photos})`: comprador, desde el pago
-  confirmado hasta 72 h después. Congela la liquidación (`payout → on_hold`,
-  el admin no puede marcarla como transferida), marca el lote y el perfil.
-- `adminResolveDispute({disputeId, resolution, amount?, note})`:
-  `refund_full` (pago + depósito aplicado; liquidación cancelada),
-  `refund_partial` (monto; liquidación reducida) o `reject` (se libera).
-  Si ya se había transferido al vendedor → `payments/clawback-{lotId}`.
-  Reembolsos de Mercado Pago con llave de idempotencia; SPEI como reembolso
-  manual. Si MP rechaza, queda `refund_failed` y se puede reintentar.
-- Panel de administración → pestaña **Reclamos**.
-
-## 7.4 Segunda oportunidad (Fase 1.3)
-
-Si el ganador no paga (se castiga igual que antes y el vendedor conserva su
-depósito), el sistema ofrece el lote al **subcampeón** (máximo secreto más alto
-de otro postor; empate → quien ofertó primero) **por su máximo**, con 24 h para
-aceptar (`respondSecondChance`). Rechazar o dejar vencer no tiene castigo. Si
-acepta, se vuelve el ganador y corre el cobro normal (24 h, depósito aplicado);
-si después no paga, se castiga normal. Una sola segunda oportunidad por lote.
-
-## 7.5 Precio de reserva (Fase 2.3)
-
-- `setReservePrice({lotId, amount|null})`: solo el vendedor, solo subastas por
-  tiempo, mayor que el precio inicial. Con pujas solo se puede bajar o quitar.
-- El monto vive en `lots/{id}/private/reserve` (nadie lo lee desde la app, ni el
-  vendedor). En el lote solo quedan `has_reserve` y `reserve_met`.
-- En la puja: si el máximo del líder alcanza la reserva, el precio sube directo a
-  la reserva (también al bajarla el vendedor por debajo de ese máximo).
-- Al cerrar sin alcanzarla: `status = ended_unsold_reserve`, sin ganador, sin cobro
-  ni comisión; avisos al vendedor y al líder (su depósito sigue disponible).
-- La segunda oportunidad nunca ofrece por debajo de la reserva.
-
-## 7.6 Pago retenido hasta la entrega (escrow)
-
-- Al confirmarse el pago, la liquidación al vendedor queda **`held`** (retenida).
-- Se libera (`ready`, el admin ya puede transferir) cuando el comprador toca
-  **"Ya lo recibí y está bien"** (`confirmReceipt`), o automáticamente a los
-  `PAYOUT_RELEASE_DAYS` días (por defecto 7) si no hay reclamo
-  (`releaseDuePayoutsJob`, cada hora). Valor inválido → sin liberación automática
-  y error en los logs (nunca un valor por defecto silencioso).
-- El comprador puede reclamar mientras el pago siga retenido; al confirmar de
-  recibido se cierra la ventana.
-- Reclamo resuelto con **reembolso total** → strike al vendedor (`seller_strikes`);
-  al segundo se suspende. El admin puede evitarlo (`sellerStrike: false`).
-
-## 7.7 Modelo de negocio híbrido, entrega y municipios
-
-**Comisión por venta** (`commission_policy.js`, con la fecha de CIERRE del lote):
-1. Tienda Oficial con membresía vigente → 0 % (`users.seller_plan = "store"`,
-   `store_plan_until`). Se activa desde el panel → Usuarios → "Hacer Tienda
-   Oficial" (requiere INE verificada; renovar suma meses). Distintivo
-   "Tienda Oficial" en perfil y tarjetas. El cobro de la membresía hoy es fuera
-   de la app.
-2. Campaña de 0 % por fechas: `COMMISSION_PROMO=2026-11-13T00:00:00-06:00/2026-11-17T23:59:59-06:00`
-   (Buen Fin 2026). Formato inválido → liquidación en revisión, nunca otro % en silencio.
-3. Si no, comisión normal por tramos (`COMMISSION_TIERS`).
-La liquidación guarda `commission_policy` (store | promo | standard).
-**Costo del procesador con 0 %** (`ZERO_COMMISSION_FEE_PAYER`, por defecto
-`seller`): se descuenta al vendedor el costo REAL del cobro (Mercado Pago:
-`transaction_amount − transaction_details.net_received_amount`; Openpay: `fee`).
-Con `platform` lo absorbe Subástalo Aquí. Nunca se cobra al comprador como
-recargo (Profeco: precio total final). Si el procesador no reporta el costo, no se
-descuenta y la liquidación queda marcada `processing_fee_unknown`.
-**Tip:** como el pago ya se retiene 7 días, configurar en Mercado Pago la
-liberación del dinero a 7 días baja la tarifa (3.49 % → 3.19 % + $4 al día de hoy).
-
-**Entrega** (`lots.delivery`): `pickup` (a acordar, sin costo) y/o `regional`
-(costo fijo o incluido, municipios de destino). Una modalidad → se aplica sola al
-cerrar; dos → el ganador elige con `chooseDelivery` antes de pagar (el envío se
-suma al cobro y llega completo al vendedor, sin comisión).
-
-**Municipios** (`lots.municipality`): camargo, jimenez, saucillo, delicias,
-parral, meoqui, la_cruz, san_francisco_de_conchos, chihuahua, cuauhtemoc, otro.
-En el inicio, filtro "Toda la región" / municipio (se recuerda en el equipo).
-
-## 8. Notificaciones push
-
-Cada aviso que crea el servidor (te superaron, ganaste, pago, etc.) se manda
-también como push a todos los dispositivos del usuario.
-
-- **Android:** funciona tal cual.
-- **iOS:** en la consola de Firebase → Configuración → Cloud Messaging, sube
-  tu **llave APNs** (.p8) de Apple Developer. En Xcode activa la capacidad
-  *Push Notifications*. Antes de publicar en la App Store cambia
-  `aps-environment` a `production` en `ios/Runner/Runner.entitlements`.
-- **Web:** en Cloud Messaging → *Web Push certificates* genera la **clave
-  VAPID** y compila con:
-  ```bash
-  flutter build web --release --dart-define=FCM_VAPID_KEY=tu_clave
-  ```
+- **Requisitos:** los mismos que para vender.
+- **Límites:** `AI_DAILY_LIMIT` por usuario y `AI_GLOBAL_DAILY_LIMIT` para
+  toda la plataforma. Si la IA falla, no se descuenta el uso.
+- **Sin `ANTHROPIC_API_KEY` válida:** solo se apaga el asistente; el resto de
+  la app sigue funcionando.
 
 ---
 
-## 9. Pruebas
+## 9. Desarrollo local y pruebas
 
 ```bash
-cd firebase/functions && npm test        # backend (Firestore/MP/IA simulados)
-cd firebase/rules-tests && npm test      # reglas con el emulador oficial
-flutter analyze && flutter test          # app
-bash firebase/scripts/verificar_remoto.sh   # estado remoto, solo lectura
+flutter pub get
+flutter run -d chrome                         # web
+cd firebase/functions && npm ci && npm test   # backend (MP, Openpay, IA y Firestore simulados)
+cd firebase/rules-tests && npm ci && npm test # reglas en el emulador oficial (Java 11+ y firebase-tools)
+flutter analyze && flutter test               # app
 ```
-Resultados de esta versión: ver `EVIDENCIA_PRUEBAS.md`.
 
-## 10. Pendientes
+**CI** (`.github/workflows/pruebas.yml`) corre 3 jobs en cada push:
 
-- Revisión legal en México: términos y condiciones (depósito, comisión,
-  castigos), aviso de privacidad (INE, datos bancarios, pagos), PROFECO, y si
-  retener depósitos de terceros te obliga a algún registro.
-- Pagos automáticos a vendedores (modelo marketplace de Mercado Pago).
-- Verificación de identidad automática (proveedor externo).
-- Precio de reserva, "compra ya", reportar lotes.
+1. backend;
+2. reglas en el emulador;
+3. Flutter: analyze, test y build web.
+
+**Staging:** `publicar_web.yml` publica en GitHub Pages con lotes de
+demostración (`DEMO_LOTS=true`). No toca Firebase.
+
+**Valores de compilación** (`--dart-define`): `APP_CHECK_SITE_KEY`,
+`FCM_VAPID_KEY`, `SHARE_BASE_URL`, `WEB_APP_URL`, y `DEMO_LOTS` (solo
+staging). El detalle está en DEPLOY.md §c.
+
+**Push:**
+
+- **Android:** funciona sin configuración extra.
+- **iOS:**
+  1. Sube la llave APNs (.p8) en Cloud Messaging.
+  2. Activa *Push Notifications* en Xcode.
+  3. Antes de publicar en la App Store, cambia `aps-environment` a
+     `production` en `ios/Runner/Runner.entitlements`.
+- **Web:** compila con `FCM_VAPID_KEY`.
+
+---
+
+## 10. Documentos
+
+| Archivo | Contenido |
+|---|---|
+| [`DEPLOY.md`](DEPLOY.md) | Despliegue desde cero: Blaze, orden de deploy, variables, webhooks, App Check, admin, dominio, verificación. |
+| [`firebase/functions/.env.example`](firebase/functions/.env.example) | Plantilla de todas las variables del servidor. |
+| [`CHECKLIST_E2E.md`](CHECKLIST_E2E.md) | Prueba manual punta a punta en sandbox. |
+| [`EVIDENCIA_PRUEBAS.md`](EVIDENCIA_PRUEBAS.md) | Qué se ejecutó, qué no, y por qué. |
+| [`ROADMAP.md`](ROADMAP.md) | Pendientes con ID y prioridad (fuente de verdad después de v1.0.0). |
+| [`CHANGELOG.md`](CHANGELOG.md) | Historial de versiones. |
+| [`GUIA_PAGOS_MERCADO_PAGO.md`](GUIA_PAGOS_MERCADO_PAGO.md) | Cuenta de MP, usuarios de prueba, webhook. |
+| [`docs/AUDITORIA_v1.0.0.md`](docs/AUDITORIA_v1.0.0.md) | Auditoría de secretos, reglas e índices. |
+| [`docs/archivo/`](docs/archivo/) | Plan maestro original (archivado). |
+
+**Pendiente legal (R-03), antes de operar con dinero real.** Revisar con un
+abogado en México:
+
+- términos y condiciones;
+- aviso de privacidad (INE y CLABE);
+- el depósito como penalización;
+- la retención de fondos de terceros;
+- las obligaciones ante Profeco.
