@@ -253,6 +253,8 @@ class AuctionService {
     required List<String> imageUrls,
     String streamUrl = '',
     Map<String, String> specs = const {},
+    String municipality = 'otro',
+    Map<String, dynamic>? delivery,
   }) async {
     final uid = _uid;
     if (uid == null) throw StateError('Sin sesión');
@@ -272,6 +274,8 @@ class AuctionService {
       streamUrl: streamUrl.trim(),
       ),
       if (specs.isNotEmpty) 'specs': specs,
+      'municipality': municipality,
+      'delivery': delivery ?? {'pickup': true, 'regional': false},
     });
     return ref.id;
   }

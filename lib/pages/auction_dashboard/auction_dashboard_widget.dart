@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
+import '/backend/regions.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/pages/help_center/help_center_widget.dart';
@@ -40,6 +41,48 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
   String _query = '';
   String? _category;
   late Stream<List<LotsRecord>> _lots = AuctionService.instance.activeLots();
+
+  /// Municipio para filtrar ('' = toda la región). Se recuerda en el equipo.
+  String _region = '';
+
+  @override
+  void initState() {
+    super.initState();
+    RegionPreference.load().then((v) {
+      if (mounted && v != _region) setState(() => _region = v);
+    });
+  }
+
+  void _setRegion(String v) {
+    setState(() => _region = v);
+    RegionPreference.save(v);
+  }
+
+  Future<void> _pickRegion() async {
+    final v = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: ListView(shrinkWrap: true, children: [
+          ListTile(
+            leading: const Icon(Icons.public),
+            title: const Text('Toda la región'),
+            trailing: _region.isEmpty ? const Icon(Icons.check) : null,
+            onTap: () => Navigator.pop(c, ''),
+          ),
+          for (final e in kMunicipalities.entries)
+            if (e.key != 'otro')
+              ListTile(
+                leading: const Icon(Icons.place_outlined),
+                title: Text(e.value),
+                trailing: _region == e.key ? const Icon(Icons.check) : null,
+                onTap: () => Navigator.pop(c, e.key),
+              ),
+        ]),
+      ),
+    );
+    if (v != null) _setRegion(v);
+  }
 
   @override
   void dispose() {
@@ -103,7 +146,10 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                 if (!snap.hasData) return Column(children: [header, const Expanded(child: Loading())]);
 
                 final now = DateTime.now();
-                final all = snap.data!;
+                // Filtro por municipio: "Toda la región" o solo el elegido.
+                final all = _region.isEmpty
+                    ? snap.data!
+                    : snap.data!.where((l) => l.municipality == _region).toList();
                 final live = all.where((l) => l.isLiveNow(now)).toList();
                 final endingSoon = all
                     .where((l) =>
@@ -114,6 +160,29 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
 
                 return CustomScrollView(slivers: [
                   SliverToBoxAdapter(child: header),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                      child: Row(children: [
+                        ActionChip(
+                          avatar: Icon(_region.isEmpty ? Icons.public : Icons.place,
+                              size: 18, color: theme.primary),
+                          label: Text(_region.isEmpty
+                              ? 'Toda la región'
+                              : municipalityName(_region)),
+                          onPressed: _pickRegion,
+                          shape: const StadiumBorder(),
+                        ),
+                        if (_region.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          TextButton(
+                            onPressed: () => _setRegion(''),
+                            child: const Text('Ver toda la región'),
+                          ),
+                        ],
+                      ]),
+                    ),
+                  ),
 
                   if (!_browsing) ...[
                     const SliverToBoxAdapter(child: _HeroCarousel()),
@@ -162,7 +231,9 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                     SliverToBoxAdapter(
                       child: EmptyState(
                         icon: Icons.inventory_2_outlined,
-                        title: all.isEmpty
+                        title: all.isEmpty && _region.isNotEmpty
+                            ? 'Aún no hay subastas en ${municipalityName(_region)}'
+                            : all.isEmpty
                             ? 'Todavía no hay subastas'
                             : 'Nada coincide con tu búsqueda',
                         message: all.isEmpty

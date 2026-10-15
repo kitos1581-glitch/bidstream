@@ -7,6 +7,7 @@
  */
 const functions = require("firebase-functions");
 const { assertAppCheck } = require("./appcheck");
+const { saleCommission } = require("./commission_policy");
 const admin = require("firebase-admin");
 const { startWinnerPayment, computeCommission } = require("./payments");
 
@@ -247,19 +248,34 @@ exports.adminRecalculatePayout = functions
       if (p.status !== "needs_review") {
         throw new functions.https.HttpsError("failed-precondition", "Esta liquidación no está en revisión.");
       }
+      // Misma política que al liquidar: tienda / campaña / comisión normal.
+      const [lotSnap, sellerSnap] = await Promise.all([
+        tx.get(db.collection("lots").doc(p.lot_id)),
+        tx.get(db.collection("users").doc(p.uid)),
+      ]);
+      const lot = lotSnap.exists ? lotSnap.data() : {};
+      const shipping = Math.round((Number(lot.shipping_charge) || 0) * 100) / 100;
       let commission;
+      let policy;
       try {
-        commission = computeCommission(p.final_price);
+        ({ commission, policy } = saleCommission({
+          finalPrice: p.final_price,
+          seller: sellerSnap.exists ? sellerSnap.data() : {},
+          closedMs: lot.closed_time && lot.closed_time.toMillis ? lot.closed_time.toMillis() : Date.now(),
+          computeStandard: (x) => computeCommission(x),
+        }));
       } catch (err) {
         throw new functions.https.HttpsError(
           "failed-precondition",
           `La configuración de comisiones sigue inválida: ${err.message}`
         );
       }
-      const amount = Math.round((p.final_price - commission) * 100) / 100;
+      const amount = Math.round((p.final_price - commission + shipping) * 100) / 100;
       tx.update(ref, {
         amount,
         commission,
+        commission_policy: policy,
+        shipping,
         status: "ready",
         error: null,
         updated_time: FieldValue.serverTimestamp(),
@@ -352,3 +368,58 @@ exports.adminCancelLot = functions.region(REGION).https.onCall(async (data, cont
 });
 
 module.exports = { ...module.exports, ID_FILES };
+
+
+// ---------------------------------------------------------------------
+// adminSetStorePlan — activar / renovar / cancelar la membresía de
+// "Tienda Oficial" (0 % de comisión mientras esté vigente).
+// data: { uid, storeName, months (1–24) } o { uid, months: 0 } para cancelar.
+// El cobro de la membresía hoy es fuera de la app (transferencia/factura);
+// cobrarla automáticamente (suscripción de Mercado Pago) es un paso posterior.
+// ---------------------------------------------------------------------
+exports.adminSetStorePlan = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
+  const adminUid = requireAdmin(context);
+  return setStorePlanImpl(data, adminUid);
+});
+
+async function setStorePlanImpl(data, adminUid, nowMs = Date.now()) {
+  const uid = String((data && data.uid) || "");
+  const months = Number(data && data.months);
+  const storeName = String((data && data.storeName) || "").trim().slice(0, 80);
+  if (!uid || uid.includes("/")) throw new functions.https.HttpsError("invalid-argument", "Usuario inválido.");
+  if (!Number.isInteger(months) || months < 0 || months > 24) {
+    throw new functions.https.HttpsError("invalid-argument", "Meses inválidos (0 para cancelar, 1 a 24).");
+  }
+  const userRef = db.collection("users").doc(uid);
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new functions.https.HttpsError("not-found", "Usuario no encontrado.");
+    const u = snap.data();
+    if (months === 0) {
+      tx.update(userRef, { seller_plan: "commission", store_plan_until: null });
+      return { active: false, until: null };
+    }
+    if (u.verified !== true) {
+      throw new functions.https.HttpsError("failed-precondition", "La tienda debe tener su identidad verificada.");
+    }
+    if (u.banned === true) throw new functions.https.HttpsError("failed-precondition", "La cuenta está suspendida.");
+    if (storeName.length < 3) throw new functions.https.HttpsError("invalid-argument", "Escribe el nombre de la tienda.");
+    // Renovar suma a partir del vencimiento vigente (no se pierden días).
+    const cur = u.store_plan_until && u.store_plan_until.toMillis ? u.store_plan_until.toMillis() : 0;
+    const base = Math.max(nowMs, cur);
+    const until = new Date(base);
+    until.setMonth(until.getMonth() + months);
+    tx.update(userRef, {
+      seller_plan: "store",
+      store_name: storeName,
+      store_plan_until: admin.firestore.Timestamp.fromMillis(until.getTime()),
+    });
+    return { active: true, until: until.toISOString() };
+  });
+  await require("./reputation").refreshProfile(uid);
+  await auditLog(adminUid, "store_plan", uid, { months, storeName, until: result.until });
+  return { ok: true, ...result };
+}
+
+module.exports = { ...module.exports, setStorePlanImpl };

@@ -13,6 +13,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const { assertAppCheck } = require("./appcheck");
 const { publicName } = require("./auction_logic");
+const { storeActive } = require("./commission_policy");
 
 if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
@@ -39,8 +40,9 @@ function fail(httpsCode, code, message) {
 }
 
 /** Insignias a partir de los agregados (función pura). */
-function computeBadges({ verified, sales_count: sales = 0, rating_avg: avg = 0, rating_count: count = 0, open_disputes: disputes = 0 }) {
+function computeBadges({ verified, sales_count: sales = 0, rating_avg: avg = 0, rating_count: count = 0, open_disputes: disputes = 0, is_store: isStore = false }) {
   const badges = [];
+  if (isStore) badges.push("tienda_oficial");
   if (verified) badges.push("verificado");
   if (disputes > 0) badges.push("en_disputa");
   else if (sales >= 10 && count > 0 && avg >= 4.5) badges.push("destacado");
@@ -80,6 +82,7 @@ function profilePatch(current, { addSum = 0, addCount = 0 }, seller) {
   const ratingAvg = ratingCount > 0 ? round1(ratingSum / ratingCount) : 0;
   const verified = seller ? seller.verified === true : current.verified === true;
   const sales = Number(current.sales_count) || 0;
+  const isStore = seller ? storeActive(seller, Date.now()) : current.is_store === true;
   return {
     display_name: seller ? publicName(seller.full_name || "") : current.display_name || "",
     verified,
@@ -87,7 +90,10 @@ function profilePatch(current, { addSum = 0, addCount = 0 }, seller) {
     rating_count: ratingCount,
     rating_avg: ratingAvg,
     sales_count: sales,
+    is_store: isStore,
+    store_name: isStore && seller ? String(seller.store_name || "") : isStore ? current.store_name || "" : "",
     badges: computeBadges({
+      is_store: isStore,
       verified,
       sales_count: sales,
       rating_avg: ratingAvg,
@@ -229,7 +235,16 @@ exports.onPublicProfileInputs = functions
   .onUpdate(async (change, context) => {
     const a = change.before.data() || {};
     const b = change.after.data() || {};
-    if (a.verified === b.verified && a.full_name === b.full_name) return;
+    const millis = (t) => (t && t.toMillis ? t.toMillis() : 0);
+    if (
+      a.verified === b.verified &&
+      a.full_name === b.full_name &&
+      a.seller_plan === b.seller_plan &&
+      a.store_name === b.store_name &&
+      millis(a.store_plan_until) === millis(b.store_plan_until)
+    ) {
+      return;
+    }
     await refreshProfile(context.params.uid);
   });
 

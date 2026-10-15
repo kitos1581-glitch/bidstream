@@ -135,6 +135,20 @@ class PaymentService {
     }
   }
 
+  /// El ganador elige cómo recibir el artículo (si el vendedor ofrece ambas
+  /// modalidades). Con envío, el costo se suma al pago.
+  Future<double> chooseDelivery(String lotId, String mode, {String destination = ''}) async {
+    try {
+      final res = await _functions.httpsCallable('chooseDelivery').call<dynamic>(
+          {'lotId': lotId, 'mode': mode, if (destination.isNotEmpty) 'destination': destination});
+      final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : const <String, dynamic>{};
+      return (data['amountDue'] as num?)?.toDouble() ?? 0;
+    } on FirebaseFunctionsException catch (e) {
+      final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : const {};
+      throw PaymentFailure((details['code'] ?? e.code).toString(), e.message ?? 'No se pudo guardar la entrega.');
+    }
+  }
+
   /// El comprador confirma que recibió el artículo: libera el pago al vendedor.
   Future<void> confirmReceipt(String lotId) async {
     try {

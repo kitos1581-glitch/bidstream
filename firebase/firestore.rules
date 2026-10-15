@@ -52,7 +52,22 @@ service cloud.firestore {
         && d.get('condition', 'used_good') in
              ['new', 'like_new', 'used_good', 'used_fair', 'for_parts']
         && d.get('specs', {}) is map && d.get('specs', {}).size() <= 30
+        && d.get('municipality', 'otro') in ['camargo', 'jimenez', 'saucillo', 'delicias', 'parral',
+             'meoqui', 'la_cruz', 'san_francisco_de_conchos', 'chihuahua', 'cuauhtemoc', 'otro']
+        && validDelivery(d.get('delivery', {'pickup': true, 'regional': false}))
         && d.seller_uid is string;
+    }
+
+    // Entrega: al menos una modalidad; envío con costo razonable.
+    function validDelivery(v) {
+      return v is map
+        && v.keys().hasOnly(['pickup', 'regional', 'shipping_cost', 'shipping_included', 'destinations'])
+        && v.get('pickup', false) is bool && v.get('regional', false) is bool
+        && (v.get('pickup', false) == true || v.get('regional', false) == true)
+        && v.get('shipping_cost', 0) is number
+        && v.get('shipping_cost', 0) >= 0 && v.get('shipping_cost', 0) <= 100000
+        && v.get('shipping_included', false) is bool
+        && v.get('destinations', []) is list && v.get('destinations', []).size() <= 20;
     }
 
     // Identidad verificada (INE aprobada por un admin).
@@ -75,12 +90,14 @@ service cloud.firestore {
       allow create: if isOwner(uid)
         && !request.resource.data.keys().hasAny(
               ['verified', 'role', 'banned', 'deposit', 'strikes',
-               'verification_status', 'ban_reason']);
+               'verification_status', 'ban_reason', 'seller_strikes',
+               'seller_plan', 'store_name', 'store_plan_until']);
 
       allow update: if isOwner(uid)
         && !request.resource.data.diff(resource.data).affectedKeys()
               .hasAny(['verified', 'role', 'banned', 'uid', 'created_time',
-                       'deposit', 'strikes', 'verification_status', 'ban_reason']);
+                       'deposit', 'strikes', 'verification_status', 'ban_reason',
+                       'seller_strikes', 'seller_plan', 'store_name', 'store_plan_until']);
 
       allow delete: if false;
 
@@ -137,7 +154,8 @@ service cloud.firestore {
                'seller_rating_avg', 'seller_rating_count', 'seller_sales_count', 'seller_badges',
                'payment_options', 'spei_charge_id', 'dispute_status', 'paid_with',
                'second_chance', 'forfeited_uids', 'dispute_resolution', 'spei_creating_until',
-               'has_reserve', 'reserve_met']);
+               'has_reserve', 'reserve_met', 'delivery_choice', 'delivery_destination',
+               'shipping_charge', 'escrow_release_at', 'received_time']);
 
       // El vendedor solo edita la parte descriptiva. Precio, incremento y
       // fechas solo mientras NO haya pujas. El documento resultante pasa por
@@ -148,10 +166,11 @@ service cloud.firestore {
         && validLotData(request.resource.data)
         && (
           onlyChanges(['title', 'description', 'category', 'image_urls', 'stream_url',
-                       'condition', 'specs'])
+                       'condition', 'specs', 'municipality'])
           || (resource.data.bid_count == 0
               && onlyChanges(['title', 'description', 'category', 'image_urls',
-                              'stream_url', 'condition', 'specs', 'starting_price', 'current_bid',
+                              'stream_url', 'condition', 'specs', 'municipality', 'delivery',
+                              'starting_price', 'current_bid',
                               'minimum_increment', 'end_time', 'start_time', 'format'])
               && request.resource.data.current_bid == request.resource.data.starting_price
               && request.resource.data.end_time > request.time)

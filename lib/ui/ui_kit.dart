@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '/backend/backend.dart';
+import '/backend/regions.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 
 // =====================================================================
@@ -308,8 +309,13 @@ class LotCard extends StatelessWidget {
                           fontWeight: FontWeight.w600, height: 1.25)),
                   const SizedBox(height: 4),
                   Text(
-                      kLotConditions[lot.condition] ??
-                          (lot.category.isEmpty ? 'Lote' : lot.category),
+                      [
+                        if (municipalityName(lot.municipality).isNotEmpty &&
+                            lot.municipality != 'otro')
+                          '📍 ${municipalityName(lot.municipality)}',
+                        kLotConditions[lot.condition] ??
+                            (lot.category.isEmpty ? 'Lote' : lot.category),
+                      ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.bodySmall.copyWith(color: theme.secondaryText)),
@@ -770,6 +776,8 @@ class SellerBadges extends StatelessWidget {
     final theme = FlutterFlowTheme.of(context);
     Widget chip(String key) {
       final (label, icon, bg, fg) = switch (key) {
+        'tienda_oficial' => ('Tienda Oficial', Icons.storefront_rounded, theme.primary, Colors.white),
+        'en_disputa' => ('En disputa', Icons.gavel_rounded, const Color(0xFFFDECEA), theme.error),
         'verificado' => ('Verificado', Icons.verified_rounded, theme.primaryContainer, theme.primary),
         'destacado' => ('Vendedor destacado', Icons.workspace_premium_rounded, const Color(0xFFFFF1C7), const Color(0xFF8A5A00)),
         'nuevo' => ('Nuevo', Icons.fiber_new_rounded, theme.secondaryContainer, theme.secondaryText),

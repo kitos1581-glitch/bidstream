@@ -20,6 +20,28 @@ class LotsRecord extends FirestoreRecord {
   /// new | like_new | used_good | used_fair | for_parts
   String get condition => asString(snapshotData['condition']);
 
+  /// Municipio de origen (camargo, delicias, …; '' en lotes viejos).
+  String get municipality => asString(snapshotData['municipality']);
+
+  /// Opciones de entrega del vendedor.
+  Map<String, dynamic> get delivery => snapshotData['delivery'] is Map
+      ? Map<String, dynamic>.from(snapshotData['delivery'] as Map)
+      : const {'pickup': true, 'regional': false};
+  bool get offersPickup => delivery['pickup'] == true;
+  bool get offersRegional => delivery['regional'] == true;
+  double get shippingCost => (delivery['shipping_cost'] as num?)?.toDouble() ?? 0;
+  bool get shippingIncluded => delivery['shipping_included'] == true;
+  List<String> get shippingDestinations => delivery['destinations'] is List
+      ? (delivery['destinations'] as List).map((e) => '$e').toList()
+      : const [];
+
+  /// Entrega elegida al cerrar/pagar: pickup | regional | '' (falta elegir).
+  String get deliveryChoice => asString(snapshotData['delivery_choice']);
+  bool get needsDeliveryChoice =>
+      snapshotData.containsKey('delivery_choice') && snapshotData['delivery_choice'] == null;
+  double get shippingCharge => (snapshotData['shipping_charge'] as num?)?.toDouble() ?? 0;
+  String get deliveryDestination => asString(snapshotData['delivery_destination']);
+
   /// Precio de reserva: solo se sabe SI hay y SI se alcanzó (el monto es secreto).
   bool get hasReserve => snapshotData['has_reserve'] == true;
   bool get reserveMet => snapshotData['reserve_met'] == true;

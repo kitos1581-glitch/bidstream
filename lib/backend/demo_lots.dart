@@ -115,6 +115,12 @@ LotsRecord _build(_Demo d, DateTime now) {
     'seller_badges': ['verificado', 'destacado'],
     'highest_bidder_uid': d.bids > 0 ? 'demo-bidder' : null,
     'highest_bidder_name': d.bids > 0 ? 'Juan P.' : null,
+    'municipality': const ['camargo', 'delicias', 'jimenez', 'camargo', 'parral', 'delicias',
+        'camargo', 'saucillo', 'parral', 'delicias', 'camargo', 'jimenez'][
+        (int.tryParse(d.id.replaceFirst('demo-', '')) ?? 1) - 1],
+    'delivery': (d.id == 'demo-4' || d.id == 'demo-6' || d.id == 'demo-8')
+        ? {'pickup': true, 'regional': true, 'shipping_cost': 250, 'shipping_included': false, 'destinations': <String>[]}
+        : {'pickup': true, 'regional': false},
     if (d.id == 'demo-3') 'has_reserve': true,
     if (d.id == 'demo-3') 'reserve_met': false,
     if (d.id == 'demo-2') 'has_reserve': true,

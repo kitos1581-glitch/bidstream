@@ -32,6 +32,7 @@ const crypto = require("crypto");
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = require("mercadopago");
 const { openpayConfigured } = require("./openpay");
 const { recordSale } = require("./reputation");
+const { saleCommission } = require("./commission_policy");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -241,7 +242,7 @@ async function createPreference({ email, title, amount, externalReference, expir
     payer: email ? { email } : undefined,
     external_reference: externalReference,
     binary_mode: true,
-    statement_descriptor: "BIDSTREAM",
+    statement_descriptor: "SUBASTALOAQUI",
     notification_url: WEBHOOK_URL || undefined,
     back_urls: {
       success: `${SITE_URL}/`,
@@ -319,8 +320,17 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   // Una venta más en el perfil público del vendedor (reputación).
   recordSale(writer, lot.seller_uid);
   let commission;
+  let policy = "standard";
+  // Envío regional cobrado al comprador: es del vendedor (él envía), sin comisión.
+  const shipping = round2(Number(lot.shipping_charge) || 0);
   try {
-    commission = computeCommission(finalPrice);
+    const closedMs = lot.closed_time && lot.closed_time.toMillis ? lot.closed_time.toMillis() : Date.now();
+    ({ commission, policy } = saleCommission({
+      finalPrice,
+      seller,
+      closedMs,
+      computeStandard: (p) => computeCommission(p),
+    }));
   } catch (err) {
     // Configuración inválida: el pago SÍ se registra (el dinero ya entró),
     // pero la liquidación al vendedor queda en revisión, sin inventar montos.
@@ -361,7 +371,7 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
     }
     return { finalPrice, commission: null, sellerAmount: null, needsReview: true };
   }
-  const sellerAmount = round2(finalPrice - commission);
+  const sellerAmount = round2(finalPrice - commission + shipping);
 
   // Retenida hasta confirmar la entrega (o liberación automática sin reclamo).
   const releaseAt = RELEASE.days ? Timestamp.fromMillis(Date.now() + RELEASE.days * 86400_000) : null;
@@ -372,6 +382,8 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
     lot_id: lotId,
     amount: sellerAmount,
     commission,
+    commission_policy: policy, // store | promo | standard
+    shipping,
     currency: "MXN",
     status: "held", // held → ready (entrega confirmada / plazo) → sent (admin)
     release_after: releaseAt,
@@ -384,9 +396,13 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
     notificationData(
       "paid",
       `¡Cobrada! ${lot.title}`,
-      `Recibimos ${money(finalPrice)}. Te transferiremos ${money(sellerAmount)} (comisión ${money(
-        commission
-      )}) cuando el comprador confirme que recibió${
+      `Recibimos ${money(finalPrice + shipping)}. Te transferiremos ${money(sellerAmount)} (${
+        policy === "store"
+          ? "sin comisión por tu membresía de Tienda Oficial"
+          : policy === "promo"
+            ? "sin comisión por la campaña de lanzamiento"
+            : `comisión ${money(commission)}`
+      }${shipping > 0 ? `, incluye ${money(shipping)} de envío` : ""}) cuando el comprador confirme que recibió${
         RELEASE.days ? ` o, si no hay reclamo, en ${RELEASE.days} días` : ""
       }. Coordina la entrega con el comprador: ${contactString(winner)}.`,
       lotId
@@ -493,8 +509,12 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
       depositMpId = dep.mp_payment_id || null;
     }
 
+    // Entrega: si el lote solo tiene una modalidad se aplica ya; con dos, el
+    // ganador elige después (chooseDelivery) y el monto se ajusta.
+    const { deliveryPlan } = require("./delivery");
+    const dplan = deliveryPlan(current.delivery ? current : lot);
     const covered = Math.min(depositApplied, finalPrice);
-    const amountDue = round2(finalPrice - covered);
+    const amountDue = round2(finalPrice - covered + dplan.shipping);
     const excess = round2(depositApplied - covered);
 
     if (amountDue <= 0) {
@@ -507,6 +527,8 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
         });
       }
       tx.update(lotRef, {
+        delivery_choice: dplan.choice,
+        shipping_charge: dplan.shipping,
         payment_status: "paid",
         amount_due: 0,
         deposit_applied: depositApplied,
@@ -525,6 +547,8 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
       });
     }
     tx.update(lotRef, {
+      delivery_choice: dplan.choice,
+      shipping_charge: dplan.shipping,
       payment_status: "pending",
       amount_due: amountDue,
       deposit_applied: depositApplied,
@@ -1026,6 +1050,7 @@ exports.mpWebhook = functions.region(REGION).https.onRequest(async (req, res) =>
 module.exports = {
   ...module.exports,
   startWinnerPayment,
+  createPreference,
   forfeitWin,
   applyApprovedPayment,
   applyProviderWinnerPayment,

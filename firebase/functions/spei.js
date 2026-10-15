@@ -129,6 +129,13 @@ async function chooseWinnerPaymentMethodImpl(data, uid, nowMs = Date.now()) {
         "Ese método de pago no está disponible para este lote."
       );
     }
+    if (lot.delivery_choice === null && lot.delivery && lot.delivery.pickup && lot.delivery.regional) {
+      throw fail(
+        "failed-precondition",
+        "DELIVERY_REQUIRED",
+        "Primero elige cómo quieres recibirlo (entrega acordada o envío)."
+      );
+    }
     const amount = pay.round2(Number(lot.amount_due) || 0);
 
     if (method === "mercadopago") {

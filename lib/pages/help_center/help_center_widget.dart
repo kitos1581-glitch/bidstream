@@ -94,9 +94,13 @@ const kHelpTopics = <HelpTopic>[
     'Es por tramos: 10% de los primeros \$10,000, 8% de \$10,000 a \$100,000 y 6% de lo que pase de \$100,000. Mínimo \$50.',
     'Ejemplos: venta de \$5,000 → comisión \$500. Venta de \$50,000 → \$4,200. Venta de \$300,000 → \$20,200.',
     'La tarifa de Mercado Pago ya está incluida en la comisión.',
+    'Tiendas Oficiales: con membresía mensual o anual no pagan comisión por venta y llevan el distintivo "Tienda Oficial".',
+    'En campañas especiales (por ejemplo, el lanzamiento) puede aplicar 0 % de comisión; cuenta la fecha en que cierra la subasta.',
   ]),
   HelpTopic('entregas', Icons.local_shipping_outlined, 'Entregas', [
     'Cuando el comprador paga, ambos reciben el contacto del otro para coordinar la entrega.',
+    'Cada lote dice en qué municipio está y cómo se entrega: "a acordar con el vendedor" (sin costo) o "envío regional" con costo fijo o incluido.',
+    'Si el vendedor ofrece ambas, al ganar eliges cómo recibirlo; el envío se suma a tu pago.',
     'El flete y los trámites de traslado los paga el comprador, salvo que la publicación diga otra cosa.',
     'El vendedor entrega con los documentos que declaró (factura, guía, aretes, etc.).',
     'Recomendación: entrega en un lugar público o en el domicilio declarado, de día, y revisa el artículo antes de llevártelo.',

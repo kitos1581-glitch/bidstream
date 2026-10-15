@@ -227,3 +227,24 @@ test("precio de reserva: secreto para todos (ni el vendedor lo lee desde la app)
   await assertFails(setDoc(doc(as("vero"), "lots/L1/private/reserve"), { amount: 1 }));
   await assertFails(setDoc(doc(as("vero"), "lots/N7"), validLot({ has_reserve: true, reserve_met: true })));
 });
+
+test("municipio y entrega: valores válidos al publicar; envío solo se cambia sin pujas", async () => {
+  const db = as("vero");
+  await assertSucceeds(setDoc(doc(db, "lots/M1"), validLot({
+    municipality: "camargo",
+    delivery: { pickup: true, regional: true, shipping_cost: 350, shipping_included: false, destinations: ["delicias", "parral"] },
+  })));
+  await assertFails(setDoc(doc(db, "lots/M2"), validLot({ municipality: "marte" })));
+  await assertFails(setDoc(doc(db, "lots/M3"), validLot({ delivery: { pickup: false, regional: false } })));
+  await assertFails(setDoc(doc(db, "lots/M4"), validLot({ delivery: { pickup: true, regional: true, shipping_cost: -10 } })));
+  await assertFails(setDoc(doc(db, "lots/M5"), validLot({ delivery: { pickup: true, hack: 1 } })));
+  await assertFails(setDoc(doc(db, "lots/M6"), validLot({ shipping_charge: 0, delivery_choice: "pickup" })));
+  await assertSucceeds(updateDoc(doc(db, "lots/L1"), { municipality: "jimenez" }));
+  await assertFails(updateDoc(doc(db, "lots/L2"), { delivery: { pickup: true, regional: true, shipping_cost: 1 } }));
+});
+
+test("usuarios: no se pueden dar plan de tienda ni borrar sus strikes de vendedor", async () => {
+  await assertFails(updateDoc(doc(as("vero"), "users/vero"), { seller_plan: "store" }));
+  await assertFails(updateDoc(doc(as("vero"), "users/vero"), { store_plan_until: Timestamp.fromMillis(Date.now() + 1e10) }));
+  await assertFails(updateDoc(doc(as("vero"), "users/vero"), { seller_strikes: 0 }));
+});

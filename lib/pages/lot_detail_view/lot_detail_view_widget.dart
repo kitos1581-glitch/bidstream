@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
 import '/backend/lot_specs.dart';
+import '/backend/regions.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/backend/payment_service.dart';
@@ -339,6 +340,10 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                 ),
               ],
 
+              // ---------------- Ubicación y entrega ----------------
+              const SectionTitle('Ubicación y entrega'),
+              _DeliveryInfo(lot: lot),
+
               // ---------------- Descripción ----------------
               if (lot.description.isNotEmpty) ...[
                 const SectionTitle('Descripción'),
@@ -569,7 +574,9 @@ class _PaymentMethodSelectorState extends State<_PaymentMethodSelector> {
         style: theme.bodySmall,
       ),
       const SizedBox(height: 10),
-      if (spei != null)
+      if (lot.needsDeliveryChoice)
+        _DeliveryChooser(lot: lot)
+      else if (spei != null)
         _SpeiInstructions(choice: spei)
       else ...[
         Text('¿Cómo quieres pagar?',
@@ -1209,6 +1216,117 @@ class _ReserveRow extends StatelessWidget {
       const Spacer(),
       if (isSeller && !lot.isDemo)
         TextButton(onPressed: () => _change(context), child: const Text('Cambiar reserva')),
+    ]);
+  }
+}
+
+
+/// Municipio de origen y formas de entrega que ofrece el vendedor.
+class _DeliveryInfo extends StatelessWidget {
+  const _DeliveryInfo({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final rows = <(IconData, String)>[
+      if (municipalityName(lot.municipality).isNotEmpty)
+        (Icons.place_outlined, 'Está en ${municipalityName(lot.municipality)}, Chih.'),
+      if (lot.offersPickup) (Icons.handshake_outlined, 'Entrega a acordar con el vendedor (sin costo)'),
+      if (lot.offersRegional)
+        (
+          Icons.local_shipping_outlined,
+          'Envío regional ${lot.shippingIncluded ? '(incluido en el precio)' : 'por ${formatMoney(lot.shippingCost)}'}'
+              '${lot.shippingDestinations.isEmpty ? ' a toda la región' : ' a ${lot.shippingDestinations.map(municipalityName).join(', ')}'}',
+        ),
+      if (lot.deliveryChoice == 'regional' && lot.deliveryDestination.isNotEmpty)
+        (Icons.check_circle_outline, 'Elegiste envío a ${municipalityName(lot.deliveryDestination)}'),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(children: [
+        for (final r in rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(children: [
+              Icon(r.$1, size: 20, color: theme.primary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(r.$2, style: theme.bodyMedium)),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
+/// El ganador elige cómo recibirlo cuando el vendedor ofrece ambas formas.
+class _DeliveryChooser extends StatefulWidget {
+  const _DeliveryChooser({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  State<_DeliveryChooser> createState() => _DeliveryChooserState();
+}
+
+class _DeliveryChooserState extends State<_DeliveryChooser> {
+  String _mode = 'pickup';
+  String? _dest;
+  bool _busy = false;
+
+  Future<void> _save() async {
+    if (_mode == 'regional' && _dest == null) {
+      showMessage(context, 'Elige a qué municipio te lo envían.', error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final amount = await PaymentService.instance
+          .chooseDelivery(widget.lot.reference.id, _mode, destination: _dest ?? '');
+      if (mounted) showMessage(context, 'Listo. Total a pagar: ${formatMoney(amount)}');
+    } on PaymentFailure catch (e) {
+      if (mounted) showMessage(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final lot = widget.lot;
+    final dests = lot.shippingDestinations.isEmpty
+        ? kMunicipalities.keys.where((k) => k != 'otro' && k != lot.municipality).toList()
+        : lot.shippingDestinations;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('Primero, ¿cómo quieres recibirlo?',
+          style: theme.titleSmall.copyWith(fontWeight: FontWeight.w700)),
+      RadioListTile<String>(
+        contentPadding: EdgeInsets.zero,
+        value: 'pickup',
+        groupValue: _mode,
+        onChanged: (v) => setState(() => _mode = v!),
+        title: const Text('Entrega a acordar con el vendedor'),
+        subtitle: Text('Sin costo · en ${municipalityName(lot.municipality).isEmpty ? 'su municipio' : municipalityName(lot.municipality)}'),
+      ),
+      RadioListTile<String>(
+        contentPadding: EdgeInsets.zero,
+        value: 'regional',
+        groupValue: _mode,
+        onChanged: (v) => setState(() => _mode = v!),
+        title: const Text('Envío a mi municipio'),
+        subtitle: Text(lot.shippingIncluded ? 'Incluido en el precio' : '+ ${formatMoney(lot.shippingCost)}'),
+      ),
+      if (_mode == 'regional')
+        DropdownButtonFormField<String>(
+          value: _dest,
+          decoration: const InputDecoration(
+              labelText: 'Municipio de destino',
+              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))),
+          items: [for (final k in dests) DropdownMenuItem(value: k, child: Text(municipalityName(k)))],
+          onChanged: (v) => setState(() => _dest = v),
+        ),
+      const SizedBox(height: 8),
+      BigButton(label: 'Continuar al pago', loading: _busy, onPressed: _save),
     ]);
   }
 }

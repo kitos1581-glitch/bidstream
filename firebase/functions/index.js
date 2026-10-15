@@ -44,6 +44,9 @@ const escrow = require("./escrow");
 exports.confirmReceipt = escrow.confirmReceipt;
 exports.releaseDuePayoutsJob = escrow.releaseDuePayoutsJob;
 
+// Entrega (a acordar / envío regional) y municipios.
+exports.chooseDelivery = require("./delivery").chooseDelivery;
+
 // Precio de reserva (secreto) para subastas por tiempo.
 exports.setReservePrice = require("./reserve").setReservePrice;
 
@@ -62,6 +65,7 @@ exports.adminMarkPayoutSent = adminFns.adminMarkPayoutSent;
 exports.adminRetryWinnerPayment = adminFns.adminRetryWinnerPayment;
 exports.adminCancelLot = adminFns.adminCancelLot;
 exports.adminRecalculatePayout = adminFns.adminRecalculatePayout;
+exports.adminSetStorePlan = adminFns.adminSetStorePlan;
 
 // Pujas altas requieren identidad verificada (INE). Monto en MXN.
 const VERIFIED_BID_THRESHOLD = Number(process.env.VERIFIED_BID_THRESHOLD || 20000);

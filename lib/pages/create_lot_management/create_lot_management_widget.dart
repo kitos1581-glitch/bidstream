@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '/backend/backend.dart';
 import '/backend/lot_specs.dart';
+import '/backend/regions.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/ui/youtube.dart';
@@ -38,6 +39,12 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   final _increment = TextEditingController();
   final _streamUrl = TextEditingController();
   final _reserve = TextEditingController();
+  final _shipCost = TextEditingController();
+  String? _municipality;
+  bool _pickup = true;
+  bool _regional = false;
+  bool _shipIncluded = false;
+  final Set<String> _destinations = {};
   late final Stream<UsersRecord?> _profile = AuctionService.instance.myProfile();
 
   String? _category;
@@ -62,6 +69,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
     _increment.dispose();
     _streamUrl.dispose();
     _reserve.dispose();
+    _shipCost.dispose();
     _aiNotes.dispose();
     super.dispose();
   }
@@ -177,6 +185,18 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
+    if (_municipality == null) {
+      showMessage(context, 'Indica en qué municipio está el artículo.', error: true);
+      return;
+    }
+    if (!_pickup && !_regional) {
+      showMessage(context, 'Elige al menos una forma de entrega.', error: true);
+      return;
+    }
+    if (_regional && !_shipIncluded && (double.tryParse(_shipCost.text) ?? 0) <= 0) {
+      showMessage(context, 'Escribe el costo del envío o marca que ya va incluido.', error: true);
+      return;
+    }
     if (_photos.isEmpty) {
       showMessage(context, 'Agrega al menos una foto.', error: true);
       return;
@@ -221,6 +241,14 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
         condition: _condition!,
         imageUrls: urls,
         streamUrl: _format == 'live' ? _streamUrl.text : '',
+        municipality: _municipality!,
+        delivery: {
+          'pickup': _pickup,
+          'regional': _regional,
+          'shipping_cost': _regional && !_shipIncluded ? (double.tryParse(_shipCost.text) ?? 0) : 0,
+          'shipping_included': _regional && _shipIncluded,
+          'destinations': _regional ? _destinations.toList() : <String>[],
+        },
         specs: {
           for (final f in specsFor(_category!))
             if ((_specs[f.key] ?? '').trim().isNotEmpty) f.key: _specs[f.key]!.trim(),
@@ -557,6 +585,64 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
           ],
 
           // ---------------- Precio ----------------
+          // ---------------- Ubicación y entrega ----------------
+          const SectionTitle('Ubicación y entrega'),
+          DropdownButtonFormField<String>(
+            value: _municipality,
+            isExpanded: true,
+            decoration: _dec('¿En qué municipio está el artículo?'),
+            items: [
+              for (final e in kMunicipalities.entries)
+                DropdownMenuItem(value: e.key, child: Text(e.value)),
+            ],
+            onChanged: (v) => setState(() => _municipality = v),
+            validator: (v) => v == null ? 'Elige el municipio' : null,
+          ),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _pickup,
+            onChanged: (v) => setState(() => _pickup = v ?? false),
+            title: const Text('Entrega a acordar con el comprador'),
+            subtitle: const Text('Sin costo. Al pagar, ambos reciben el contacto para verse en un punto acordado.'),
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _regional,
+            onChanged: (v) => setState(() => _regional = v ?? false),
+            title: const Text('Envío regional / intermunicipal'),
+            subtitle: const Text('Tú envías el artículo a otro municipio de la región.'),
+          ),
+          if (_regional) ...[
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _shipIncluded,
+              onChanged: (v) => setState(() => _shipIncluded = v),
+              title: const Text('El envío ya va incluido en el precio'),
+            ),
+            if (!_shipIncluded)
+              TextFormField(
+                controller: _shipCost,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _dec('Costo del envío', prefix: '\$ ',
+                    helper: 'Lo paga el comprador junto con el artículo y te llega completo (sin comisión).'),
+              ),
+            const SizedBox(height: 8),
+            Text('¿A qué municipios envías? (sin marcar = toda la región)',
+                style: FlutterFlowTheme.of(context).bodySmall),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final e in kMunicipalities.entries)
+                if (e.key != 'otro' && e.key != _municipality)
+                  FilterChip(
+                    label: Text(e.value),
+                    selected: _destinations.contains(e.key),
+                    onSelected: (v) => setState(() => v ? _destinations.add(e.key) : _destinations.remove(e.key)),
+                  ),
+            ]),
+          ],
+
           const SectionTitle('Precio'),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
