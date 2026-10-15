@@ -273,6 +273,14 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                       const SizedBox(height: 10),
                       _SecondChanceCard(lot: lot),
                     ],
+                    if (isSeller &&
+                        lot.paymentStatus == 'paid' &&
+                        lot.receivedTime == null &&
+                        lot.deliveryChoice != 'regional' &&
+                        !lot.isDemo) ...[
+                      const SizedBox(height: 10),
+                      _SellerCodeBox(lot: lot),
+                    ],
                     if (lot.hasReserve && lot.status == 'active') ...[
                       const SizedBox(height: 10),
                       _ReserveRow(lot: lot, isSeller: isSeller),
@@ -940,6 +948,10 @@ class _DisputeBox extends StatelessWidget {
     if (!lot.canOpenDispute) return const SizedBox.shrink();
     final until = lot.escrowReleaseAt!;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (lot.deliveryChoice != 'regional') ...[
+        _BuyerCodeCard(lot: lot),
+        const SizedBox(height: 10),
+      ],
       Text(
         'Tu pago está protegido: el vendedor lo recibe cuando confirmes que te llegó '
         '(o el ${formatDateTime(until)} si no reclamas).',
@@ -1328,5 +1340,103 @@ class _DeliveryChooserState extends State<_DeliveryChooser> {
       const SizedBox(height: 8),
       BigButton(label: 'Continuar al pago', loading: _busy, onPressed: _save),
     ]);
+  }
+}
+
+
+/// Comprador: su código de entrega en persona.
+class _BuyerCodeCard extends StatelessWidget {
+  const _BuyerCodeCard({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return StreamBuilder<String?>(
+      stream: PaymentService.instance.deliveryCode(lot.reference.id),
+      builder: (context, s) {
+        final code = s.data;
+        if (code == null || code.isEmpty) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: theme.primaryContainer, borderRadius: BorderRadius.circular(14)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Tu código de entrega', style: theme.titleSmall.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            SelectableText(
+              '${code.substring(0, 3)} ${code.substring(3)}',
+              style: theme.headlineMedium.copyWith(fontWeight: FontWeight.w800, letterSpacing: 4, color: theme.primary),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Dáselo al vendedor SOLO cuando tengas el artículo en tus manos y lo hayas revisado. '
+              'Con este código se le libera el pago y ya no podrás reclamar.',
+              style: theme.bodySmall,
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// Vendedor: captura el código que le da el comprador al entregar en persona.
+class _SellerCodeBox extends StatefulWidget {
+  const _SellerCodeBox({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  State<_SellerCodeBox> createState() => _SellerCodeBoxState();
+}
+
+class _SellerCodeBoxState extends State<_SellerCodeBox> {
+  final _code = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    setState(() => _busy = true);
+    try {
+      await PaymentService.instance.confirmDeliveryCode(widget.lot.reference.id, _code.text);
+      if (mounted) showMessage(context, '¡Entrega confirmada! Tu pago quedó liberado.');
+    } on PaymentFailure catch (e) {
+      if (mounted) showMessage(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: theme.secondaryContainer, borderRadius: BorderRadius.circular(14)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('¿Entregaste en persona?', style: theme.titleSmall.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text('Pide al comprador su código de 6 dígitos al entregarle el artículo. '
+            'Al capturarlo, tu pago se libera al instante.', style: theme.bodySmall),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _code,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: 'Código de entrega',
+            counterText: '',
+            border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+          ),
+        ),
+        const SizedBox(height: 8),
+        BigButton(label: 'Confirmar entrega', icon: Icons.verified_outlined, loading: _busy, onPressed: _send),
+      ]),
+    );
   }
 }

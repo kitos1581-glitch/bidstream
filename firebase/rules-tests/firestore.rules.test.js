@@ -248,3 +248,14 @@ test("usuarios: no se pueden dar plan de tienda ni borrar sus strikes de vendedo
   await assertFails(updateDoc(doc(as("vero"), "users/vero"), { store_plan_until: Timestamp.fromMillis(Date.now() + 1e10) }));
   await assertFails(updateDoc(doc(as("vero"), "users/vero"), { seller_strikes: 0 }));
 });
+
+test("código de entrega: solo el comprador lo lee; nadie lo escribe; la huella privada está cerrada", async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/beto/delivery_codes/L1"), { code: "123456" });
+    await setDoc(doc(ctx.firestore(), "lots/L1/private/delivery_code"), { code_hash: "x" });
+  });
+  await assertSucceeds(getDoc(doc(as("beto"), "users/beto/delivery_codes/L1")));
+  await assertFails(getDoc(doc(as("vero"), "users/beto/delivery_codes/L1")));
+  await assertFails(setDoc(doc(as("beto"), "users/beto/delivery_codes/L2"), { code: "000000" }));
+  await assertFails(getDoc(doc(as("vero"), "lots/L1/private/delivery_code")));
+});

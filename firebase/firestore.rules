@@ -130,6 +130,12 @@ service cloud.firestore {
         allow read: if isOwner(uid);
         allow write: if false;
       }
+
+      // Código de entrega en persona: solo lo ve el comprador; lo crea el servidor.
+      match /delivery_codes/{lotId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
     }
 
     // ---------------- Lotes ----------------
@@ -155,7 +161,7 @@ service cloud.firestore {
                'payment_options', 'spei_charge_id', 'dispute_status', 'paid_with',
                'second_chance', 'forfeited_uids', 'dispute_resolution', 'spei_creating_until',
                'has_reserve', 'reserve_met', 'delivery_choice', 'delivery_destination',
-               'shipping_charge', 'escrow_release_at', 'received_time']);
+               'shipping_charge', 'escrow_release_at', 'received_time', 'delivered_by']);
 
       // El vendedor solo edita la parte descriptiva. Precio, incremento y
       // fechas solo mientras NO haya pujas. El documento resultante pasa por

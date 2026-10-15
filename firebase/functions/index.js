@@ -43,6 +43,7 @@ exports.adminResolveDispute = disputes.adminResolveDispute;
 const escrow = require("./escrow");
 exports.confirmReceipt = escrow.confirmReceipt;
 exports.releaseDuePayoutsJob = escrow.releaseDuePayoutsJob;
+exports.confirmDeliveryCode = escrow.confirmDeliveryCode;
 
 // Entrega (a acordar / envío regional) y municipios.
 exports.chooseDelivery = require("./delivery").chooseDelivery;

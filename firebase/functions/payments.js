@@ -317,6 +317,12 @@ function contactString(u) {
  */
 function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   const finalPrice = round2(Number(lot.current_bid) || 0);
+  // Entrega en persona: código de entrega de 6 dígitos. El comprador lo ve en
+  // su app y se lo da al vendedor al recibir; el vendedor lo captura y su pago
+  // se libera al instante. (En envíos, se libera al confirmar o por plazo.)
+  if (winnerUid && lot.delivery_choice !== "regional") {
+    require("./escrow").writeDeliveryCode(writer, lotId, winnerUid, lot.title || "");
+  }
   // Una venta más en el perfil público del vendedor (reputación).
   recordSale(writer, lot.seller_uid);
   let commission;

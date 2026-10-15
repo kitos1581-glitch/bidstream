@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Resultado de intentar crear el depósito de garantía.
@@ -146,6 +148,32 @@ class PaymentService {
     } on FirebaseFunctionsException catch (e) {
       final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : const {};
       throw PaymentFailure((details['code'] ?? e.code).toString(), e.message ?? 'No se pudo guardar la entrega.');
+    }
+  }
+
+  /// Código de entrega en persona del comprador (solo él lo puede leer).
+  Stream<String?> deliveryCode(String lotId) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return Stream.value(null);
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('delivery_codes')
+        .doc(lotId)
+        .snapshots()
+        .map((s) => s.exists ? (s.data()!['code'] ?? '').toString() : null);
+  }
+
+  /// El vendedor captura el código que le dio el comprador al entregar:
+  /// su pago se libera al instante.
+  Future<void> confirmDeliveryCode(String lotId, String code) async {
+    try {
+      await _functions
+          .httpsCallable('confirmDeliveryCode')
+          .call<dynamic>({'lotId': lotId, 'code': code});
+    } on FirebaseFunctionsException catch (e) {
+      final details = e.details is Map ? Map<String, dynamic>.from(e.details as Map) : const {};
+      throw PaymentFailure((details['code'] ?? e.code).toString(), e.message ?? 'No se pudo confirmar la entrega.');
     }
   }
 

@@ -108,7 +108,8 @@ const kHelpTopics = <HelpTopic>[
     'Recomendación: entrega en un lugar público o en el domicilio declarado, de día, y revisa el artículo antes de llevártelo.',
   ]),
   HelpTopic('problemas', Icons.support_agent_outlined, 'Si el vendedor no entrega o el artículo llega distinto', [
-    'Tu pago queda retenido: el vendedor lo recibe cuando confirmas que te llegó bien, o a los 7 días si no reclamas.',
+    'Entrega en persona: al pagar recibes un código de 6 dígitos. Dáselo al vendedor solo cuando tengas el artículo y lo hayas revisado; con él, el vendedor cobra al instante.',
+    'Envío: tu pago queda retenido y el vendedor lo recibe cuando confirmas que te llegó bien, o a los 7 días si no reclamas.',
     'Mientras el pago siga retenido puedes reclamar desde la app, con fotos.',
     'Aplica si no llegó, si no coincide con las fotos, el estado o las características declaradas, si faltan documentos o si tiene un defecto que no se dijo.',
     'Mientras haya un reclamo, el pago al vendedor queda retenido. El equipo revisa y decide: reembolso total, parcial o liberar el pago.',
