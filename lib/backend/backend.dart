@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../flutter_flow/flutter_flow_util.dart';
 import 'schema/util/firestore_util.dart';
 
 export 'dart:async' show StreamSubscription;
@@ -28,9 +27,10 @@ Future<int> queryCollectionCount(
     query = query.limit(limit);
   }
 
-  return query.count().get().catchError((err) {
+  return query.count().get().then((value) => value.count!).catchError((err) {
     print('Error querying $collection: $err');
-  }).then((value) => value.count!);
+    return 0;
+  });
 }
 
 Stream<List<T>> queryCollection<T>(

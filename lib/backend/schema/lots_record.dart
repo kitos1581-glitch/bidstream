@@ -89,6 +89,13 @@ class LotsRecord extends FirestoreRecord {
   static Future<LotsRecord> getDocumentOnce(DocumentReference ref) =>
       ref.get().then((s) => LotsRecord.fromSnapshot(s));
 
+  /// Lote de demostración (no existe en Firestore; id empieza con "demo-").
+  bool get isDemo => reference.id.startsWith('demo-');
+
+  /// Construye un lote desde datos en memoria (lotes de demostración).
+  static LotsRecord fromMap(DocumentReference ref, Map<String, dynamic> data) =>
+      LotsRecord._(ref, mapFromFirestore(data));
+
   static LotsRecord fromSnapshot(DocumentSnapshot snapshot) => LotsRecord._(
         snapshot.reference,
         mapFromFirestore((snapshot.data() as Map<String, dynamic>?) ?? {}),

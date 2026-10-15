@@ -94,9 +94,6 @@ String? serializeParam(
       case ParamType.Document:
         final reference = (param as FirestoreRecord).reference;
         data = _serializeDocumentReference(reference);
-
-      default:
-        data = null;
     }
     return data;
   } catch (e) {

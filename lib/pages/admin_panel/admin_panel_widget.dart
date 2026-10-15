@@ -143,7 +143,7 @@ class _VerificationCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.secondaryBackground,
-        border: Border.all(color: theme.secondary, width: 2),
+        border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(req.fullName.isEmpty ? req.uid : req.fullName, style: theme.titleSmall),
@@ -360,7 +360,7 @@ class _UsersTabState extends State<_UsersTab> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: theme.secondaryBackground,
-              border: Border.all(color: theme.secondary, width: 2),
+              border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${u['full_name'] ?? ''}', style: theme.titleSmall),
@@ -465,7 +465,7 @@ class _Row extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: theme.secondaryBackground,
-          border: Border.all(color: theme.secondary, width: 1.5),
+          border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
         ),
         child: Row(children: [
           Expanded(

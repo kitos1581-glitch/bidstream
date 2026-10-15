@@ -6,6 +6,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import 'demo_lots.dart';
 import 'schema/bidding_record.dart';
 import 'storage_upload.dart';
 import 'schema/bids_record.dart';
@@ -130,22 +131,32 @@ class AuctionService {
   // Lotes
   // ------------------------------------------------------------------
 
-  /// Subastas abiertas, las que terminan primero arriba.
-  Stream<List<LotsRecord>> activeLots({int limit = 100}) => LotsRecord
-      .collection
-      .where('status', isEqualTo: 'active')
-      .orderBy('end_time')
-      .limit(limit)
-      .snapshots()
-      .map((s) => s.docs.map(LotsRecord.fromSnapshot).toList());
+  /// Subastas abiertas, las que terminan primero arriba. En la vista previa
+  /// (DEMO_LOTS=true) se agregan lotes de demostración.
+  Stream<List<LotsRecord>> activeLots({int limit = 100}) {
+    final real = LotsRecord.collection
+        .where('status', isEqualTo: 'active')
+        .orderBy('end_time')
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs.map(LotsRecord.fromSnapshot).toList());
+    if (!kShowDemoLots) return real;
+    return real.map((lots) {
+      final all = [...lots, ...demoLots()];
+      all.sort((a, b) => (a.endTime ?? DateTime(2100)).compareTo(b.endTime ?? DateTime(2100)));
+      return all;
+    });
+  }
 
-  Stream<LotsRecord?> lot(String lotId) =>
-      LotsRecord.collection.doc(lotId).snapshots().map(
+  Stream<LotsRecord?> lot(String lotId) => isDemoLotId(lotId)
+      ? Stream<LotsRecord?>.value(demoLot(lotId))
+      : LotsRecord.collection.doc(lotId).snapshots().map(
             (s) => s.exists ? LotsRecord.fromSnapshot(s) : null,
           );
 
-  Stream<List<BidsRecord>> bids(String lotId, {int limit = 30}) =>
-      BidsRecord.collection(LotsRecord.collection.doc(lotId))
+  Stream<List<BidsRecord>> bids(String lotId, {int limit = 30}) => isDemoLotId(lotId)
+      ? Stream<List<BidsRecord>>.value(demoBids(lotId))
+      : BidsRecord.collection(LotsRecord.collection.doc(lotId))
           .orderBy('created_time', descending: true)
           .limit(limit)
           .snapshots()
@@ -256,6 +267,10 @@ class AuctionService {
   /// Envía tu MÁXIMO secreto. El servidor puja por ti automáticamente
   /// hasta ese límite (puja proxy) y aplica el anti-sniping de 30 s.
   Future<PlaceBidResult> placeBid(String lotId, double maxAmount) async {
+    if (isDemoLotId(lotId)) {
+      return const PlaceBidResult.failure(
+          'Este es un lote de demostración: no se puede pujar. Las pujas reales se activan al lanzar.');
+    }
     try {
       final res = await _functions
           .httpsCallable('placeBid')

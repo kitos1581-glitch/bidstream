@@ -136,7 +136,8 @@ class _CountdownState extends State<Countdown> {
 }
 
 // =====================================================================
-// Imagen de lote con respaldo
+// Imagen de lote con respaldo. Acepta URLs normales o, para los lotes
+// de demostración, "emoji:🐎:0xFF8D6E63:0xFFD7CCC8" (emoji y degradado).
 // =====================================================================
 
 class LotImage extends StatelessWidget {
@@ -148,10 +149,31 @@ class LotImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
+    if (url.startsWith('emoji:')) {
+      final parts = url.split(':');
+      Color c(int i, Color d) {
+        final v = parts.length > i ? int.tryParse(parts[i]) : null;
+        return v == null ? d : Color(v);
+      }
+      return LayoutBuilder(
+        builder: (context, box) => Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [c(2, theme.primaryContainer), c(3, theme.secondaryContainer)],
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(parts.length > 1 ? parts[1] : '📦',
+              style: TextStyle(fontSize: (box.maxHeight * 0.45).clamp(24, 160))),
+        ),
+      );
+    }
     final placeholder = Container(
       color: theme.secondaryContainer,
       alignment: Alignment.center,
-      child: Icon(Icons.image_outlined, color: theme.secondaryText, size: 32),
+      child: Icon(Icons.image_outlined, color: theme.accent3, size: 32),
     );
     if (url.isEmpty) return placeholder;
     return CachedNetworkImage(
@@ -164,7 +186,7 @@ class LotImage extends StatelessWidget {
 }
 
 // =====================================================================
-// Etiquetas
+// Etiquetas (píldoras)
 // =====================================================================
 
 class Tag extends StatelessWidget {
@@ -180,18 +202,22 @@ class Tag extends StatelessWidget {
     final theme = FlutterFlowTheme.of(context);
     final fg = foreground ?? theme.primaryText;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: background ?? theme.surfaceVariant,
-        border: Border.all(color: theme.secondary, width: 1.5),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (icon != null) ...[
-          Icon(icon, size: 12, color: fg),
+          Icon(icon, size: 13, color: fg),
           const SizedBox(width: 4),
         ],
-        Text(text.toUpperCase(),
-            style: theme.labelSmall.copyWith(color: fg, letterSpacing: 0.6)),
+        Flexible(
+          child: Text(text,
+              overflow: TextOverflow.ellipsis,
+              style: theme.labelSmall.copyWith(
+                  color: fg, fontWeight: FontWeight.w700, fontSize: 11)),
+        ),
       ]),
     );
   }
@@ -203,35 +229,46 @@ class LiveTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
-    return Tag('En vivo',
+    return Tag('EN VIVO',
         background: theme.tertiary,
         foreground: Colors.white,
         icon: Icons.circle);
   }
 }
 
+/// Sombra suave estándar de las tarjetas.
+List<BoxShadow> softShadow([double opacity = 0.08]) => [
+      BoxShadow(
+        color: Colors.black.withOpacity(opacity),
+        blurRadius: 16,
+        offset: const Offset(0, 4),
+      ),
+    ];
+
 // =====================================================================
-// Tarjeta de lote
+// Tarjeta de lote (estilo marketplace)
 // =====================================================================
 
 class LotCard extends StatelessWidget {
-  const LotCard({super.key, required this.lot, this.onTap});
+  const LotCard({super.key, required this.lot, this.onTap, this.width});
 
   final LotsRecord lot;
   final VoidCallback? onTap;
 
+  /// Ancho fijo (para filas horizontales). Null = ocupa la celda.
+  final double? width;
+
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
-    return InkWell(
-      onTap: onTap ??
-          () => context.pushNamed('LotDetailView',
-              queryParameters: {'lotId': lot.reference.id}),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.secondaryBackground,
-          border: Border.all(color: theme.secondary, width: 2),
-        ),
+    final card = Material(
+      color: theme.secondaryBackground,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap ??
+            () => context.pushNamed('LotDetailView',
+                queryParameters: {'lotId': lot.reference.id}),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -242,38 +279,49 @@ class LotCard extends StatelessWidget {
                 Positioned(
                   left: 8,
                   top: 8,
-                  child: lot.isLiveNow()
-                      ? const LiveTag()
-                      : Tag(lot.category.isEmpty ? 'Lote' : lot.category),
+                  child: lot.isLiveNow() ? const LiveTag() : const SizedBox(),
+                ),
+                if (lot.isDemo)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Tag('Demo',
+                        background: Colors.black.withOpacity(0.55),
+                        foreground: Colors.white),
+                  ),
+                Positioned(
+                  left: 8,
+                  bottom: 8,
+                  child: _TimeChip(lot: lot),
                 ),
               ]),
             ),
             Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(lot.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.titleSmall),
-                  if (lot.condition == 'new')
-                    Text('NUEVO',
-                        style: theme.labelSmall.copyWith(
-                            color: theme.primary, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 6),
-                  Text(lot.bidCount == 0 ? 'Precio inicial' : 'Puja actual',
-                      style: theme.labelSmall),
-                  Text(formatMoney(lot.currentBid),
-                      style: theme.titleMedium.copyWith(
-                          color: theme.primary, fontWeight: FontWeight.w800)),
+                      style: theme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600, height: 1.25)),
                   const SizedBox(height: 4),
-                  Row(children: [
-                    Icon(Icons.timer_outlined,
-                        size: 14, color: theme.secondaryText),
-                    const SizedBox(width: 4),
-                    Expanded(child: Countdown(lot: lot)),
-                  ]),
+                  Text(
+                      kLotConditions[lot.condition] ??
+                          (lot.category.isEmpty ? 'Lote' : lot.category),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.bodySmall.copyWith(color: theme.secondaryText)),
+                  const SizedBox(height: 6),
+                  Text(formatMoney(lot.currentBid),
+                      style: theme.titleLarge.copyWith(
+                          fontWeight: FontWeight.w800, fontSize: 20)),
+                  Text(
+                      lot.bidCount == 0
+                          ? 'Precio inicial · sin pujas'
+                          : '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}',
+                      style: theme.bodySmall.copyWith(color: theme.secondaryText)),
                 ],
               ),
             ),
@@ -281,11 +329,54 @@ class LotCard extends StatelessWidget {
         ),
       ),
     );
+    return Container(
+      width: width,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.alternate),
+        boxShadow: softShadow(0.04),
+      ),
+      child: card,
+    );
+  }
+}
+
+/// Píldora de tiempo sobre la foto: roja si queda menos de 1 hora.
+class _TimeChip extends StatelessWidget {
+  const _TimeChip({required this.lot});
+  final LotsRecord lot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final end = lot.endTime;
+    final urgent = end != null &&
+        lot.hasStarted() &&
+        end.difference(DateTime.now()) < const Duration(hours: 1);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: urgent ? theme.tertiary : Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.schedule, size: 12, color: Colors.white),
+        const SizedBox(width: 4),
+        Countdown(
+          lot: lot,
+          style: theme.labelSmall.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+              fontFeatures: const [FontFeature.tabularFigures()]),
+        ),
+      ]),
+    );
   }
 }
 
 // =====================================================================
-// Botón principal
+// Botón principal (píldora)
 // =====================================================================
 
 class BigButton extends StatelessWidget {
@@ -309,15 +400,20 @@ class BigButton extends StatelessWidget {
     final theme = FlutterFlowTheme.of(context);
     final enabled = onPressed != null && !loading;
     final bg = secondary ? theme.secondaryBackground : theme.primary;
-    final fg = secondary ? theme.primaryText : theme.onPrimary;
+    final fg = secondary ? theme.primary : theme.onPrimary;
     return SizedBox(
-      height: 54,
+      height: 50,
       width: double.infinity,
       child: Material(
-        color: enabled ? bg : theme.accent3,
+        color: enabled ? bg : theme.secondaryContainer,
         shape: RoundedRectangleBorder(
-            side: BorderSide(color: theme.secondary, width: 2)),
+          borderRadius: BorderRadius.circular(999),
+          side: secondary
+              ? BorderSide(color: enabled ? theme.primary : theme.alternate, width: 1.5)
+              : BorderSide.none,
+        ),
         child: InkWell(
+          customBorder: const StadiumBorder(),
           onTap: enabled ? onPressed : null,
           child: Center(
             child: loading
@@ -325,17 +421,19 @@ class BigButton extends StatelessWidget {
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: fg))
+                        strokeWidth: 2.5, color: secondary ? theme.primary : Colors.white))
                 : Row(mainAxisSize: MainAxisSize.min, children: [
                     if (icon != null) ...[
-                      Icon(icon, color: fg, size: 20),
+                      Icon(icon, color: enabled ? fg : theme.accent3, size: 20),
                       const SizedBox(width: 8),
                     ],
-                    Text(label.toUpperCase(),
-                        style: theme.labelLarge.copyWith(
-                            color: fg,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8)),
+                    Flexible(
+                      child: Text(label,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.titleSmall.copyWith(
+                              color: enabled ? fg : theme.accent3,
+                              fontWeight: FontWeight.w700)),
+                    ),
                   ]),
           ),
         ),
@@ -368,9 +466,16 @@ class EmptyState extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 44, color: theme.secondaryText),
-        const SizedBox(height: 12),
-        Text(title, textAlign: TextAlign.center, style: theme.titleMedium),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+              color: theme.primaryContainer, shape: BoxShape.circle),
+          child: Icon(icon, size: 36, color: theme.primary),
+        ),
+        const SizedBox(height: 14),
+        Text(title,
+            textAlign: TextAlign.center,
+            style: theme.titleMedium.copyWith(fontWeight: FontWeight.w700)),
         if (message.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(message,
@@ -406,12 +511,12 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 10),
       child: Row(children: [
         Expanded(
-          child: Text(text.toUpperCase(),
-              style: theme.labelLarge
-                  .copyWith(fontWeight: FontWeight.w800, letterSpacing: 1)),
+          child: Text(text,
+              style: theme.titleLarge
+                  .copyWith(fontWeight: FontWeight.w800, fontSize: 20)),
         ),
         if (trailing != null) trailing!,
       ]),
@@ -440,7 +545,8 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
-    Widget item(NavTab tab, IconData icon, String label, {int badge = 0}) {
+    Widget item(NavTab tab, IconData icon, IconData activeIcon, String label,
+        {int badge = 0}) {
       final selected = tab == current;
       final color = selected ? theme.primary : theme.secondaryText;
       return Expanded(
@@ -453,12 +559,13 @@ class AppBottomNav extends StatelessWidget {
                 isLabelVisible: badge > 0,
                 label: Text(badge > 9 ? '9+' : '$badge'),
                 backgroundColor: theme.tertiary,
-                child: Icon(icon, color: color),
+                child: Icon(selected ? activeIcon : icon, color: color),
               ),
               const SizedBox(height: 2),
               Text(label,
                   style: theme.labelSmall.copyWith(
                       color: color,
+                      fontSize: 11,
                       fontWeight:
                           selected ? FontWeight.w800 : FontWeight.w600)),
             ]),
@@ -470,18 +577,21 @@ class AppBottomNav extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: theme.secondaryBackground,
-        border: Border(top: BorderSide(color: theme.secondary, width: 2)),
+        boxShadow: softShadow(0.06),
       ),
       child: SafeArea(
         top: false,
         child: StreamBuilder<int>(
           stream: AuctionService.instance.unreadCount(),
           builder: (context, snap) => Row(children: [
-            item(NavTab.inicio, Icons.gavel_rounded, 'Subastas'),
-            item(NavTab.publicar, Icons.add_box_outlined, 'Publicar'),
-            item(NavTab.avisos, Icons.notifications_none_rounded, 'Avisos',
+            item(NavTab.inicio, Icons.home_outlined, Icons.home_rounded, 'Inicio'),
+            item(NavTab.publicar, Icons.add_circle_outline, Icons.add_circle,
+                'Vender'),
+            item(NavTab.avisos, Icons.notifications_none_rounded,
+                Icons.notifications_rounded, 'Avisos',
                 badge: snap.data ?? 0),
-            item(NavTab.cuenta, Icons.person_outline_rounded, 'Mi cuenta'),
+            item(NavTab.cuenta, Icons.person_outline_rounded,
+                Icons.person_rounded, 'Mi cuenta'),
           ]),
         ),
       ),

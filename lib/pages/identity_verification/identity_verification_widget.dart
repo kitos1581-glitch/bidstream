@@ -166,7 +166,7 @@ class _IdentityVerificationWidgetState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.secondaryBackground,
-        border: Border.all(color: theme.secondary, width: 2),
+        border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
       ),
       child: Row(children: [
         Container(

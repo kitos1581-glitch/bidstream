@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '/backend/backend.dart';
@@ -5,7 +7,8 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/ui/ui_kit.dart';
 
-/// Pantalla principal: subastas en vivo + catálogo con búsqueda y categorías.
+/// Inicio estilo marketplace: buscador, banner, categorías, filas de
+/// "En vivo" y "Terminan pronto", y el catálogo completo.
 class AuctionDashboardWidget extends StatefulWidget {
   const AuctionDashboardWidget({super.key});
 
@@ -16,12 +19,25 @@ class AuctionDashboardWidget extends StatefulWidget {
   State<AuctionDashboardWidget> createState() => _AuctionDashboardWidgetState();
 }
 
+/// Ícono y color de cada categoría para las tarjetas.
+const _categoryStyle = <String, (String, int)>{
+  'Vehículos': ('🚗', 0xFFE3F2FD),
+  'Ganado y caballos': ('🐎', 0xFFFFF3E0),
+  'Maquinaria y herramientas': ('🚜', 0xFFF1F8E9),
+  'Electrónica': ('📱', 0xFFEDE7F6),
+  'Hogar y muebles': ('🛋️', 0xFFF5F5F5),
+  'Joyería y relojes': ('⌚', 0xFFFFF8E1),
+  'Arte y colección': ('🎨', 0xFFFCE4EC),
+  'Deportes': ('⚽', 0xFFE0F2F1),
+  'Ropa y accesorios': ('👟', 0xFFE8EAF6),
+  'Otros': ('📦', 0xFFEFEBE9),
+};
+
 class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
   final _search = TextEditingController();
   String _query = '';
   String? _category;
-  late final Stream<List<LotsRecord>> _lots =
-      AuctionService.instance.activeLots();
+  late Stream<List<LotsRecord>> _lots = AuctionService.instance.activeLots();
 
   @override
   void dispose() {
@@ -40,241 +56,421 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
     }).toList();
   }
 
+  bool get _browsing => _query.trim().isNotEmpty || _category != null;
+
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
     final width = MediaQuery.sizeOf(context).width;
-    final columns = width > 1100 ? 4 : (width > 700 ? 3 : 2);
-    // Alto de tarjeta = foto 4:3 + bloque de texto.
-    final cellWidth = (width - 32 - 12 * (columns - 1)) / columns;
-    final cardHeight = cellWidth * 3 / 4 + 166;
+    final columns = width > 1100 ? 5 : (width > 800 ? 4 : (width > 560 ? 3 : 2));
+    final contentWidth = width > 1280 ? 1280.0 : width;
+    final cellWidth = (contentWidth - 32 - 12 * (columns - 1)) / columns;
+    final cardHeight = cellWidth * 3 / 4 + 132;
 
     return Scaffold(
       backgroundColor: theme.primaryBackground,
       bottomNavigationBar: const AppBottomNav(current: NavTab.inicio),
       body: SafeArea(
-        child: StreamBuilder<List<LotsRecord>>(
-          stream: _lots,
-          builder: (context, snap) {
-            if (snap.hasError) {
-              return EmptyState(
-                icon: Icons.cloud_off_outlined,
-                title: 'No pudimos cargar las subastas',
-                message: '${snap.error}',
-              );
-            }
-            if (!snap.hasData) return const Loading();
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1280),
+            child: StreamBuilder<List<LotsRecord>>(
+              stream: _lots,
+              builder: (context, snap) {
+                final header = _Header(
+                  controller: _search,
+                  query: _query,
+                  onChanged: (v) => setState(() => _query = v),
+                  onClear: () {
+                    _search.clear();
+                    setState(() => _query = '');
+                  },
+                );
+                if (snap.hasError) {
+                  return Column(children: [
+                    header,
+                    Expanded(
+                      child: ErrorState(
+                        error: snap.error,
+                        onRetry: () => setState(
+                            () => _lots = AuctionService.instance.activeLots()),
+                      ),
+                    ),
+                  ]);
+                }
+                if (!snap.hasData) return Column(children: [header, const Expanded(child: Loading())]);
 
-            final now = DateTime.now();
-            final all = snap.data!;
-            final live = all.where((l) => l.isLiveNow(now)).toList();
-            final filtered = _filter(all);
+                final now = DateTime.now();
+                final all = snap.data!;
+                final live = all.where((l) => l.isLiveNow(now)).toList();
+                final endingSoon = all
+                    .where((l) =>
+                        l.isOpenForBids(now) &&
+                        l.endTime!.difference(now) < const Duration(hours: 24))
+                    .toList();
+                final filtered = _filter(all);
 
-            return CustomScrollView(slivers: [
-              // ---------------- Encabezado + búsqueda ----------------
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Subastas',
-                          style: theme.headlineMedium
-                              .copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _search,
-                        onChanged: (v) => setState(() => _query = v),
-                        decoration: InputDecoration(
-                          hintText: 'Buscar lotes o categorías…',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _query.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.close),
-                                  onPressed: () {
-                                    _search.clear();
-                                    setState(() => _query = '');
-                                  },
+                return CustomScrollView(slivers: [
+                  SliverToBoxAdapter(child: header),
+
+                  if (!_browsing) ...[
+                    const SliverToBoxAdapter(child: _HeroCarousel()),
+                    const SliverToBoxAdapter(child: SectionTitle('Explora por categoría')),
+                    SliverToBoxAdapter(
+                      child: _CategoryRow(
+                        onSelect: (c) => setState(() => _category = c),
+                      ),
+                    ),
+                    if (live.isNotEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: SectionTitle('🔴 En vivo ahora',
+                            trailing: Text('${live.length}', style: theme.labelMedium)),
+                      ),
+                      SliverToBoxAdapter(child: _LotRow(lots: live, cardWidth: 220)),
+                    ],
+                    if (endingSoon.isNotEmpty) ...[
+                      const SliverToBoxAdapter(child: SectionTitle('⏰ Terminan pronto')),
+                      SliverToBoxAdapter(child: _LotRow(lots: endingSoon, cardWidth: 220)),
+                    ],
+                  ],
+
+                  // ---------------- Catálogo ----------------
+                  SliverToBoxAdapter(
+                    child: SectionTitle(
+                      _category ?? (_query.isNotEmpty ? 'Resultados' : 'Todas las subastas'),
+                      trailing: _browsing
+                          ? TextButton.icon(
+                              onPressed: () {
+                                _search.clear();
+                                setState(() {
+                                  _query = '';
+                                  _category = null;
+                                });
+                              },
+                              icon: const Icon(Icons.close, size: 16),
+                              label: const Text('Quitar filtros'),
+                            )
+                          : Text('${filtered.length} lotes',
+                              style: theme.bodySmall.copyWith(color: theme.secondaryText)),
+                    ),
+                  ),
+                  if (filtered.isEmpty)
+                    SliverToBoxAdapter(
+                      child: EmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        title: all.isEmpty
+                            ? 'Todavía no hay subastas'
+                            : 'Nada coincide con tu búsqueda',
+                        message: all.isEmpty
+                            ? 'Sé el primero en publicar un lote.'
+                            : 'Prueba con otra palabra o categoría.',
+                        action: all.isEmpty
+                            ? SizedBox(
+                                width: 220,
+                                child: BigButton(
+                                  label: 'Publicar lote',
+                                  onPressed: () => context.goNamed('CreateLotManagement'),
                                 ),
-                          filled: true,
-                          fillColor: theme.secondaryBackground,
-                          enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide:
-                                  BorderSide(color: theme.secondary, width: 2)),
-                          focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide:
-                                  BorderSide(color: theme.primary, width: 2)),
+                              )
+                            : null,
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          mainAxisExtent: cardHeight,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => LotCard(lot: filtered[i]),
+                          childCount: filtered.length,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // ---------------- Categorías ----------------
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 48,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    children: [
-                      _chip('Todas', _category == null,
-                          () => setState(() => _category = null)),
-                      for (final c in kLotCategories)
-                        _chip(c, _category == c,
-                            () => setState(() => _category = c)),
-                    ],
-                  ),
-                ),
-              ),
-
-              // ---------------- En vivo ahora ----------------
-              if (live.isNotEmpty && _query.isEmpty && _category == null) ...[
-                const SliverToBoxAdapter(child: SectionTitle('En vivo ahora')),
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 150,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: live.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, i) => _LiveBanner(lot: live[i]),
                     ),
-                  ),
-                ),
-              ],
-
-              // ---------------- Catálogo ----------------
-              SliverToBoxAdapter(
-                child: SectionTitle(
-                  _category ?? 'Todas las subastas',
-                  trailing: Text('${filtered.length}',
-                      style: theme.labelMedium),
-                ),
-              ),
-              if (filtered.isEmpty)
-                SliverToBoxAdapter(
-                  child: EmptyState(
-                    icon: Icons.inventory_2_outlined,
-                    title: all.isEmpty
-                        ? 'Todavía no hay subastas'
-                        : 'Nada coincide con tu búsqueda',
-                    message: all.isEmpty
-                        ? 'Sé el primero en publicar un lote.'
-                        : 'Prueba con otra palabra o categoría.',
-                    action: all.isEmpty
-                        ? SizedBox(
-                            width: 220,
-                            child: BigButton(
-                              label: 'Publicar lote',
-                              onPressed: () =>
-                                  context.goNamed('CreateLotManagement'),
-                            ),
-                          )
-                        : null,
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      mainAxisExtent: cardHeight,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => LotCard(lot: filtered[i]),
-                      childCount: filtered.length,
-                    ),
-                  ),
-                ),
-            ]);
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
-    final theme = FlutterFlowTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: selected ? theme.secondary : theme.secondaryBackground,
-            border: Border.all(color: theme.secondary, width: 1.5),
+                ]);
+              },
+            ),
           ),
-          child: Text(label,
-              style: theme.labelMedium.copyWith(
-                  color: selected ? Colors.white : theme.primaryText)),
         ),
       ),
     );
   }
 }
 
-class _LiveBanner extends StatelessWidget {
-  const _LiveBanner({required this.lot});
+// =====================================================================
+// Encabezado: logo, buscador y avisos
+// =====================================================================
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.controller,
+    required this.query,
+    required this.onChanged,
+    required this.onClear,
+  });
 
-  final LotsRecord lot;
+  final TextEditingController controller;
+  final String query;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
-    return InkWell(
-      onTap: () => context.pushNamed('LiveStreamAuction',
-          queryParameters: {'lotId': lot.reference.id}),
-      child: Container(
-        width: 280,
-        decoration:
-            BoxDecoration(border: Border.all(color: theme.secondary, width: 2)),
-        child: Stack(fit: StackFit.expand, children: [
-          LotImage(lot.firstImage),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Color(0xCC000000)],
+    final logo = RichText(
+      text: TextSpan(
+        style: theme.headlineSmall.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
+        children: [
+          TextSpan(text: 'Bid', style: TextStyle(color: theme.primary)),
+          TextSpan(text: 'Stream', style: TextStyle(color: theme.tertiary)),
+        ],
+      ),
+    );
+    return Container(
+      color: theme.secondaryBackground,
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      child: Column(children: [
+        Row(children: [
+          logo,
+          const Spacer(),
+          IconButton(
+            tooltip: 'Avisos',
+            icon: const Icon(Icons.notifications_none_rounded),
+            onPressed: () => context.goNamed('AuctionNotifications'),
+          ),
+          IconButton(
+            tooltip: 'Mi cuenta',
+            icon: const Icon(Icons.person_outline_rounded),
+            onPressed: () => context.goNamed('UserProfileActivity'),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: TextField(
+            controller: controller,
+            onChanged: onChanged,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Buscar caballos, camionetas, celulares…',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: query.isEmpty
+                  ? null
+                  : IconButton(icon: const Icon(Icons.close), onPressed: onClear),
+              filled: true,
+              fillColor: theme.secondaryContainer,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(999),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(999),
+                borderSide: BorderSide(color: theme.primary, width: 2),
               ),
             ),
           ),
-          const Positioned(left: 10, top: 10, child: LiveTag()),
-          Positioned(
-            left: 10,
-            right: 10,
-            bottom: 10,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(lot.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.titleSmall.copyWith(color: Colors.white)),
-                Row(children: [
-                  Text(formatMoney(lot.currentBid),
-                      style: theme.titleMedium.copyWith(
-                          color: theme.surfaceVariant,
-                          fontWeight: FontWeight.w800)),
-                  const Spacer(),
-                  Text('ENTRAR ▸',
-                      style: theme.labelMedium.copyWith(color: Colors.white)),
+        ),
+      ]),
+    );
+  }
+}
+
+// =====================================================================
+// Banner rotativo
+// =====================================================================
+class _HeroCarousel extends StatefulWidget {
+  const _HeroCarousel();
+
+  @override
+  State<_HeroCarousel> createState() => _HeroCarouselState();
+}
+
+class _HeroSlide {
+  const _HeroSlide(this.title, this.subtitle, this.cta, this.route, this.emoji, this.c1, this.c2);
+  final String title, subtitle, cta, route, emoji;
+  final Color c1, c2;
+}
+
+class _HeroCarouselState extends State<_HeroCarousel> {
+  static const _slides = [
+    _HeroSlide('Subastas en vivo, desde tu celular', 'Mira la transmisión y puja en tiempo real.',
+        'Ver subastas', 'AuctionDashboard', '🔴', Color(0xFF3665F3), Color(0xFF6A8DFF)),
+    _HeroSlide('Vende en 2 minutos con IA', 'Sube fotos y la IA escribe tu publicación.',
+        'Publicar ahora', 'CreateLotManagement', '✨', Color(0xFFF5AF02), Color(0xFFFFD36B)),
+    _HeroSlide('Ganado, caballos y maquinaria', 'Compra y vende con vendedores verificados.',
+        'Explorar', 'AuctionDashboard', '🐎', Color(0xFF0E8A00), Color(0xFF6BC25B)),
+  ];
+
+  final _controller = PageController();
+  Timer? _timer;
+  int _page = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || !_controller.hasClients) return;
+      final next = (_page + 1) % _slides.length;
+      _controller.animateToPage(next,
+          duration: const Duration(milliseconds: 450), curve: Curves.easeOut);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final wide = MediaQuery.sizeOf(context).width > 700;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(children: [
+        SizedBox(
+          height: wide ? 240 : 190,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: _slides.length,
+            onPageChanged: (i) => setState(() => _page = i),
+            itemBuilder: (context, i) {
+              final s = _slides[i];
+              final dark = i != 1;
+              final fg = dark ? Colors.white : const Color(0xFF3A2A00);
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(colors: [s.c1, s.c2]),
+                ),
+                padding: EdgeInsets.all(wide ? 28 : 20),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(s.title,
+                            maxLines: 2,
+                            style: (wide ? theme.headlineMedium : theme.titleLarge).copyWith(
+                                color: fg, fontWeight: FontWeight.w800, height: 1.15)),
+                        const SizedBox(height: 6),
+                        Text(s.subtitle,
+                            maxLines: 2,
+                            style: theme.bodyMedium.copyWith(color: fg.withOpacity(0.9))),
+                        const SizedBox(height: 14),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: dark ? Colors.white : const Color(0xFF3A2A00),
+                            foregroundColor: dark ? s.c1 : Colors.white,
+                            shape: const StadiumBorder(),
+                          ),
+                          onPressed: () => context.goNamed(s.route),
+                          child: Text(s.cta, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(s.emoji, style: TextStyle(fontSize: wide ? 110 : 64)),
                 ]),
-              ],
-            ),
+              );
+            },
           ),
+        ),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (var i = 0; i < _slides.length; i++)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: i == _page ? 18 : 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: i == _page ? theme.primaryText : theme.alternate,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
         ]),
+      ]),
+    );
+  }
+}
+
+// =====================================================================
+// Categorías (tarjetas redondas con ícono)
+// =====================================================================
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow({required this.onSelect});
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return SizedBox(
+      height: 112,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: kLotCategories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, i) {
+          final c = kLotCategories[i];
+          final style = _categoryStyle[c] ?? ('📦', 0xFFF5F5F5);
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => onSelect(c),
+            child: SizedBox(
+              width: 82,
+              child: Column(children: [
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: Color(style.$2),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(style.$1, style: const TextStyle(fontSize: 32)),
+                ),
+                const SizedBox(height: 6),
+                Text(c,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.bodySmall.copyWith(fontWeight: FontWeight.w600, height: 1.2)),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// Fila horizontal de lotes
+// =====================================================================
+class _LotRow extends StatelessWidget {
+  const _LotRow({required this.lots, required this.cardWidth});
+  final List<LotsRecord> lots;
+  final double cardWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: cardWidth * 3 / 4 + 140,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        itemCount: lots.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) => LotCard(lot: lots[i], width: cardWidth),
       ),
     );
   }

@@ -183,7 +183,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: theme.secondaryBackground,
-                        border: Border.all(color: theme.secondary, width: 2),
+                        border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
                       ),
                       child: Row(children: [
                         Expanded(
@@ -327,7 +327,7 @@ class BidTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: isTop ? theme.surfaceVariant : theme.secondaryBackground,
-        border: Border.all(color: theme.secondary, width: 1.5),
+        border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
       ),
       child: Row(children: [
         CircleAvatar(
@@ -417,7 +417,7 @@ class _BottomBar extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.secondaryBackground,
-        border: Border(top: BorderSide(color: theme.secondary, width: 2)),
+        border: Border(top: BorderSide(color: theme.alternate)),
       ),
       child: SafeArea(top: false, child: Row(children: buttons)),
     );

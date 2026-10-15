@@ -77,7 +77,7 @@ class _DepositGarantiaWidgetState extends State<DepositGarantiaWidget> {
         stream: AuctionService.instance.myProfile(),
         builder: (context, snapshot) {
           final user = snapshot.data;
-          final deposit = user?.snapshotData?['deposit'];
+          final deposit = user?.snapshotData['deposit'];
           final status = deposit?['status']?.toString() ?? DepositStatus.none;
 
           return ListView(

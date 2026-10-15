@@ -19,6 +19,9 @@ class BidsRecord extends FirestoreRecord {
   static CollectionReference collection(DocumentReference lotRef) =>
       lotRef.collection('history');
 
+  static BidsRecord fromMap(DocumentReference ref, Map<String, dynamic> data) =>
+      BidsRecord._(ref, mapFromFirestore(data));
+
   static BidsRecord fromSnapshot(DocumentSnapshot snapshot) => BidsRecord._(
         snapshot.reference,
         mapFromFirestore((snapshot.data() as Map<String, dynamic>?) ?? {}),

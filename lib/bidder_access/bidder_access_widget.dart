@@ -97,16 +97,16 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
       fillColor: theme.secondaryBackground,
       suffixIcon: suffix,
       enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: theme.secondary, width: 2)),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: theme.alternate)),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: theme.primary, width: 2)),
       errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: theme.error, width: 2)),
       focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: theme.error, width: 2)),
     );
   }
@@ -127,30 +127,53 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        color: theme.primary,
+                    Center(
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(22),
+                          gradient: LinearGradient(
+                              colors: [theme.primary, const Color(0xFF6A8DFF)]),
+                          boxShadow: softShadow(),
+                        ),
                         child: const Icon(Icons.gavel_rounded,
-                            color: Colors.white, size: 28),
+                            color: Colors.white, size: 36),
                       ),
-                      const SizedBox(width: 12),
-                      Text('BidStream',
-                          style: theme.headlineMedium
-                              .copyWith(fontWeight: FontWeight.w800)),
-                    ]),
+                    ),
+                    const SizedBox(height: 14),
+                    Center(
+                      child: RichText(
+                        text: TextSpan(
+                          style: theme.headlineMedium.copyWith(
+                              fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                          children: [
+                            TextSpan(text: 'Bid', style: TextStyle(color: theme.primary)),
+                            TextSpan(text: 'Stream', style: TextStyle(color: theme.tertiary)),
+                          ],
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text('Subastas en línea y en vivo. Puja, gana y vende.',
+                        textAlign: TextAlign.center,
                         style: theme.bodyMedium
                             .copyWith(color: theme.secondaryText)),
                     const SizedBox(height: 28),
                     // Selector Iniciar sesión / Crear cuenta
-                    Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: theme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(children: [
                       _tab('Iniciar sesión', !_isSignUp,
                           () => setState(() => _isSignUp = false)),
                       _tab('Crear cuenta', _isSignUp,
                           () => setState(() => _isSignUp = true)),
-                    ]),
+                      ]),
+                    ),
                     const SizedBox(height: 20),
                     if (_isSignUp) ...[
                       TextFormField(
@@ -238,18 +261,21 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
     final theme = FlutterFlowTheme.of(context);
     return Expanded(
       child: InkWell(
+        borderRadius: BorderRadius.circular(999),
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
-            color: selected ? theme.secondary : theme.secondaryBackground,
-            border: Border.all(color: theme.secondary, width: 2),
+            color: selected ? theme.secondaryBackground : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: selected ? softShadow() : null,
           ),
           alignment: Alignment.center,
-          child: Text(label.toUpperCase(),
+          child: Text(label,
               style: theme.labelLarge.copyWith(
-                  color: selected ? Colors.white : theme.primaryText,
-                  fontWeight: FontWeight.w800)),
+                  color: selected ? theme.primaryText : theme.secondaryText,
+                  fontWeight: FontWeight.w700)),
         ),
       ),
     );

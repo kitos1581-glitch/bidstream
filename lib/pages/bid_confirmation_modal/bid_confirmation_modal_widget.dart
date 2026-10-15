@@ -251,7 +251,7 @@ class _BidConfirmationModalWidgetState
                     filled: true,
                     fillColor: theme.secondaryBackground,
                     border: const OutlineInputBorder(
-                        borderRadius: BorderRadius.zero),
+                        borderRadius: BorderRadius.all(Radius.circular(12))),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -259,7 +259,7 @@ class _BidConfirmationModalWidgetState
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: theme.secondaryBackground,
-                    border: Border.all(color: theme.secondary, width: 2),
+                    border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
                   ),
                   child: Column(children: [
                     _row(context, 'Tu máximo', formatMoney(amount), bold: true),

@@ -28,7 +28,7 @@ jobs:
           cache: true
       - run: flutter pub get
       - name: Compilar web
-        run: flutter build web --release --base-href /${{ github.event.repository.name }}/
+        run: flutter build web --release --base-href /${{ github.event.repository.name }}/ --dart-define=DEMO_LOTS=true
       - name: Rutas directas (SPA) en GitHub Pages
         run: cp build/web/index.html build/web/404.html
       - uses: actions/upload-pages-artifact@v3

@@ -95,7 +95,7 @@ class _AuctionNotificationsWidgetState
                     color: n.read
                         ? theme.secondaryBackground
                         : theme.primaryContainer,
-                    border: Border.all(color: theme.secondary, width: 1.5),
+                    border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

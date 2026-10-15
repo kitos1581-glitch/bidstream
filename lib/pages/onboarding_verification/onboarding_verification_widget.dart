@@ -137,10 +137,10 @@ class _OnboardingVerificationWidgetState
           helperText: helper,
           filled: true,
           fillColor: theme.secondaryBackground,
-          border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+          border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
           enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: theme.secondary, width: 2)),
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: theme.alternate)),
         );
 
     return Scaffold(
@@ -181,7 +181,7 @@ class _OnboardingVerificationWidgetState
                       color: _emailVerified
                           ? theme.surfaceVariant
                           : theme.secondaryBackground,
-                      border: Border.all(color: theme.secondary, width: 2),
+                      border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

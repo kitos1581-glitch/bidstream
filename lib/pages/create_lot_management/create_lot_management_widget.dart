@@ -241,16 +241,16 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
       filled: true,
       fillColor: theme.secondaryBackground,
       enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: theme.secondary, width: 2)),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: theme.alternate)),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: theme.primary, width: 2)),
       errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: theme.error, width: 2)),
       focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: theme.error, width: 2)),
     );
   }
@@ -340,7 +340,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                       width: 96,
                       decoration: BoxDecoration(
                         color: theme.secondaryBackground,
-                        border: Border.all(color: theme.secondary, width: 2),
+                        border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -360,9 +360,10 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                       Container(
                         width: 96,
                         height: 96,
+                        clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
-                            border:
-                                Border.all(color: theme.secondary, width: 2)),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: theme.alternate)),
                         child: Image.memory(_photos[i].bytes, fit: BoxFit.cover),
                       ),
                       Positioned(
@@ -405,7 +406,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: theme.primaryContainer,
-              border: Border.all(color: theme.secondary, width: 2),
+              border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -434,7 +435,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                         'Opcional: lo que no se ve en las fotos (año, km, si funciona, fallas, qué incluye, papeles…)',
                     filled: true,
                     fillColor: theme.secondaryBackground,
-                    border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+                    border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
                   ),
                 ),
                 BigButton(
@@ -613,7 +614,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: selected ? theme.secondary : theme.secondaryBackground,
-            border: Border.all(color: theme.secondary, width: 2),
+            border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
           ),
           child: Column(children: [
             Icon(icon, color: selected ? Colors.white : theme.primaryText),

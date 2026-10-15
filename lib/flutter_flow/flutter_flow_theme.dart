@@ -181,59 +181,59 @@ class LightModeTheme extends FlutterFlowTheme {
   @Deprecated('Use tertiary instead')
   Color get tertiaryColor => tertiary;
 
-  late Color primary = const Color(0xFF2457FF);
-  late Color secondary = const Color(0xFF111111);
-  late Color tertiary = const Color(0xFFFF5A36);
-  late Color alternate = const Color(0xFF111111);
-  late Color primaryText = const Color(0xFF111111);
-  late Color secondaryText = const Color(0xFF4A4A4A);
-  late Color primaryBackground = const Color(0xFFF7F3EB);
+  late Color primary = const Color(0xFF3665F3);
+  late Color secondary = const Color(0xFF191919);
+  late Color tertiary = const Color(0xFFE53238);
+  late Color alternate = const Color(0xFFE5E5E5);
+  late Color primaryText = const Color(0xFF191919);
+  late Color secondaryText = const Color(0xFF6B6B6B);
+  late Color primaryBackground = const Color(0xFFFFFFFF);
   late Color secondaryBackground = const Color(0xFFFFFFFF);
   late Color accent1 = const Color(0x4C4B39EF);
   late Color accent2 = const Color(0x4D39D2C0);
-  late Color accent3 = const Color(0xFF8E8E8E);
+  late Color accent3 = const Color(0xFF9E9E9E);
   late Color accent4 = const Color(0xCCFFFFFF);
-  late Color success = const Color(0xFF2457FF);
-  late Color warning = const Color(0xFFFF5A36);
-  late Color error = const Color(0xFFFF0000);
-  late Color info = const Color(0xFF2457FF);
+  late Color success = const Color(0xFF0E8A00);
+  late Color warning = const Color(0xFFF5AF02);
+  late Color error = const Color(0xFFD32F2F);
+  late Color info = const Color(0xFF3665F3);
 
   late Color onPrimary = const Color(0xFFFFFFFF);
-  late Color primaryContainer = const Color(0x1A2457FF);
+  late Color primaryContainer = const Color(0xFFEAF0FF);
   late Color onPrimaryContainer = const Color(0xFF111111);
   late Color onSecondary = const Color(0xFFFFFFFF);
-  late Color secondaryContainer = const Color(0x1A111111);
+  late Color secondaryContainer = const Color(0xFFF2F2F2);
   late Color onSecondaryContainer = const Color(0xFF111111);
   late Color onAccent = const Color(0xFFFFFFFF);
-  late Color accentContainer = const Color(0x1AFF5A36);
+  late Color accentContainer = const Color(0x1AE53238);
   late Color onAccentContainer = const Color(0xFF111111);
   late Color onBackground = const Color(0xFF111111);
   late Color onSurface = const Color(0xFF111111);
-  late Color surfaceVariant = const Color(0xFFD7FF3F);
-  late Color onSurfaceVariant = const Color(0xFF4A4A4A);
+  late Color surfaceVariant = const Color(0xFFFFF1C7);
+  late Color onSurfaceVariant = const Color(0xFF6B6B6B);
   late Color onSuccess = const Color(0xFFFFFFFF);
   late Color onWarning = const Color(0xFFFFFFFF);
   late Color onError = const Color(0xFFFFFFFF);
   late Color onInfo = const Color(0xFFFFFFFF);
   late Color transparent = const Color(0x00000000);
   late Color fullContrast = const Color(0xFF000000);
-  late Color background50 = const Color(0x80F7F3EB);
+  late Color background50 = const Color(0x80FFFFFF);
   late Color onAccent40 = const Color(0x66FFFFFF);
   late Color onAccent70 = const Color(0xB3FFFFFF);
-  late Color success10 = const Color(0x1A2457FF);
-  late Color primary10 = const Color(0x1A2457FF);
-  late Color primary30 = const Color(0x4D2457FF);
-  late Color background60 = const Color(0x99F7F3EB);
-  late Color background40 = const Color(0x66F7F3EB);
-  late Color background20 = const Color(0x33F7F3EB);
+  late Color success10 = const Color(0x1A0E8A00);
+  late Color primary10 = const Color(0x1A3665F3);
+  late Color primary30 = const Color(0x4D3665F3);
+  late Color background60 = const Color(0x99FFFFFF);
+  late Color background40 = const Color(0x66FFFFFF);
+  late Color background20 = const Color(0x33FFFFFF);
   late Color onPrimary40 = const Color(0x66FFFFFF);
-  late Color primary5 = const Color(0x0D2457FF);
-  late Color primary20 = const Color(0x332457FF);
+  late Color primary5 = const Color(0x0D3665F3);
+  late Color primary20 = const Color(0x333665F3);
   late Color onPrimary70 = const Color(0xB3FFFFFF);
-  late Color background80 = const Color(0xCCF7F3EB);
-  late Color secondary20 = const Color(0x33111111);
+  late Color background80 = const Color(0xCCFFFFFF);
+  late Color secondary20 = const Color(0x33191919);
   late Color onPrimaryContainer70 = const Color(0xB3111111);
-  late Color error10 = const Color(0x1AFF0000);
+  late Color error10 = const Color(0x1AD32F2F);
 }
 
 abstract class Typography {
@@ -289,121 +289,121 @@ class ThemeTypography extends Typography {
 
   final FlutterFlowTheme theme;
 
-  String get displayLargeFamily => 'Playfair Display';
+  String get displayLargeFamily => 'Plus Jakarta Sans';
   bool get displayLargeIsCustom => false;
-  TextStyle get displayLarge => GoogleFonts.playfairDisplay(
+  TextStyle get displayLarge => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.bold,
         fontSize: 60.0,
         height: 1.05,
       );
-  String get displayMediumFamily => 'Playfair Display';
+  String get displayMediumFamily => 'Plus Jakarta Sans';
   bool get displayMediumIsCustom => false;
-  TextStyle get displayMedium => GoogleFonts.playfairDisplay(
+  TextStyle get displayMedium => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.bold,
         fontSize: 48.0,
         height: 1.1,
       );
-  String get displaySmallFamily => 'Playfair Display';
+  String get displaySmallFamily => 'Plus Jakarta Sans';
   bool get displaySmallIsCustom => false;
-  TextStyle get displaySmall => GoogleFonts.playfairDisplay(
+  TextStyle get displaySmall => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.bold,
         fontSize: 40.0,
         height: 1.1,
       );
-  String get headlineLargeFamily => 'Playfair Display';
+  String get headlineLargeFamily => 'Plus Jakarta Sans';
   bool get headlineLargeIsCustom => false;
-  TextStyle get headlineLarge => GoogleFonts.playfairDisplay(
+  TextStyle get headlineLarge => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.bold,
         fontSize: 34.0,
         height: 1.2,
       );
-  String get headlineMediumFamily => 'Space Grotesk';
+  String get headlineMediumFamily => 'Plus Jakarta Sans';
   bool get headlineMediumIsCustom => false;
-  TextStyle get headlineMedium => GoogleFonts.spaceGrotesk(
+  TextStyle get headlineMedium => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.w600,
         fontSize: 28.0,
         height: 1.2,
       );
-  String get headlineSmallFamily => 'Space Grotesk';
+  String get headlineSmallFamily => 'Plus Jakarta Sans';
   bool get headlineSmallIsCustom => false;
-  TextStyle get headlineSmall => GoogleFonts.spaceGrotesk(
+  TextStyle get headlineSmall => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.w600,
         fontSize: 24.0,
         height: 1.2,
       );
-  String get titleLargeFamily => 'Space Grotesk';
+  String get titleLargeFamily => 'Plus Jakarta Sans';
   bool get titleLargeIsCustom => false;
-  TextStyle get titleLarge => GoogleFonts.spaceGrotesk(
+  TextStyle get titleLarge => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.w600,
         fontSize: 22.0,
         height: 1.3,
       );
-  String get titleMediumFamily => 'Space Grotesk';
+  String get titleMediumFamily => 'Plus Jakarta Sans';
   bool get titleMediumIsCustom => false;
-  TextStyle get titleMedium => GoogleFonts.spaceGrotesk(
+  TextStyle get titleMedium => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.w600,
         fontSize: 17.0,
         height: 1.3,
       );
-  String get titleSmallFamily => 'Space Grotesk';
+  String get titleSmallFamily => 'Plus Jakarta Sans';
   bool get titleSmallIsCustom => false;
-  TextStyle get titleSmall => GoogleFonts.spaceGrotesk(
+  TextStyle get titleSmall => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.w600,
         fontSize: 14.0,
         height: 1.3,
       );
-  String get labelLargeFamily => 'JetBrains Mono';
+  String get labelLargeFamily => 'Plus Jakarta Sans';
   bool get labelLargeIsCustom => false;
-  TextStyle get labelLarge => GoogleFonts.jetBrainsMono(
+  TextStyle get labelLarge => GoogleFonts.plusJakartaSans(
         color: theme.secondaryText,
         fontWeight: FontWeight.w600,
         fontSize: 14.0,
         height: 1.2,
       );
-  String get labelMediumFamily => 'JetBrains Mono';
+  String get labelMediumFamily => 'Plus Jakarta Sans';
   bool get labelMediumIsCustom => false;
-  TextStyle get labelMedium => GoogleFonts.jetBrainsMono(
+  TextStyle get labelMedium => GoogleFonts.plusJakartaSans(
         color: theme.secondaryText,
         fontWeight: FontWeight.w600,
         fontSize: 12.0,
         height: 1.2,
       );
-  String get labelSmallFamily => 'JetBrains Mono';
+  String get labelSmallFamily => 'Plus Jakarta Sans';
   bool get labelSmallIsCustom => false;
-  TextStyle get labelSmall => GoogleFonts.jetBrainsMono(
+  TextStyle get labelSmall => GoogleFonts.plusJakartaSans(
         color: theme.secondaryText,
         fontWeight: FontWeight.w600,
         fontSize: 10.0,
         height: 1.2,
       );
-  String get bodyLargeFamily => 'Space Grotesk';
+  String get bodyLargeFamily => 'Plus Jakarta Sans';
   bool get bodyLargeIsCustom => false;
-  TextStyle get bodyLarge => GoogleFonts.spaceGrotesk(
+  TextStyle get bodyLarge => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.normal,
         fontSize: 17.0,
         height: 1.5,
       );
-  String get bodyMediumFamily => 'Space Grotesk';
+  String get bodyMediumFamily => 'Plus Jakarta Sans';
   bool get bodyMediumIsCustom => false;
-  TextStyle get bodyMedium => GoogleFonts.spaceGrotesk(
+  TextStyle get bodyMedium => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.normal,
         fontSize: 15.0,
         height: 1.5,
       );
-  String get bodySmallFamily => 'Space Grotesk';
+  String get bodySmallFamily => 'Plus Jakarta Sans';
   bool get bodySmallIsCustom => false;
-  TextStyle get bodySmall => GoogleFonts.spaceGrotesk(
+  TextStyle get bodySmall => GoogleFonts.plusJakartaSans(
         color: theme.primaryText,
         fontWeight: FontWeight.normal,
         fontSize: 13.0,

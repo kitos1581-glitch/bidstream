@@ -75,7 +75,7 @@ class _UserProfileActivityWidgetState extends State<UserProfileActivityWidget> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: theme.secondaryBackground,
-                  border: Border.all(color: theme.secondary, width: 2),
+                  border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(children: [
                   CircleAvatar(
@@ -279,7 +279,7 @@ class _BiddingTile extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: theme.secondaryBackground,
-              border: Border.all(color: theme.secondary, width: 1.5),
+              border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
             ),
             child: Row(children: [
               SizedBox(width: 56, height: 56, child: LotImage(item.lotImage)),
@@ -349,7 +349,7 @@ class _LotsList extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: theme.secondaryBackground,
-                  border: Border.all(color: theme.secondary, width: 1.5),
+                  border: Border.all(color: theme.alternate), borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(children: [
                   SizedBox(
