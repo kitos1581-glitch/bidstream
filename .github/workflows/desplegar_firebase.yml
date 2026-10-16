@@ -1,0 +1,140 @@
+# Despliega Subástalo Aquí a Firebase (proyecto bidstream-656cf) SIN instalar
+# nada en tu computadora.
+#
+# Es MANUAL a propósito: nunca corre solo con un push. Para ejecutarlo:
+#   GitHub → Actions → "Desplegar a Firebase" → Run workflow → elige el destino
+#   y escribe DESPLEGAR en la confirmación.
+#
+# Secretos (Settings → Secrets and variables → Actions):
+#   FIREBASE_SERVICE_ACCOUNT  JSON completo de la cuenta de servicio (DEPLOY.md §0-bis). Obligatorio.
+#   FUNCTIONS_ENV             contenido completo de functions/.env. Solo para "funciones" o "todo".
+#   APP_CHECK_SITE_KEY        site key pública de reCAPTCHA v3 (opcional).
+#   FCM_VAPID_KEY             clave pública Web Push (opcional).
+#
+# Los secretos nunca se imprimen: GitHub los oculta en los logs y los archivos
+# temporales se borran al terminar, aunque el despliegue falle.
+name: Desplegar a Firebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      destino:
+        description: "Qué desplegar"
+        type: choice
+        default: hosting
+        options:
+          - hosting
+          - reglas-e-indices
+          - funciones
+          - todo
+      confirmar:
+        description: "Escribe DESPLEGAR para confirmar"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desplegar-firebase
+  cancel-in-progress: false
+
+env:
+  PROYECTO: bidstream-656cf
+  DOMINIO: https://subastaloaqui.com
+
+jobs:
+  desplegar:
+    name: Desplegar (${{ inputs.destino }})
+    runs-on: ubuntu-24.04
+    environment: produccion
+    steps:
+      - name: Confirmación
+        run: |
+          if [ "${{ inputs.confirmar }}" != "DESPLEGAR" ]; then
+            echo "::error::No se confirmó. Escribe DESPLEGAR (en mayúsculas) para desplegar."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Instalar Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Credenciales (cuenta de servicio)
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::Falta el secreto FIREBASE_SERVICE_ACCOUNT (ver DEPLOY.md §0-bis)."
+            exit 1
+          fi
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      # ---------- Reglas e índices ----------
+      - name: Índices de Firestore
+        if: inputs.destino == 'reglas-e-indices' || inputs.destino == 'todo'
+        working-directory: firebase
+        run: firebase deploy --only firestore:indexes --project "$PROYECTO" --non-interactive
+
+      - name: Reglas de Firestore y Storage
+        if: inputs.destino == 'reglas-e-indices' || inputs.destino == 'todo'
+        working-directory: firebase
+        run: firebase deploy --only firestore:rules,storage --project "$PROYECTO" --non-interactive
+
+      # ---------- Funciones (requiere plan Blaze) ----------
+      - name: Preparar funciones (.env desde secreto)
+        if: inputs.destino == 'funciones' || inputs.destino == 'todo'
+        working-directory: firebase/functions
+        env:
+          FENV: ${{ secrets.FUNCTIONS_ENV }}
+        run: |
+          if [ -z "$FENV" ]; then
+            echo "::error::Falta el secreto FUNCTIONS_ENV (contenido de functions/.env; plantilla en .env.example)."
+            exit 1
+          fi
+          printf '%s\n' "$FENV" > .env
+          npm ci
+          npm test
+
+      - name: Desplegar funciones
+        if: inputs.destino == 'funciones' || inputs.destino == 'todo'
+        working-directory: firebase
+        # Sin --force: si el despliegue quisiera BORRAR funciones que no están en
+        # el código, se detiene y pide hacerlo a mano (nada se borra en silencio).
+        run: firebase deploy --only functions --project "$PROYECTO" --non-interactive
+
+      # ---------- Hosting (la web) ----------
+      - uses: subosito/flutter-action@v2
+        if: inputs.destino == 'hosting' || inputs.destino == 'todo'
+        with:
+          channel: stable
+          cache: true
+
+      - name: Compilar web para producción
+        if: inputs.destino == 'hosting' || inputs.destino == 'todo'
+        env:
+          APP_CHECK_SITE_KEY: ${{ secrets.APP_CHECK_SITE_KEY }}
+          FCM_VAPID_KEY: ${{ secrets.FCM_VAPID_KEY }}
+        run: |
+          flutter pub get
+          flutter build web --release \
+            --dart-define=SHARE_BASE_URL="$DOMINIO" \
+            --dart-define=WEB_APP_URL="$DOMINIO" \
+            --dart-define=APP_CHECK_SITE_KEY="$APP_CHECK_SITE_KEY" \
+            --dart-define=FCM_VAPID_KEY="$FCM_VAPID_KEY"
+          # Nunca DEMO_LOTS en producción.
+
+      - name: Desplegar hosting
+        if: inputs.destino == 'hosting' || inputs.destino == 'todo'
+        working-directory: firebase
+        run: firebase deploy --only hosting --project "$PROYECTO" --non-interactive -m "GitHub ${GITHUB_SHA::7}"
+
+      - name: Limpiar credenciales
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json" firebase/functions/.env

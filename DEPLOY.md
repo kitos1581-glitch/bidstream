@@ -47,6 +47,65 @@ Si `npm test` falla, **no despliegues**.
 
 ---
 
+## 0-bis. Desplegar desde GitHub (sin instalar nada) — RECOMENDADO
+
+El workflow `.github/workflows/desplegar_firebase.yml` hace todo el despliegue
+en los servidores de GitHub, así que no necesitas Flutter ni Node en tu
+computadora. Es **manual**: solo corre cuando tú lo ejecutas y escribes
+`DESPLEGAR` para confirmar.
+
+**Configuración inicial (se hace una sola vez) — LISTO PARA EJECUTAR HUMANO**
+
+1. **Crea la cuenta de servicio.**
+   1. Entra a Google Cloud Console → IAM y administración → **Cuentas de
+      servicio** (proyecto `bidstream-656cf`) → **Crear cuenta de servicio**.
+   2. Ponle el nombre `github-deploy`.
+   3. Asígnale los roles para desplegar **hosting**:
+      - **Firebase Hosting Admin**;
+      - **API Keys Viewer**;
+      - **Cloud Run Viewer**, porque el *rewrite* `/l/**` apunta a una función.
+   4. Para desplegar **reglas, índices y funciones** hacen falta más roles.
+      Se agregan **cuando se active Blaze**, y la lista exacta se confirma con
+      el primer despliegue (**NO VERIFICADO** todavía):
+      - Firebase Rules Admin;
+      - Cloud Datastore Index Admin;
+      - Cloud Functions Admin;
+      - Service Account User;
+      - Cloud Scheduler Admin;
+      - Artifact Registry Administrator.
+2. **Descarga la llave.** En la cuenta `github-deploy`, ve a **Claves** →
+   **Agregar clave** → **JSON**. Se descarga un archivo `.json`.
+3. **Guarda la llave en GitHub.**
+   1. En el repositorio, ve a **Settings** → **Secrets and variables** →
+      **Actions** → **New repository secret**.
+   2. Nombre: `FIREBASE_SERVICE_ACCOUNT`. Valor: pega **todo** el contenido
+      del `.json`.
+   3. Después **borra el archivo `.json` de tu computadora**. No lo mandes
+      por WhatsApp ni por correo.
+4. **Agrega los secretos opcionales**, en el mismo lugar:
+   - `FUNCTIONS_ENV`: el contenido completo del `.env` de funciones (§c);
+     solo hace falta para desplegar funciones;
+   - `APP_CHECK_SITE_KEY` y `FCM_VAPID_KEY`.
+5. **(Recomendado) Protege el ambiente.** Ve a **Settings** →
+   **Environments** → `produccion` → **Required reviewers** y ponte a ti.
+   Así, cada despliegue espera tu aprobación aunque alguien más lo lance.
+
+**Para desplegar**
+
+1. Ve a **Actions** → **Desplegar a Firebase** → **Run workflow**.
+2. En `destino`, elige:
+   - `hosting`: solo la web;
+   - `reglas-e-indices`;
+   - `funciones`: requiere Blaze y `FUNCTIONS_ENV`;
+   - `todo`: despliega en el orden índices → reglas → storage → funciones →
+     hosting.
+3. En `confirmar`, escribe `DESPLEGAR`.
+
+> Mientras **no** se desplieguen reglas y funciones, la web en
+> `subastaloaqui.com` se verá pero **no podrá pujar ni cobrar**. Conviene
+> mantenerla sin anunciar (`noindex` sigue activo) hasta completar el resto
+> de esta guía.
+
 ## a. Plan Blaze y límites de gasto — LISTO PARA EJECUTAR HUMANO
 
 Cloud Functions, las tareas programadas y Storage exigen el plan Blaze (pago
