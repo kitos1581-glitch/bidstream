@@ -129,6 +129,8 @@ jobs:
             --dart-define=APP_CHECK_SITE_KEY="$APP_CHECK_SITE_KEY" \
             --dart-define=FCM_VAPID_KEY="$FCM_VAPID_KEY"
           # Nunca DEMO_LOTS en producción.
+          # Firebase CLI solo publica carpetas DENTRO de firebase/ (firebase.json → "public": "web_build").
+          rm -rf firebase/web_build && cp -r build/web firebase/web_build
 
       - name: Desplegar hosting
         if: inputs.destino == 'hosting' || inputs.destino == 'todo'

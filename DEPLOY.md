@@ -223,6 +223,7 @@ flutter build web --release \
   --dart-define=SHARE_BASE_URL=https://subastaloaqui.com \
   --dart-define=WEB_APP_URL=https://subastaloaqui.com
 # NUNCA uses --dart-define=DEMO_LOTS=true en producción: es solo para GitHub Pages.
+rm -rf firebase/web_build && cp -r build/web firebase/web_build   # Firebase solo publica carpetas dentro de firebase/
 cd firebase && firebase deploy --only hosting
 ```
 

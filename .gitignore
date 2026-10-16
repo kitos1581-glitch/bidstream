@@ -31,3 +31,6 @@ android/key.properties
 *.jks
 *.keystore
 *.p8
+
+# Copia de build/web para Firebase Hosting (se genera al desplegar)
+firebase/web_build/
