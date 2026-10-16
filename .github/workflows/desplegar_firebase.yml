@@ -80,12 +80,12 @@ jobs:
       - name: Índices de Firestore
         if: inputs.destino == 'reglas-e-indices' || inputs.destino == 'todo'
         working-directory: firebase
-        run: firebase deploy --only firestore:indexes --project "$PROYECTO" --non-interactive
+        run: ../.github/scripts/run_and_report.sh "Índices" "Error|error|denied|Permission|permission|403|401|404|not found|HTTP|requires|Failed|failed" firebase deploy --only firestore:indexes --project "$PROYECTO" --non-interactive
 
       - name: Reglas de Firestore y Storage
         if: inputs.destino == 'reglas-e-indices' || inputs.destino == 'todo'
         working-directory: firebase
-        run: firebase deploy --only firestore:rules,storage --project "$PROYECTO" --non-interactive
+        run: ../.github/scripts/run_and_report.sh "Reglas" "Error|error|denied|Permission|permission|403|401|404|not found|HTTP|requires|Failed|failed" firebase deploy --only firestore:rules,storage --project "$PROYECTO" --non-interactive
 
       # ---------- Funciones (requiere plan Blaze) ----------
       - name: Preparar funciones (.env desde secreto)
@@ -107,7 +107,7 @@ jobs:
         working-directory: firebase
         # Sin --force: si el despliegue quisiera BORRAR funciones que no están en
         # el código, se detiene y pide hacerlo a mano (nada se borra en silencio).
-        run: firebase deploy --only functions --project "$PROYECTO" --non-interactive
+        run: ../.github/scripts/run_and_report.sh "Funciones" "Error|error|denied|Permission|permission|403|401|404|not found|HTTP|requires|Failed|failed" firebase deploy --only functions --project "$PROYECTO" --non-interactive
 
       # ---------- Hosting (la web) ----------
       - uses: subosito/flutter-action@v2
@@ -133,7 +133,7 @@ jobs:
       - name: Desplegar hosting
         if: inputs.destino == 'hosting' || inputs.destino == 'todo'
         working-directory: firebase
-        run: firebase deploy --only hosting --project "$PROYECTO" --non-interactive -m "GitHub ${GITHUB_SHA::7}"
+        run: ../.github/scripts/run_and_report.sh "Hosting" "Error|error|denied|Permission|permission|403|401|404|not found|HTTP|requires|Failed|failed" firebase deploy --only hosting --project "$PROYECTO" --non-interactive -m "GitHub ${GITHUB_SHA::7}"
 
       - name: Limpiar credenciales
         if: always()
