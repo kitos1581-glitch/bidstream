@@ -262,6 +262,7 @@ exports.adminRecalculatePayout = functions
           finalPrice: p.final_price,
           seller: sellerSnap.exists ? sellerSnap.data() : {},
           closedMs: lot.closed_time && lot.closed_time.toMillis ? lot.closed_time.toMillis() : Date.now(),
+          monthSaleNumber: Number(p.month_sale_number) || 1,
           computeStandard: (x) => computeCommission(x),
         }));
       } catch (err) {

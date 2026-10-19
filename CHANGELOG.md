@@ -8,6 +8,21 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Cambiado: comisión de lanzamiento y anti-sniping (2026-10-19)
+- **Comisión de lanzamiento:** 0 % para todos los vendedores hasta el
+  31 de marzo de 2027 (`LAUNCH_FREE_UNTIL`), hasta 30 ventas por vendedor al
+  mes (`LAUNCH_FREE_MAX_MONTHLY_SALES`). Desde la venta 31 del mes, comisión
+  normal. Tiendas Oficiales: 0 % sin límite (cuota fija). El Buen Fin
+  (`COMMISSION_PROMO`) va antes y no tiene tope.
+- El servidor cuenta las ventas del mes por vendedor (`users.monthly_sales`,
+  mes de cierre en hora del centro de México) dentro de la transacción del
+  pago; las reglas impiden que el cliente lo modifique. Aviso al vendedor al
+  llegar al tope.
+- **Anti-sniping de 2 minutos** (antes 30 s).
+- Centro de ayuda: comisión de lanzamiento, precio fijo y Comprar ahora.
+- ROADMAP: R-16 preguntas públicas, R-17 detección de pujas falsas, R-18
+  sugerencia de precio; R-42 (cuota de Tienda Oficial) sube a P1.
+
 ### Agregado: precio fijo y "Comprar ahora" (R-10, 2026-10-18)
 - Al publicar, el vendedor elige **Subasta** o **Precio fijo** (1 pieza,
   7–60 días). En subastas por tiempo puede agregar un precio "Comprar ahora".

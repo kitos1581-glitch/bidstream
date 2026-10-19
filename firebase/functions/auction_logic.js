@@ -12,8 +12,9 @@
  */
 
 // Anti-sniping: si quedan 30 s o menos, el cierre pasa a "ahora + 30 s".
-const ANTI_SNIPE_WINDOW_MS = 30 * 1000;
-const ANTI_SNIPE_EXTENSION_MS = 30 * 1000;
+// Conexiones de celular lentas en la región: 2 minutos para responder.
+const ANTI_SNIPE_WINDOW_MS = 2 * 60 * 1000;
+const ANTI_SNIPE_EXTENSION_MS = 2 * 60 * 1000;
 
 // Tope absoluto contra errores de dedo (en pesos). Con puja proxy un máximo
 // muy por encima del precio actual es legítimo, por eso ya no se usa un

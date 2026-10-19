@@ -114,8 +114,8 @@ admin_log/{id}              bitácora de administradores
 - **Puja proxy:** cada postor ofrece un máximo secreto, y el precio visible
   sube solo lo necesario. En empate gana quien ofertó primero. El vendedor no
   puede pujar en sus propios lotes.
-- **Anti-sniping:** una oferta válida en los últimos 30 s mueve el cierre a
-  "ahora + 30 s".
+- **Anti-sniping:** una oferta válida en los últimos 2 min mueve el cierre a
+  "ahora + 2 min" (conexiones de celular lentas en la región).
 - **Precio de reserva** (solo en subastas por tiempo):
   - Es secreto: vive en `private/reserve`.
   - Si el máximo del líder alcanza la reserva, el precio salta a la reserva.
@@ -149,7 +149,8 @@ este orden:
 |---|---|---|---|
 | 1 | **Tienda Oficial** con membresía vigente | 0 % | Panel → Usuarios → "Hacer Tienda Oficial". La membresía hoy se cobra fuera de la app (R-42). |
 | 2 | **Campaña** por fechas (p. ej. Buen Fin) | 0 % | `COMMISSION_PROMO=2026-11-13T00:00:00-06:00/2026-11-17T23:59:59-06:00` |
-| 3 | **Normal**, por tramos marginales (como el ISR) | 10 % / 8 % / 6 % | `COMMISSION_TIERS=10000:0.10,100000:0.08,inf:0.06`, `COMMISSION_MIN=50` |
+| 3 | **Lanzamiento**: todos los vendedores, hasta N ventas al mes | 0 % (de la venta N+1 del mes en adelante, normal) | `LAUNCH_FREE_UNTIL=2027-03-31T23:59:59-06:00`, `LAUNCH_FREE_MAX_MONTHLY_SALES=30`. El conteo es por mes de cierre (hora del centro de México); lo lleva el servidor en `users.monthly_sales` y el cliente no lo puede tocar. |
+| 4 | **Normal**, por tramos marginales (como el ISR) | 10 % / 8 % / 6 % | `COMMISSION_TIERS=10000:0.10,100000:0.08,inf:0.06`, `COMMISSION_MIN=50` |
 
 **Costo del procesador con 0 % de comisión.** El vendedor paga solo el costo
 **real** del procesador:

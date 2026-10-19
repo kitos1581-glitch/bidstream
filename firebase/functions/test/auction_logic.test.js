@@ -185,26 +185,20 @@ test("lotes antiguos sin estado privado se reconstruyen", () => {
 });
 
 // ------------------------------------------------------------------
-// Anti-sniping de 30 segundos
+// Anti-sniping de 2 minutos
 // ------------------------------------------------------------------
 
-test("anti-sniping: con 30 s o menos, cierre = ahora + 30 s", () => {
-  assert.deepStrictEqual(applyAntiSniping(NOW + 30_000, NOW), {
-    newEndTimeMs: NOW + 30_000,
-    extended: true,
-  });
-  assert.deepStrictEqual(applyAntiSniping(NOW + 5_000, NOW), {
-    newEndTimeMs: NOW + 30_000,
-    extended: true,
-  });
-  assert.deepStrictEqual(applyAntiSniping(NOW + 1, NOW), {
-    newEndTimeMs: NOW + 30_000,
-    extended: true,
-  });
+test("anti-sniping: con 2 min o menos, cierre = ahora + 2 min", () => {
+  for (const left of [120_000, 30_000, 5_000, 1]) {
+    assert.deepStrictEqual(applyAntiSniping(NOW + left, NOW), {
+      newEndTimeMs: NOW + 120_000,
+      extended: true,
+    });
+  }
 });
 
-test("anti-sniping: con más de 30 s o ya vencido, no cambia", () => {
-  assert.strictEqual(applyAntiSniping(NOW + 30_001, NOW).extended, false);
+test("anti-sniping: con más de 2 min o ya vencido, no cambia", () => {
+  assert.strictEqual(applyAntiSniping(NOW + 120_001, NOW).extended, false);
   assert.strictEqual(applyAntiSniping(NOW, NOW).extended, false);
   assert.strictEqual(applyAntiSniping(NOW - 1, NOW).extended, false);
 });
@@ -214,14 +208,14 @@ test("una oferta válida a 10 s del cierre extiende la subasta", () => {
     end_time_ms: NOW + 60_000,
   });
   assert.strictEqual(results[1].extended, true);
-  assert.strictEqual(lot.end_time_ms, NOW + 80_000);
+  assert.strictEqual(lot.end_time_ms, NOW + 50_000 + 120_000);
 });
 
 test("una oferta rechazada no extiende la subasta", () => {
-  const { lot } = simulate([["ana", 5000, NOW], ["beto", 500, NOW + 50_000]], {
-    end_time_ms: NOW + 60_000,
+  const { lot } = simulate([["ana", 5000, NOW], ["beto", 500, NOW + 290_000]], {
+    end_time_ms: NOW + 300_000,
   });
-  assert.strictEqual(lot.end_time_ms, NOW + 60_000);
+  assert.strictEqual(lot.end_time_ms, NOW + 300_000);
 });
 
 // ------------------------------------------------------------------

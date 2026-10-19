@@ -296,3 +296,10 @@ test("R-10 precio fijo y Comprar ahora: valores válidos al publicar; no se fals
   await assertSucceeds(updateDoc(doc(db, "lots/L1"), { buy_now_price: 4000 }));
   await assertFails(updateDoc(doc(db, "lots/L2"), { buy_now_price: 9000 }));
 });
+
+test("comisión de lanzamiento: nadie puede tocar su conteo de ventas del mes", async () => {
+  const db = as("beto");
+  await assertFails(updateDoc(doc(db, "users/beto"), { monthly_sales: { "2026-11": 0 } }));
+  await assertFails(setDoc(doc(as("nuevo"), "users/nuevo"), { full_name: "Nuevo", monthly_sales: {} }));
+  await assertSucceeds(setDoc(doc(as("nuevo2"), "users/nuevo2"), { full_name: "Nuevo" }));
+});

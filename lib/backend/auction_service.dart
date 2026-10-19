@@ -102,7 +102,7 @@ class PlaceBidResult {
   /// Tu máximo secreto registrado.
   final double? yourMax;
 
-  /// ¿Se extendió el cierre por anti-sniping (30 s)?
+  /// ¿Se extendió el cierre por anti-sniping (2 min)?
   final bool extended;
   final String? message;
   final double? minimum;
@@ -321,7 +321,7 @@ class AuctionService {
   // ------------------------------------------------------------------
 
   /// Envía tu MÁXIMO secreto. El servidor puja por ti automáticamente
-  /// hasta ese límite (puja proxy) y aplica el anti-sniping de 30 s.
+  /// hasta ese límite (puja proxy) y aplica el anti-sniping de 2 min.
   /// Comprar ahora (precio fijo o subasta sin pujas). El servidor cierra la
   /// venta en una transacción; si alguien compró antes, responde el error.
   Future<BuyNowResult> buyNow(String lotId) async {

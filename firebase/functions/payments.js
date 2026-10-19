@@ -32,7 +32,7 @@ const crypto = require("crypto");
 const { MercadoPagoConfig, Preference, Payment, PaymentRefund } = require("mercadopago");
 const { openpayConfigured } = require("./openpay");
 const { recordSale } = require("./reputation");
-const { saleCommission, readFeePayer, mpProcessingFee, PromoConfigError } = require("./commission_policy");
+const { saleCommission, readFeePayer, mpProcessingFee, PromoConfigError, monthKey } = require("./commission_policy");
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -328,14 +328,23 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   let commission;
   let policy = "standard";
   let feePayer = "seller";
+  let launchMax = null;
+  let launchLimitReached = false;
   // Envío regional cobrado al comprador: es del vendedor (él envía), sin comisión.
   const shipping = round2(Number(lot.shipping_charge) || 0);
+  // Ventas del vendedor por mes (mes de CIERRE, hora del centro de México).
+  // Lo lleva SOLO el servidor (las reglas impiden que el cliente lo toque) y
+  // se lee dentro de la misma transacción: dos ventas a la vez no se cuentan igual.
+  const closedMs = lot.closed_time && lot.closed_time.toMillis ? lot.closed_time.toMillis() : Date.now();
+  const mkey = monthKey(closedMs);
+  const monthSaleNumber = (Number(seller && seller.monthly_sales && seller.monthly_sales[mkey]) || 0) + 1;
+  writer.set(db.collection("users").doc(lot.seller_uid), { monthly_sales: { [mkey]: monthSaleNumber } }, { merge: true });
   try {
-    const closedMs = lot.closed_time && lot.closed_time.toMillis ? lot.closed_time.toMillis() : Date.now();
-    ({ commission, policy } = saleCommission({
+    ({ commission, policy, launchMax = null, launchLimitReached = false } = saleCommission({
       finalPrice,
       seller,
       closedMs,
+      monthSaleNumber,
       computeStandard: (p) => computeCommission(p),
     }));
     const fp = readFeePayer();
@@ -351,6 +360,7 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
       uid: lot.seller_uid,
       lot_id: lotId,
       final_price: finalPrice,
+      month_sale_number: monthSaleNumber,
       amount: null,
       commission: null,
       currency: "MXN",
@@ -397,7 +407,8 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
     lot_id: lotId,
     amount: sellerAmount,
     commission,
-    commission_policy: policy, // store | promo | standard
+    commission_policy: policy, // store | promo | launch | standard
+    month_sale_number: monthSaleNumber,
     shipping,
     processing_fee: knownFee, // lo que cobró el procesador (si se conoce)
     processing_fee_deducted: feeDeducted,
@@ -419,10 +430,20 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
           ? `sin comisión por tu membresía de Tienda Oficial${feeDeducted > 0 ? `; solo el costo del cobro, ${money(feeDeducted)}` : ""}`
           : policy === "promo"
             ? `sin comisión por la campaña${feeDeducted > 0 ? `; solo el costo del cobro, ${money(feeDeducted)}` : ""}`
-            : `comisión ${money(commission)}`
+            : policy === "launch"
+              ? `sin comisión por el lanzamiento, venta ${monthSaleNumber} de ${launchMax} este mes${
+                  feeDeducted > 0 ? `; solo el costo del cobro, ${money(feeDeducted)}` : ""
+                }`
+              : `comisión ${money(commission)}${
+                  launchLimitReached ? `; ya pasaste las ${launchMax} ventas sin comisión de este mes` : ""
+                }`
       }${shipping > 0 ? `, incluye ${money(shipping)} de envío` : ""}) cuando el comprador confirme que recibió${
         RELEASE.days ? ` o, si no hay reclamo, en ${RELEASE.days} días` : ""
-      }. Coordina la entrega con el comprador: ${contactString(winner)}.`,
+      }. Coordina la entrega con el comprador: ${contactString(winner)}.${
+        policy === "launch" && monthSaleNumber === launchMax
+          ? ` Llegaste a ${launchMax} ventas sin comisión este mes: desde la siguiente aplica la comisión normal (o hazte Tienda Oficial con cuota fija y 0 %).`
+          : ""
+      }`,
       lotId
     )
   );

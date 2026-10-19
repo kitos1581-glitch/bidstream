@@ -89,7 +89,7 @@ Cuando algo falle, guarda una captura y el `id` del lote o del documento.
 | 5.3 | **C** puja **$1,100**. | El sistema puja por B: el precio queda en **$1,150** (1,100 + 50), y B sigue líder. C ve que lo superaron. B **no** recibe aviso. | — |
 | 5.4 | **C** puja **$1,600**. | Como 1,600 ≥ reserva, el precio sube a **$1,500** (directo a la reserva, no a 1,250). "Reserva alcanzada". B recibe "Te superaron" (aviso + push). | — |
 | 5.5 | **B** sube a **$1,700**. | El precio queda en $1,650 y B es líder. | — |
-| 5.6 | **Anti-sniping**: en Consola → Firestore → `lots/{id}`, pon `end_time` = ahora + 2 min (sandbox, §0.5). Cuando falten **≤ 30 s**, **C** puja $1,800. | `end_time` pasa a **ahora + 30 s** y la cuenta regresiva se reinicia. El historial muestra horas crecientes. | — |
+| 5.6 | **Anti-sniping**: en Consola → Firestore → `lots/{id}`, pon `end_time` = ahora + 4 min (sandbox, §0.5). Cuando falten **≤ 2 min**, **C** puja $1,800. | `end_time` pasa a **ahora + 2 min** y la cuenta regresiva se reinicia. El historial muestra horas crecientes. | — |
 | 5.7 | **Doble clic / dos pestañas**: B puja el mismo monto dos veces seguidas. | Solo se registra una oferta; la otra recibe un error claro. | — |
 | 5.8 | **Puja alta sin INE**: con C sin INE, puja **$20,001** en otro lote. | Rechazada: exige verificación (`VERIFIED_BID_THRESHOLD`). | — |
 

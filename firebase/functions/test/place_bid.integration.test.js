@@ -132,18 +132,18 @@ test("rechaza ofertas menores a puja actual + incremento", async () => {
   });
 });
 
-test("anti-sniping: oferta a 10 s del cierre lo mueve a ahora + 30 s", async () => {
+test("anti-sniping: oferta a 10 s del cierre lo mueve a ahora + 2 min", async () => {
   seed({ endInMs: 10_000 });
   const before = Date.now();
   const r = await bid("ana", 1500);
   const after = Date.now();
   assert.strictEqual(r.extended, true);
   const end = get("lots/L1").end_time.toMillis();
-  assert.ok(end >= before + 30_000 && end <= after + 30_000, `end=${end - before}`);
+  assert.ok(end >= before + 120_000 && end <= after + 120_000, `end=${end - before}`);
 });
 
-test("anti-sniping: con más de 30 s no se toca el cierre", async () => {
-  seed({ endInMs: 120_000 });
+test("anti-sniping: con más de 2 min no se toca el cierre", async () => {
+  seed({ endInMs: 300_000 });
   const endBefore = get("lots/L1").end_time.toMillis();
   const r = await bid("ana", 1500);
   assert.strictEqual(r.extended, false);

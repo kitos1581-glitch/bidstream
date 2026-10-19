@@ -53,7 +53,7 @@ class _BidConfirmationModalWidgetState
           content: Text(
             '${result.message ?? 'Tu máximo: ${formatMoney(result.yourMax ?? amount)}.'}'
             '${result.leading ? '\n\nEl sistema pujará por ti automáticamente hasta tu máximo. Te avisaremos si alguien lo supera.' : ''}'
-            '${result.extended ? '\n\nLa subasta se extendió 30 segundos por puja de último momento.' : ''}',
+            '${result.extended ? '\n\nLa subasta se extendió 2 minutos por puja de último momento.' : ''}',
           ),
           actions: [
             TextButton(
