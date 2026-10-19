@@ -47,6 +47,21 @@ class LotsRecord extends FirestoreRecord {
   bool get reserveMet => snapshotData['reserve_met'] == true;
   bool get endedUnsoldReserve => status == 'ended_unsold_reserve';
 
+  // Tipo de venta (R-10): 'auction' (subasta) o 'fixed' (precio fijo).
+  String get saleType => asString(snapshotData['sale_type'], 'auction');
+  bool get isFixedPrice => saleType == 'fixed';
+  /// Precio de Comprar ahora (en precio fijo es el precio de venta).
+  double? get buyNowPrice => snapshotData['buy_now_price'] == null
+      ? null
+      : asDouble(snapshotData['buy_now_price']);
+  bool get soldByBuyNow => asString(snapshotData['sold_via']) == 'buy_now';
+
+  /// ¿Se puede comprar al instante? (la decisión final la toma el servidor)
+  bool canBuyNow([DateTime? now]) =>
+      (buyNowPrice ?? 0) > 0 &&
+      isOpenForBids(now) &&
+      (isFixedPrice || (!isLiveFormat && bidCount == 0));
+
   /// Segunda oportunidad: {uid, name, amount, status, expires_at}.
   Map<String, dynamic> get secondChance => snapshotData['second_chance'] is Map
       ? Map<String, dynamic>.from(snapshotData['second_chance'] as Map)

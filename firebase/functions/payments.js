@@ -604,7 +604,7 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
   try {
     const pref = await createPreference({
       email: winner.email,
-      title: `Pago de subasta ganada: ${lot.title}`,
+      title: `${lot.sold_via === "buy_now" ? "Pago de compra" : "Pago de subasta ganada"}: ${lot.title}`,
       amount: plan.amountDue,
       externalReference: `win:${lotRef.id}:${winnerUid}`,
       expiresAt: dueMs,

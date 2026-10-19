@@ -347,9 +347,9 @@ function legacyState(lot) {
  * (la decisión que cuenta), por si el perfil cambió en medio.
  * Devuelve null si puede, o { code, message, details }.
  */
-function userBidEligibilityError(user, maxAmount, verifiedThreshold) {
+function userBidEligibilityError(user, maxAmount, verifiedThreshold, verbo = "pujar") {
   if (!user) {
-    return { code: "failed-precondition", message: "Completa tu perfil antes de pujar." };
+    return { code: "failed-precondition", message: `Completa tu perfil antes de ${verbo}.` };
   }
   if (user.banned === true) {
     return { code: "permission-denied", message: "Tu cuenta está suspendida." };
@@ -357,23 +357,23 @@ function userBidEligibilityError(user, maxAmount, verifiedThreshold) {
   if (!String(user.full_name || "").trim() || !String(user.phone || "").trim()) {
     return {
       code: "failed-precondition",
-      message: "Completa tu perfil (nombre y teléfono) antes de pujar.",
+      message: `Completa tu perfil (nombre y teléfono) antes de ${verbo}.`,
     };
   }
   if (user.accepted_terms !== true) {
-    return { code: "failed-precondition", message: "Acepta los términos antes de pujar." };
+    return { code: "failed-precondition", message: `Acepta los términos antes de ${verbo}.` };
   }
   if (Number(maxAmount) > verifiedThreshold && user.verified !== true) {
     return {
       code: "failed-precondition",
-      message: `Para pujas mayores a $${verifiedThreshold.toLocaleString("es-MX")} necesitas verificar tu identidad (INE).`,
+      message: `Para ${verbo === "pujar" ? "pujas" : "compras"} mayores a $${verifiedThreshold.toLocaleString("es-MX")} necesitas verificar tu identidad (INE).`,
       details: { code: "IDENTITY_REQUIRED" },
     };
   }
   if (!user.deposit || user.deposit.status !== "held") {
     return {
       code: "failed-precondition",
-      message: "Debes dejar un depósito de garantía antes de pujar. Es reembolsable.",
+      message: `Debes dejar un depósito de garantía antes de ${verbo}. Es reembolsable.`,
       details: { code: "DEPOSIT_REQUIRED" },
     };
   }
@@ -389,7 +389,60 @@ function publicName(fullName) {
   return `${parts[0]} ${parts[1].charAt(0).toUpperCase()}.`;
 }
 
+
+// ---------------------------------------------------------------------
+// Comprar ahora / precio fijo (R-10).
+//
+//  sale_type "fixed"  → venta a precio fijo (sin pujas): buy_now_price es
+//                       el precio; el primero que lo compra se lo lleva.
+//  sale_type "auction" (o ausente) con buy_now_price → subasta POR TIEMPO
+//                       que se puede comprar al instante MIENTRAS NO HAYA
+//                       PUJAS (al primer puja la opción desaparece, como eBay).
+//
+// Devuelve { price } si se puede comprar, o { code, message } si no.
+// ---------------------------------------------------------------------
+function saleType(lot) {
+  return lot && lot.sale_type === "fixed" ? "fixed" : "auction";
+}
+
+function buyNowError(lot, uid, nowMs) {
+  if (!lot) return { code: "not-found", message: "El artículo ya no existe.", reason: "NOT_FOUND" };
+  if (lot.seller_uid === uid) {
+    return { code: "failed-precondition", message: "Es tu publicación: no puedes comprarla.", reason: "OWN_LOT" };
+  }
+  if (lot.status !== "active") {
+    return { code: "failed-precondition", message: "Este artículo ya se vendió o terminó.", reason: "NOT_ACTIVE" };
+  }
+  const start = lot.start_time_ms;
+  const end = lot.end_time_ms;
+  if (start && nowMs < start) {
+    return { code: "failed-precondition", message: "Esta publicación todavía no empieza.", reason: "NOT_STARTED" };
+  }
+  if (end && nowMs >= end) {
+    return { code: "failed-precondition", message: "Esta publicación ya terminó.", reason: "ENDED" };
+  }
+  const price = roundMoney(Number(lot.buy_now_price));
+  if (!(price > 0) || price > MAX_BID_PESOS) {
+    return { code: "failed-precondition", message: "Este artículo no tiene opción de Comprar ahora.", reason: "NO_BUY_NOW" };
+  }
+  if (saleType(lot) === "auction") {
+    if (lot.format === "live") {
+      return { code: "failed-precondition", message: "Las subastas en vivo no tienen Comprar ahora.", reason: "LIVE" };
+    }
+    if ((lot.bid_count || 0) > 0) {
+      return {
+        code: "failed-precondition",
+        message: "Ya hay pujas: Comprar ahora ya no está disponible. Puedes pujar.",
+        reason: "HAS_BIDS",
+      };
+    }
+  }
+  return { price };
+}
+
 module.exports = {
+  saleType,
+  buyNowError,
   applyReserve,
   userBidEligibilityError,
   resolveProxyBid,

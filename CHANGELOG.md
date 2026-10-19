@@ -6,6 +6,22 @@ Versionado: [SemVer](https://semver.org/lang/es/).
 Las fechas corresponden a los commits. La evidencia de cada versión está en
 `EVIDENCIA_PRUEBAS.md`.
 
+## [Sin publicar]
+
+### Agregado: precio fijo y "Comprar ahora" (R-10, 2026-10-18)
+- Al publicar, el vendedor elige **Subasta** o **Precio fijo** (1 pieza,
+  7–60 días). En subastas por tiempo puede agregar un precio "Comprar ahora".
+- Nueva función callable `buyNow` (33 funciones en total): transacción que
+  valida el lote y la elegibilidad del comprador, cierra el lote con
+  `sold_via: "buy_now"` y reutiliza el cobro del ganador (depósito aplicado,
+  24 h, escrow, entrega).
+- `placeBid` rechaza pujas en precio fijo (`FIXED_PRICE`); la reserva no se
+  permite en precio fijo y debe quedar debajo del "Comprar ahora".
+- Reglas: `sale_type` inmutable, `buy_now_price` validado y en la lista blanca.
+- UI: selector al publicar, botón "Comprar ahora" con confirmación y pago,
+  textos de cierre y etiquetas en las tarjetas.
+- Pruebas: backend 182 (10 nuevas), un caso nuevo de reglas.
+
 ## [1.0.0] — 2026-10-15
 
 Primera versión "lista para desplegar". **Todavía no está desplegada**: ver

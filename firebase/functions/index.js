@@ -11,6 +11,8 @@ const {
   legacyState,
   publicName,
   userBidEligibilityError,
+  buyNowError,
+  saleType,
 } = require("./auction_logic");
 const payments = require("./payments");
 const { startWinnerPayment, WINNER_PAYMENT_WINDOW_HOURS } = payments;
@@ -171,6 +173,13 @@ exports.placeBid = functions.region(REGION).https.onCall(async (data, context) =
     }
     const bidderName = publicName(freshUser.data().full_name);
     const lot = lotSnap.data();
+    if (saleType(lot) === "fixed") {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Este artículo es de precio fijo: usa Comprar ahora.",
+        { code: "FIXED_PRICE" }
+      );
+    }
     const state = stateSnap.exists ? stateSnap.data() : legacyState(lot);
 
     // La hora se toma DENTRO de la transacción: si Firestore la reintenta,
@@ -403,52 +412,15 @@ async function closeLot(lotRef) {
   }
 
   if (hasWinner) {
-    // Generar el cobro del ganador (precio final − depósito).
-    let pay;
-    try {
-      pay = await startWinnerPayment(lotRef, lot, lot.highest_bidder_uid);
-    } catch (err) {
-      functions.logger.error(`No se pudo generar el cobro de ${lotRef.id}`, err);
-      await lotRef.update({ payment_status: "payment_error" });
-      pay = { url: null, amount: 0, alreadySettled: false, depositApplied: 0, error: true };
-    }
-
-    const depositApplied = pay.depositApplied || 0;
-    let winnerBody;
-    if (pay.alreadySettled) {
-      winnerBody = `Ganaste con ${formatMoney(lot.current_bid)} y tu depósito lo cubre. En tus avisos está el contacto del vendedor.`;
-    } else if (pay.error) {
-      winnerBody = `Ganaste con ${formatMoney(lot.current_bid)}. Estamos generando tu enlace de pago; te avisaremos en cuanto esté listo.`;
-    } else {
-      winnerBody = `Ganaste con ${formatMoney(lot.current_bid)}. Tienes ${WINNER_PAYMENT_WINDOW_HOURS} horas para pagar ${formatMoney(
-        pay.amount
-      )}${depositApplied ? ` (tu depósito de ${formatMoney(depositApplied)} ya está aplicado)` : ""}. Al pagar te compartimos el contacto del vendedor.`;
-    }
-
-    const batch = db.batch();
-    batch.set(notificationRef(lot.highest_bidder_uid), {
-      type: "won",
-      title: `¡Ganaste! ${lot.title}`,
-      body: winnerBody,
-      lot_id: lotRef.id,
-      action_url: pay.url || "",
-      read: false,
-      created_time: FieldValue.serverTimestamp(),
-    });
-    batch.set(notificationRef(lot.seller_uid), {
-      type: "sold",
-      title: `Vendiste: ${lot.title}`,
-      body: `Se vendió en ${formatMoney(lot.current_bid)}. Cuando el comprador pague te enviaremos su contacto para la entrega.`,
-      lot_id: lotRef.id,
-      read: false,
-      created_time: FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
+    await finishSale(lotRef, lot, lot.highest_bidder_uid);
   } else {
     await notificationRef(lot.seller_uid).set({
       type: "unsold",
-      title: `Sin pujas: ${lot.title}`,
-      body: "Tu subasta terminó sin pujas. Puedes publicarla de nuevo.",
+      title: saleType(lot) === "fixed" ? `Sin venta: ${lot.title}` : `Sin pujas: ${lot.title}`,
+      body:
+        saleType(lot) === "fixed"
+          ? "Tu publicación de precio fijo terminó sin compradores. Puedes publicarla de nuevo."
+          : "Tu subasta terminó sin pujas. Puedes publicarla de nuevo.",
       lot_id: lotRef.id,
       read: false,
       created_time: FieldValue.serverTimestamp(),
@@ -456,6 +428,139 @@ async function closeLot(lotRef) {
   }
   return true;
 }
+
+// ---------------------------------------------------------------------
+// finishSale: con el lote YA cerrado con comprador (subasta ganada o
+// Comprar ahora), genera el cobro (precio − depósito + envío) y avisa a
+// comprador y vendedor. La usan closeLot y buyNow.
+// ---------------------------------------------------------------------
+async function finishSale(lotRef, lot, winnerUid) {
+  const boughtNow = lot.sold_via === "buy_now";
+  const verbo = boughtNow ? "Compraste" : "Ganaste";
+  let pay;
+  try {
+    pay = await startWinnerPayment(lotRef, lot, winnerUid);
+  } catch (err) {
+    functions.logger.error(`No se pudo generar el cobro de ${lotRef.id}`, err);
+    await lotRef.update({ payment_status: "payment_error" });
+    pay = { url: null, amount: 0, alreadySettled: false, depositApplied: 0, error: true };
+  }
+
+  const depositApplied = pay.depositApplied || 0;
+  let winnerBody;
+  if (pay.alreadySettled) {
+    winnerBody = `${verbo} en ${formatMoney(lot.current_bid)} y tu depósito lo cubre. En tus avisos está el contacto del vendedor.`;
+  } else if (pay.error) {
+    winnerBody = `${verbo} en ${formatMoney(lot.current_bid)}. Estamos generando tu enlace de pago; te avisaremos en cuanto esté listo.`;
+  } else {
+    winnerBody = `${verbo} en ${formatMoney(lot.current_bid)}. Tienes ${WINNER_PAYMENT_WINDOW_HOURS} horas para pagar ${formatMoney(
+      pay.amount
+    )}${depositApplied ? ` (tu depósito de ${formatMoney(depositApplied)} ya está aplicado)` : ""}. Al pagar te compartimos el contacto del vendedor.`;
+  }
+
+  const batch = db.batch();
+  batch.set(notificationRef(winnerUid), {
+    type: "won",
+    title: boughtNow ? `¡Compraste! ${lot.title}` : `¡Ganaste! ${lot.title}`,
+    body: winnerBody,
+    lot_id: lotRef.id,
+    action_url: pay.url || "",
+    read: false,
+    created_time: FieldValue.serverTimestamp(),
+  });
+  batch.set(notificationRef(lot.seller_uid), {
+    type: "sold",
+    title: `Vendiste: ${lot.title}`,
+    body: `Se vendió en ${formatMoney(lot.current_bid)}${boughtNow ? " (Comprar ahora)" : ""}. Cuando el comprador pague te enviaremos su contacto para la entrega.`,
+    lot_id: lotRef.id,
+    read: false,
+    created_time: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  return pay;
+}
+
+// ---------------------------------------------------------------------
+// buyNow: Comprar ahora (precio fijo o subasta sin pujas con precio de
+// compra inmediata). Una transacción cierra el lote a nombre del comprador:
+// si dos personas compran a la vez, solo una gana (la otra ve "ya se vendió").
+// Mismos requisitos que pujar (perfil, términos, depósito, INE en montos altos).
+// data: { lotId }
+// ---------------------------------------------------------------------
+async function buyNowImpl(data, auth) {
+  if (!auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Inicia sesión para comprar.");
+  }
+  if (!auth.token || auth.token.email_verified !== true) {
+    throw new functions.https.HttpsError("failed-precondition", "Verifica tu correo electrónico antes de comprar.");
+  }
+  const uid = auth.uid;
+  const lotId = String((data && data.lotId) || "");
+  if (!lotId || lotId.length > 200 || lotId.includes("/")) {
+    throw new functions.https.HttpsError("invalid-argument", "Falta el artículo.");
+  }
+  const lotRef = db.collection("lots").doc(lotId);
+  const userRef = db.collection("users").doc(uid);
+
+  const sold = await db.runTransaction(async (tx) => {
+    const [lotSnap, userSnap] = await Promise.all([tx.get(lotRef), tx.get(userRef)]);
+    const lot = lotSnap.exists ? lotSnap.data() : null;
+    const nowMs = Date.now();
+    const chk = buyNowError(
+      lot && {
+        ...lot,
+        start_time_ms: lot.start_time ? lot.start_time.toMillis() : null,
+        end_time_ms: lot.end_time ? lot.end_time.toMillis() : null,
+      },
+      uid,
+      nowMs
+    );
+    if (chk.code) throw new functions.https.HttpsError(chk.code, chk.message, { code: chk.reason });
+    const userErr = userBidEligibilityError(
+      userSnap.exists ? userSnap.data() : null,
+      chk.price,
+      VERIFIED_BID_THRESHOLD,
+      "comprar"
+    );
+    if (userErr) throw new functions.https.HttpsError(userErr.code, userErr.message, userErr.details);
+
+    const buyerName = publicName(userSnap.data().full_name);
+    const patch = {
+      status: "ended",
+      sold_via: "buy_now",
+      closed_time: FieldValue.serverTimestamp(),
+      end_time: Timestamp.fromMillis(nowMs),
+      current_bid: chk.price,
+      highest_bidder_uid: uid,
+      highest_bidder_name: buyerName,
+      winner_uid: uid,
+      winner_name: buyerName,
+      final_price: chk.price,
+      payment_status: "processing",
+    };
+    tx.update(lotRef, patch);
+    return { ...lot, ...patch };
+  });
+
+  const pay = await finishSale(lotRef, sold, uid);
+  return {
+    ok: true,
+    price: sold.final_price,
+    url: pay.url || null,
+    amount: pay.amount,
+    settled: Boolean(pay.alreadySettled),
+    message: pay.alreadySettled
+      ? "¡Es tuyo! Tu depósito cubre el pago."
+      : pay.error
+        ? "¡Es tuyo! Estamos generando tu enlace de pago."
+        : `¡Es tuyo! Tienes ${WINNER_PAYMENT_WINDOW_HOURS} horas para pagar ${formatMoney(pay.amount)}.`,
+  };
+}
+
+exports.buyNow = functions.region(REGION).https.onCall((data, context) => {
+  assertAppCheck(context);
+  return buyNowImpl(data, context.auth);
+});
 
 exports.closeEndedAuctions = functions
   .region(REGION)

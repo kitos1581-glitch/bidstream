@@ -39,6 +39,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   final _increment = TextEditingController();
   final _streamUrl = TextEditingController();
   final _reserve = TextEditingController();
+  final _buyNow = TextEditingController();
   final _shipCost = TextEditingController();
   String? _municipality;
   bool _pickup = true;
@@ -54,6 +55,10 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   bool _aiLoading = false;
   AiLotSuggestion? _ai;
   String _format = 'timed';
+  /// 'auction' (subasta) | 'fixed' (precio fijo, 1 pieza) — ROADMAP R-10.
+  String _saleType = 'auction';
+  int _fixedDays = 30;
+  bool get _isFixed => _saleType == 'fixed';
   int _timedDays = 3;
   DateTime? _liveStart;
   int _liveMinutes = 30;
@@ -69,6 +74,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
     _increment.dispose();
     _streamUrl.dispose();
     _reserve.dispose();
+    _buyNow.dispose();
     _shipCost.dispose();
     _aiNotes.dispose();
     super.dispose();
@@ -204,7 +210,10 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
     final now = DateTime.now();
     late DateTime start;
     late DateTime end;
-    if (_format == 'live') {
+    if (_isFixed) {
+      start = now;
+      end = now.add(Duration(days: _fixedDays));
+    } else if (_format == 'live') {
       if (_liveStart == null) {
         showMessage(context, 'Elige la fecha y hora de la transmisión.',
             error: true);
@@ -234,13 +243,17 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
         description: _description.text,
         category: _category!,
         startingPrice: double.parse(_price.text),
-        minimumIncrement: double.parse(_increment.text),
+        minimumIncrement: _isFixed ? 1 : double.parse(_increment.text),
         startTime: start,
         endTime: end,
-        format: _format,
+        format: _isFixed ? 'timed' : _format,
+        saleType: _saleType,
+        buyNowPrice: _isFixed
+            ? null
+            : (_format == 'timed' ? double.tryParse(_buyNow.text) : null),
         condition: _condition!,
         imageUrls: urls,
-        streamUrl: _format == 'live' ? _streamUrl.text : '',
+        streamUrl: !_isFixed && _format == 'live' ? _streamUrl.text : '',
         municipality: _municipality!,
         delivery: {
           'pickup': _pickup,
@@ -256,7 +269,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
       );
       final reserve = double.tryParse(_reserve.text);
       var reserveFailed = false;
-      if (_format == 'timed' && reserve != null && reserve > 0) {
+      if (!_isFixed && _format == 'timed' && reserve != null && reserve > 0) {
         setState(() => _progress = 'Guardando precio de reserva…');
         try {
           await AuctionService.instance.setReservePrice(id, reserve);
@@ -269,7 +282,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
           context,
           reserveFailed
               ? 'Tu lote se publicó, pero no pudimos guardar la reserva. Agrégala desde el lote antes de que alguien puje.'
-              : '¡Tu lote ya está publicado!',
+              : (_isFixed ? '¡Tu artículo ya está a la venta!' : '¡Tu lote ya está publicado!'),
           error: reserveFailed);
       context.pushReplacementNamed('LotDetailView',
           queryParameters: {'lotId': id});
@@ -643,7 +656,42 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
             ]),
           ],
 
-          const SectionTitle('Precio'),
+          // ---------------- Cómo vender (R-10) ----------------
+          const SectionTitle('¿Cómo quieres vender?'),
+          Row(children: [
+            _choice(!_isFixed, () => setState(() => _saleType = 'auction'),
+                Icons.gavel_rounded, 'Subasta', 'El mejor postor gana'),
+            const SizedBox(width: 10),
+            _choice(_isFixed, () => setState(() => _saleType = 'fixed'),
+                Icons.sell_outlined, 'Precio fijo', 'El primero que compre'),
+          ]),
+          const SizedBox(height: 6),
+          if (_isFixed) ...[
+            const SectionTitle('Precio'),
+            TextFormField(
+              controller: _price,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: _dec('Precio de venta', prefix: '\$ ',
+                  helper: 'Una sola pieza. El primero que dé "Comprar ahora" se la lleva y paga con la misma protección que una subasta.'),
+              validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0
+                  ? 'Requerido'
+                  : null,
+            ),
+            const SizedBox(height: 14),
+            Text('¿Cuánto tiempo estará publicado?', style: theme.labelMedium),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, children: [
+              for (final d in [7, 15, 30, 60])
+                ChoiceChip(
+                  label: Text('$d días'),
+                  selected: _fixedDays == d,
+                  selectedColor: theme.surfaceVariant,
+                  onSelected: (_) => setState(() => _fixedDays = d),
+                ),
+            ]),
+          ] else ...[
+            const SectionTitle('Precio'),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
               child: Focus(
@@ -713,6 +761,26 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                 return null;
               },
             ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _buyNow,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: _dec('Precio "Comprar ahora" (opcional)',
+                  prefix: '\$ ',
+                  helper:
+                      'Si alguien paga esto antes de la primera puja, se lo lleva al instante. '
+                      'Desaparece en cuanto alguien puja.'),
+              validator: (v) {
+                if ((v ?? '').isEmpty) return null;
+                final b = double.tryParse(v!);
+                final p = double.tryParse(_price.text) ?? 0;
+                if (b == null || b <= p) return 'Debe ser mayor que el precio inicial';
+                final r = double.tryParse(_reserve.text);
+                if (r != null && r > 0 && r >= b) return 'Debe ser mayor que tu reserva';
+                return null;
+              },
+            ),
           ] else ...[
             OutlinedButton.icon(
               onPressed: _pickLiveStart,
@@ -760,6 +828,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                     style: theme.bodySmall),
               ),
           ],
+          ],
 
           const SizedBox(height: 28),
           if (_saving)
@@ -779,12 +848,16 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   }
 
   Widget _formatOption(
-      String value, IconData icon, String title, String subtitle) {
+          String value, IconData icon, String title, String subtitle) =>
+      _choice(_format == value, () => setState(() => _format = value), icon,
+          title, subtitle);
+
+  Widget _choice(bool selected, VoidCallback onTap, IconData icon,
+      String title, String subtitle) {
     final theme = FlutterFlowTheme.of(context);
-    final selected = _format == value;
     return Expanded(
       child: InkWell(
-        onTap: () => setState(() => _format = value),
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(

@@ -275,3 +275,24 @@ test("AUDITORÍA v1.0.0: al publicar solo se aceptan los campos de la app (lista
   // Fecha de creación falsificada.
   await assertFails(setDoc(doc(db, "lots/W6"), validLot({ created_time: Timestamp.fromMillis(Date.now() - 30 * 24 * H) })));
 });
+
+test("R-10 precio fijo y Comprar ahora: valores válidos al publicar; no se falsifica la venta", async () => {
+  const db = as("vero");
+  // Precio fijo: precio = buy_now_price, solo por tiempo.
+  await assertSucceeds(setDoc(doc(db, "lots/P1"), validLot({ sale_type: "fixed", buy_now_price: 1000 })));
+  await assertFails(setDoc(doc(db, "lots/P2"), validLot({ sale_type: "fixed", buy_now_price: 900 })));
+  await assertFails(setDoc(doc(db, "lots/P3"), validLot({ sale_type: "fixed" })));
+  await assertFails(setDoc(doc(db, "lots/P4"), validLot({ sale_type: "fixed", buy_now_price: 1000, format: "live" })));
+  await assertFails(setDoc(doc(db, "lots/P5"), validLot({ sale_type: "trueque" })));
+  // Subasta con Comprar ahora: mayor al precio inicial, solo por tiempo.
+  await assertSucceeds(setDoc(doc(db, "lots/P6"), validLot({ buy_now_price: 5000 })));
+  await assertFails(setDoc(doc(db, "lots/P7"), validLot({ buy_now_price: 1000 })));
+  await assertFails(setDoc(doc(db, "lots/P8"), validLot({ buy_now_price: 5000, format: "live" })));
+  await assertFails(setDoc(doc(db, "lots/P9"), validLot({ buy_now_price: "5000" })));
+  // El cliente no puede marcar la venta ni cambiar el tipo después.
+  await assertFails(setDoc(doc(db, "lots/P10"), validLot({ sold_via: "buy_now" })));
+  await assertFails(updateDoc(doc(db, "lots/L1"), { sale_type: "fixed", buy_now_price: 1000 }));
+  // Sin pujas sí puede ajustar su Comprar ahora; con pujas, no.
+  await assertSucceeds(updateDoc(doc(db, "lots/L1"), { buy_now_price: 4000 }));
+  await assertFails(updateDoc(doc(db, "lots/L2"), { buy_now_price: 9000 }));
+});

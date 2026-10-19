@@ -324,7 +324,11 @@ class LotCard extends StatelessWidget {
                       style: theme.titleLarge.copyWith(
                           fontWeight: FontWeight.w800, fontSize: 20)),
                   Text(
-                      (lot.bidCount == 0
+                      (lot.isFixedPrice
+                              ? 'Precio fijo · Comprar ahora'
+                              : lot.canBuyNow()
+                                  ? 'Sin pujas · o cómpralo en ${formatMoney(lot.buyNowPrice ?? 0)}'
+                              : lot.bidCount == 0
                               ? 'Precio inicial · sin pujas'
                               : '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}') +
                           (lot.sellerRatingCount > 0

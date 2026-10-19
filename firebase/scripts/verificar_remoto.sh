@@ -15,7 +15,7 @@ gcloud billing projects describe "$PROJECT" --format="value(billingEnabled,billi
 
 echo; echo "== 2) Funciones desplegadas (compáralas con la lista esperada)"
 firebase functions:list --project "$PROJECT" || echo "!! No se pudo listar"
-echo "Esperadas (32): placeBid closeEndedAuctions onLotCreated createDeposit requestDepositRefund"
+echo "Esperadas (33): placeBid buyNow closeEndedAuctions onLotCreated createDeposit requestDepositRefund"
 echo "  expireUnpaidWins mpWebhook chooseWinnerPaymentMethod openpayWebhook submitFeedback updateFeedback"
 echo "  onPublicProfileInputs onSaleRecorded openDispute adminResolveDispute confirmReceipt"
 echo "  releaseDuePayoutsJob confirmDeliveryCode chooseDelivery setReservePrice respondSecondChance"

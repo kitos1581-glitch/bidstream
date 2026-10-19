@@ -55,7 +55,22 @@ service cloud.firestore {
         && d.get('municipality', 'otro') in ['camargo', 'jimenez', 'saucillo', 'delicias', 'parral',
              'meoqui', 'la_cruz', 'san_francisco_de_conchos', 'chihuahua', 'cuauhtemoc', 'otro']
         && validDelivery(d.get('delivery', {'pickup': true, 'regional': false}))
+        && validSale(d)
         && d.seller_uid is string;
+    }
+
+    // Tipo de venta (R-10): subasta (opcionalmente con Comprar ahora, solo por
+    // tiempo y mayor al precio inicial) o precio fijo (precio = Comprar ahora).
+    function validSale(d) {
+      return d.get('sale_type', 'auction') in ['auction', 'fixed']
+        && (d.get('buy_now_price', null) == null
+            || (d.buy_now_price is number && d.buy_now_price > 0 && d.buy_now_price <= 50000000))
+        && (d.get('sale_type', 'auction') == 'fixed'
+            ? (d.get('buy_now_price', null) is number
+               && d.buy_now_price == d.starting_price
+               && d.format == 'timed')
+            : (d.get('buy_now_price', null) == null
+               || (d.buy_now_price > d.starting_price && d.format == 'timed')));
     }
 
     // Entrega: al menos una modalidad; envío con costo razonable.
@@ -161,7 +176,8 @@ service cloud.firestore {
               ['title', 'description', 'category', 'image_urls', 'stream_url',
                'starting_price', 'current_bid', 'minimum_increment', 'bid_count',
                'start_time', 'end_time', 'status', 'format', 'condition', 'specs',
-               'municipality', 'delivery', 'seller_uid', 'created_time'])
+               'municipality', 'delivery', 'seller_uid', 'created_time',
+               'sale_type', 'buy_now_price'])
         && request.resource.data.get('created_time', request.time) == request.time;
 
       // El vendedor solo edita la parte descriptiva. Precio, incremento y
@@ -177,7 +193,7 @@ service cloud.firestore {
           || (resource.data.bid_count == 0
               && onlyChanges(['title', 'description', 'category', 'image_urls',
                               'stream_url', 'condition', 'specs', 'municipality', 'delivery',
-                              'starting_price', 'current_bid',
+                              'starting_price', 'current_bid', 'buy_now_price',
                               'minimum_increment', 'end_time', 'start_time', 'format'])
               && request.resource.data.current_bid == request.resource.data.starting_price
               && request.resource.data.end_time > request.time)

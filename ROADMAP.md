@@ -42,7 +42,8 @@ Las reglas de trabajo del plan siguen vigentes para todo lo de esta lista:
 
 | ID | Plan | Pendiente | Contexto | Prioridad |
 |---|---|---|---|---|
-| R-10 | 2.1 | **Comprar Ahora** | Campo `buy_now_price ≥ precio inicial`. La compra la hace el servidor, cierra el lote y reutiliza `startWinnerPayment` (con escrow y la política de comisión actuales). El vendedor lo puede retirar mientras no haya pujas. La prueba de abuso clave es una doble compra simultánea. | P1 |
+| R-10 | 2.1 | ~~Comprar Ahora~~ **HECHO (2026-10-18)** | Precio fijo de 1 pieza y "Comprar ahora" en subastas sin pujas. Función `buyNow` con transacción; reutiliza el cobro, escrow y comisión de una subasta ganada. Pruebas: `test/buy_now.test.js` (incluye doble compra simultánea) y reglas. **Pendiente (R-15):** inventario de varias piezas. | ~~P1~~ |
+| R-15 | 2.1 | **Inventario (varias piezas)** | Precio fijo con cantidad > 1: cada compra descuenta existencias en la transacción y crea su propia orden (hoy el pago vive en el lote, así que hace falta un documento `orders/{id}` por compra). Es el cambio más grande de esta lista: vale la pena cuando haya vendedores con mercancía repetida. | P2 |
 | R-11 | 2.2 | **Mejor Oferta** | Una sola ronda: oferta → aceptar / rechazar / contraofertar. Cada oferta expira a las 48 h. Aceptar sigue la misma ruta que R-10, por eso depende de R-10. | P1 |
 | R-12 | 2.4 | **Watchlist y alertas** | `users/{uid}/watchlist/{lotId}` (lo escribe el dueño). Dos push: "termina en 30 min" (una vez por lote) y "te superaron". Es lo más barato de esta lista y sube la reactivación; es el primero que recomiendo hacer. | P1 |
 | R-13 | 2.5 | **Destacados de pago** | Tarifa fija configurable con preferencia MP e idempotencia por lote. Solo el webhook escribe `promoted_until`. Choca con la promesa de 0 % del Buen Fin: conviene lanzarlo después. | P2 |

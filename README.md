@@ -34,7 +34,7 @@ Funciona en Android, iOS y web, con Flutter + Firebase.
    │  escribe SOLO: su perfil, sus fotos, publicar/editar lote sin pujas
    │  todo lo demás → llamadas a funciones (con App Check)
    ▼
- Cloud Functions (Node 20, us-central1)  ── 32 funciones
+ Cloud Functions (Node 20, us-central1)  ── 33 funciones
    │  pujas, cierre, cobros, escrow, disputas, reputación, admin, IA
    │  transacciones + documento candado en todo lo que mueve dinero
    ├──► Firestore    (reglas deny-by-default, lista blanca al publicar)
@@ -121,6 +121,17 @@ admin_log/{id}              bitácora de administradores
   - Si el máximo del líder alcanza la reserva, el precio salta a la reserva.
   - Si nadie la alcanza, el lote cierra como `ended_unsold_reserve`, sin
     cobro.
+- **Precio fijo y "Comprar ahora"** (R-10):
+  - El vendedor elige **Subasta** o **Precio fijo** (1 pieza, publicado
+    7–60 días). En precio fijo no hay pujas: el primero que da "Comprar
+    ahora" se lo lleva.
+  - En una subasta por tiempo, el vendedor puede poner un precio "Comprar
+    ahora" mayor al inicial (y a la reserva). Desaparece con la primera puja.
+  - La compra la decide el servidor (`buyNow`) en una transacción: dos
+    compradores a la vez → solo uno gana. Exige lo mismo que pujar
+    (depósito, perfil, términos e INE arriba de $20,000).
+  - Después sigue la ruta de una subasta ganada: se aplica el depósito,
+    24 h para pagar, escrow y entrega. El cliente nunca escribe el precio.
 - **Ganador moroso:**
   - Pierde su depósito, que se le da al vendedor como compensación.
   - Recibe un strike; con 2 strikes la cuenta se suspende.

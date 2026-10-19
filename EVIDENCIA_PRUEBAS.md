@@ -29,6 +29,14 @@ etiquetado `v1.0.0`.
 | **Prueba de punta a punta** (`CHECKLIST_E2E.md`) | **NO EJECUTADO** | Depende del despliegue. |
 | Pruebas en dispositivo real | **NO EJECUTADO** | Sin backend desplegado, no hay flujo real de dinero. |
 
+### Después de v1.0.0
+
+| Módulo / verificación | Estado | Detalle |
+|---|---|---|
+| R-10 Precio fijo y "Comprar ahora" — backend | **EJECUTADO en local: 182/182 pasan (10 nuevas)** | `test/buy_now.test.js`: compra, doble compra simultánea (1 ganador, 1 cobro), abuso, INE, pujas bloqueadas, cierre sin venta, moroso sin segunda oportunidad, reserva. |
+| R-10 — reglas y Flutter | **Ver CI del commit** | Caso nuevo en `rules-tests`; `flutter analyze` solo corre en CI (sin SDK en este entorno). |
+| R-10 en producción | **NO EJECUTADO** | Requiere desplegar reglas y funciones (Blaze). **LISTO PARA EJECUTAR HUMANO.** |
+
 ### Verificación remota
 
 _(Vacío. Aquí se pega la salida de `bash scripts/verificar_remoto.sh` con la fecha, después de desplegar.)_

@@ -12,6 +12,7 @@ import '/backend/payment_service.dart';
 import '/backend/reputation_service.dart';
 import '/backend/dispute_service.dart';
 import 'package:image_picker/image_picker.dart';
+import '/pages/deposit_guarantia/deposit_guarantia_widget.dart';
 import '/ui/ui_kit.dart';
 
 /// Detalle de un lote: fotos, precio, cuenta regresiva e historial de pujas.
@@ -216,7 +217,11 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                  lot.status == 'ended'
+                                  lot.isFixedPrice
+                                      ? (lot.status == 'ended' && lot.winnerUid.isNotEmpty
+                                          ? 'Vendido en'
+                                          : 'Precio')
+                                      : lot.status == 'ended'
                                       ? 'Precio final'
                                       : lot.endedUnsoldReserve
                                           ? 'Puja más alta'
@@ -229,16 +234,25 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                                       color: theme.primary,
                                       fontWeight: FontWeight.w800)),
                               Text(
-                                  '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}'
-                                  ' · incremento ${formatMoney(lot.minimumIncrement)}',
+                                  lot.isFixedPrice
+                                      ? 'Precio fijo · Comprar ahora'
+                                      : '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}'
+                                          ' · incremento ${formatMoney(lot.minimumIncrement)}',
                                   style: theme.bodySmall),
+                              if (!lot.isFixedPrice && lot.canBuyNow())
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Tag('Comprar ahora: ${formatMoney(lot.buyNowPrice ?? 0)}',
+                                      background: theme.surfaceVariant,
+                                      icon: Icons.bolt_rounded),
+                                ),
                             ],
                           ),
                         ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(lot.hasStarted() ? 'Termina en' : '',
+                            Text(lot.hasStarted() ? (lot.isFixedPrice ? 'Disponible' : 'Termina en') : '',
                                 style: theme.labelSmall),
                             Countdown(
                                 lot: lot,
@@ -294,10 +308,12 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                       const SizedBox(height: 10),
                       Text(
                         lot.winnerUid.isEmpty
-                            ? 'Terminó sin pujas.'
+                            ? (lot.isFixedPrice ? 'Terminó sin venta.' : 'Terminó sin pujas.')
                             : (currentUserUid.isNotEmpty && lot.winnerUid == currentUserUid
-                                ? '¡Ganaste esta subasta!'
-                                : 'Ganó ${lot.winnerName}.'),
+                                ? (lot.soldByBuyNow ? '¡Lo compraste!' : '¡Ganaste esta subasta!')
+                                : (lot.soldByBuyNow
+                                    ? 'Vendido a ${lot.winnerName} (Comprar ahora).'
+                                    : 'Ganó ${lot.winnerName}.')),
                         style: theme.bodyMedium
                             .copyWith(fontWeight: FontWeight.w700),
                       ),
@@ -361,9 +377,9 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                 ),
               ],
 
-              // ---------------- Historial ----------------
-              const SectionTitle('Historial de pujas'),
-              StreamBuilder<List<BidsRecord>>(
+              // ---------------- Historial (solo subastas) ----------------
+              if (!lot.isFixedPrice) const SectionTitle('Historial de pujas'),
+              if (!lot.isFixedPrice) StreamBuilder<List<BidsRecord>>(
                 stream: _bids,
                 builder: (context, s) {
                   if (s.hasError) return ErrorState(error: s.error, onRetry: _retry);
@@ -464,7 +480,13 @@ class _BottomBar extends StatelessWidget {
       ));
     }
 
-    if (!isSeller && lot.status != 'ended') {
+    if (!isSeller && lot.status != 'ended' && lot.isFixedPrice) {
+      buttons.add(Expanded(child: _BuyNowButton(lot: lot, primary: true)));
+    } else if (!isSeller && lot.status != 'ended') {
+      if (lot.canBuyNow()) {
+        if (buttons.isNotEmpty) buttons.add(const SizedBox(width: 10));
+        buttons.add(Expanded(child: _BuyNowButton(lot: lot, primary: false)));
+      }
       if (buttons.isNotEmpty) buttons.add(const SizedBox(width: 10));
       buttons.add(Expanded(
         child: BigButton(
@@ -484,7 +506,7 @@ class _BottomBar extends StatelessWidget {
 
     if (isSeller && lot.status != 'ended' && buttons.isEmpty) {
       buttons.add(Expanded(
-        child: Text('Este es tu lote. No puedes pujar en él.',
+        child: Text(lot.isFixedPrice ? 'Esta es tu publicación.' : 'Este es tu lote. No puedes pujar en él.',
             textAlign: TextAlign.center, style: theme.bodyMedium),
       ));
     }
@@ -497,6 +519,109 @@ class _BottomBar extends StatelessWidget {
         border: Border(top: BorderSide(color: theme.alternate)),
       ),
       child: SafeArea(top: false, child: Row(children: buttons)),
+    );
+  }
+}
+
+/// Botón "Comprar ahora" (precio fijo o subasta sin pujas). Confirma, llama
+/// al servidor (que decide con una transacción) y lleva al pago.
+class _BuyNowButton extends StatefulWidget {
+  const _BuyNowButton({required this.lot, required this.primary});
+
+  final LotsRecord lot;
+  final bool primary;
+
+  @override
+  State<_BuyNowButton> createState() => _BuyNowButtonState();
+}
+
+class _BuyNowButtonState extends State<_BuyNowButton> {
+  bool _busy = false;
+
+  Future<void> _buy() async {
+    final lot = widget.lot;
+    final price = lot.buyNowPrice ?? 0;
+    if (currentUserUid.isEmpty) {
+      context.pushNamed('AuthAccess');
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('¿Comprar por ${formatMoney(price)}?'),
+        content: const Text(
+            'Al confirmar, el artículo es tuyo. Tienes 24 horas para pagar (tu depósito se descuenta). '
+            'Si no pagas, pierdes tu depósito. El pago queda protegido hasta que recibas el artículo.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Comprar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    final r = await AuctionService.instance.buyNow(lot.reference.id);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r.ok) {
+      final url = r.paymentUrl;
+      await showDialog<void>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('¡Es tuyo!'),
+          content: Text(r.message),
+          actions: [
+            if (url != null && url.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(c);
+                  PaymentService.instance.openCheckout(url);
+                },
+                child: const Text('Pagar ahora'),
+              ),
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Listo')),
+          ],
+        ),
+      );
+    } else if (r.code == 'DEPOSIT_REQUIRED') {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Falta tu depósito de garantía'),
+          content: Text(r.message),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Ahora no')),
+            TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Dejar depósito')),
+          ],
+        ),
+      );
+      if (go == true && mounted) {
+        await Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => const DepositGarantiaWidget(),
+        ));
+      }
+    } else if (r.code == 'IDENTITY_REQUIRED') {
+      showMessage(context, r.message, error: true);
+      context.pushNamed('IdentityVerification');
+    } else {
+      showMessage(context, r.message, error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lot = widget.lot;
+    final enabled = lot.canBuyNow();
+    return BigButton(
+      label: !lot.hasStarted()
+          ? 'Aún no inicia'
+          : widget.primary
+              ? 'Comprar ahora · ${formatMoney(lot.buyNowPrice ?? 0)}'
+              : 'Comprar ${formatMoney(lot.buyNowPrice ?? 0)}',
+      icon: Icons.bolt_rounded,
+      secondary: !widget.primary,
+      loading: _busy,
+      onPressed: enabled && !_busy ? _buy : null,
     );
   }
 }

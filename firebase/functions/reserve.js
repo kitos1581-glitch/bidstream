@@ -23,6 +23,8 @@ const ERROR_CODES = Object.freeze({
   NOT_SELLER: "NOT_SELLER",
   NOT_ACTIVE: "NOT_ACTIVE",
   LIVE_NOT_ALLOWED: "LIVE_NOT_ALLOWED",
+  FIXED_NOT_ALLOWED: "FIXED_NOT_ALLOWED",
+  ABOVE_BUY_NOW: "ABOVE_BUY_NOW",
   ONLY_LOWER: "ONLY_LOWER",
 });
 
@@ -54,6 +56,17 @@ async function setReservePriceImpl(data, uid) {
     if (lot.status !== "active") throw fail("failed-precondition", ERROR_CODES.NOT_ACTIVE, "La subasta ya terminó.");
     if (lot.format === "live") {
       throw fail("failed-precondition", ERROR_CODES.LIVE_NOT_ALLOWED, "Las subastas en vivo no llevan precio de reserva.");
+    }
+    if (lot.sale_type === "fixed") {
+      throw fail("failed-precondition", ERROR_CODES.FIXED_NOT_ALLOWED, "Las ventas a precio fijo no llevan precio de reserva.");
+    }
+    const buyNow = Number(lot.buy_now_price) || 0;
+    if (!remove && buyNow > 0 && amount >= buyNow) {
+      throw fail(
+        "invalid-argument",
+        ERROR_CODES.ABOVE_BUY_NOW,
+        "La reserva debe ser menor que tu precio de Comprar ahora."
+      );
     }
     const current = resSnap.exists ? Number(resSnap.data().amount) || 0 : 0;
     const hasBids = (lot.bid_count || 0) > 0;

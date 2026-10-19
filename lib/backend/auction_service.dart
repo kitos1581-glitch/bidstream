@@ -255,6 +255,8 @@ class AuctionService {
     Map<String, String> specs = const {},
     String municipality = 'otro',
     Map<String, dynamic>? delivery,
+    String saleType = 'auction',
+    double? buyNowPrice,
   }) async {
     final uid = _uid;
     if (uid == null) throw StateError('Sin sesión');
@@ -276,6 +278,10 @@ class AuctionService {
       if (specs.isNotEmpty) 'specs': specs,
       'municipality': municipality,
       'delivery': delivery ?? {'pickup': true, 'regional': false},
+      'sale_type': saleType,
+      if (saleType == 'fixed') 'buy_now_price': startingPrice,
+      if (saleType != 'fixed' && buyNowPrice != null && buyNowPrice > 0)
+        'buy_now_price': buyNowPrice,
     });
     return ref.id;
   }
@@ -316,6 +322,33 @@ class AuctionService {
 
   /// Envía tu MÁXIMO secreto. El servidor puja por ti automáticamente
   /// hasta ese límite (puja proxy) y aplica el anti-sniping de 30 s.
+  /// Comprar ahora (precio fijo o subasta sin pujas). El servidor cierra la
+  /// venta en una transacción; si alguien compró antes, responde el error.
+  Future<BuyNowResult> buyNow(String lotId) async {
+    if (isDemoLotId(lotId)) {
+      return const BuyNowResult.failure(
+          'Este es un artículo de demostración: no se puede comprar. Las compras reales se activan al lanzar.');
+    }
+    try {
+      final res = await _functions
+          .httpsCallable('buyNow')
+          .call<dynamic>({'lotId': lotId});
+      final raw = res.data;
+      final data = raw is Map ? Map<String, dynamic>.from(raw) : const <String, dynamic>{};
+      return BuyNowResult.success(
+        message: data['message']?.toString() ?? '¡Es tuyo!',
+        paymentUrl: data['url']?.toString(),
+        settled: data['settled'] == true,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      final details = e.details;
+      final code = details is Map ? details['code']?.toString() : null;
+      return BuyNowResult.failure(e.message ?? 'No se pudo completar la compra.', code: code);
+    } catch (_) {
+      return const BuyNowResult.failure('No se pudo completar la compra. Revisa tu conexión.');
+    }
+  }
+
   Future<PlaceBidResult> placeBid(String lotId, double maxAmount) async {
     if (isDemoLotId(lotId)) {
       return const PlaceBidResult.failure(
@@ -464,4 +497,24 @@ class AuctionService {
     }
     await batch.commit();
   }
+}
+
+
+/// Resultado de Comprar ahora.
+class BuyNowResult {
+  const BuyNowResult.success({required this.message, this.paymentUrl, this.settled = false})
+      : ok = true,
+        code = null;
+  const BuyNowResult.failure(this.message, {this.code})
+      : ok = false,
+        paymentUrl = null,
+        settled = false;
+
+  final bool ok;
+  final String message;
+  final String? paymentUrl;
+  final bool settled;
+
+  /// Código del servidor (p. ej. DEPOSIT_REQUIRED, IDENTITY_REQUIRED, NOT_ACTIVE).
+  final String? code;
 }
