@@ -106,14 +106,15 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny(
               ['verified', 'role', 'banned', 'deposit', 'strikes',
                'verification_status', 'ban_reason', 'seller_strikes',
-               'seller_plan', 'store_name', 'store_plan_until', 'monthly_sales']);
+               'seller_plan', 'store_name', 'store_plan_until', 'monthly_sales',
+               'founding_seller', 'founding_since']);
 
       allow update: if isOwner(uid)
         && !request.resource.data.diff(resource.data).affectedKeys()
               .hasAny(['verified', 'role', 'banned', 'uid', 'created_time',
                        'deposit', 'strikes', 'verification_status', 'ban_reason',
                        'seller_strikes', 'seller_plan', 'store_name', 'store_plan_until',
-                       'monthly_sales']);
+                       'monthly_sales', 'founding_seller', 'founding_since']);
 
       allow delete: if false;
 

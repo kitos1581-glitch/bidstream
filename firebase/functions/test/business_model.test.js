@@ -195,3 +195,27 @@ test("0 % sin dato del costo real: no se descuenta nada y queda marcado para rev
   assert.strictEqual(p.amount, 10000);
   assert.strictEqual(p.processing_fee_unknown, true);
 });
+
+// ---------------- Vendedor fundador (sello) ----------------
+test("vendedor fundador: el admin asigna y retira el sello; aparece en el perfil público; no cambia comisiones", async () => {
+  fake.__reset();
+  put("users/f1", { full_name: "Fernando Ruiz", verified: true });
+  put("users/malo", { full_name: "X", banned: true });
+  await assert.rejects(adminFns.setFoundingSellerImpl({ uid: "f1", founding: "sí" }, "jefe"), /true\/false/);
+  await assert.rejects(adminFns.setFoundingSellerImpl({ uid: "nadie", founding: true }, "jefe"), /no encontrado/);
+  await assert.rejects(adminFns.setFoundingSellerImpl({ uid: "malo", founding: true }, "jefe"), /suspendida/);
+  await adminFns.setFoundingSellerImpl({ uid: "f1", founding: true }, "jefe");
+  assert.strictEqual(get("users/f1").founding_seller, true);
+  const prof = get("public_profiles/f1");
+  assert.strictEqual(prof.is_founding, true);
+  assert.ok(prof.badges.includes("fundador"));
+  assert.ok(prof.badges.includes("verificado"));
+  // Repetir no rompe nada (idempotente).
+  await adminFns.setFoundingSellerImpl({ uid: "f1", founding: true }, "jefe");
+  // Solo reconocimiento: la comisión normal no cambia.
+  const c = policy.saleCommission({ finalPrice: 10000, seller: get("users/f1"), closedMs: Date.parse("2028-01-01T00:00:00Z"), computeStandard: std, promoConfig: { promo: null }, launchConfig: { launch: null } });
+  assert.strictEqual(c.policy, "standard");
+  await adminFns.setFoundingSellerImpl({ uid: "f1", founding: false }, "jefe");
+  assert.strictEqual(get("users/f1").founding_seller, false);
+  assert.ok(!get("public_profiles/f1").badges.includes("fundador"));
+});

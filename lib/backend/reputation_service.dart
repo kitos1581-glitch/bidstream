@@ -65,6 +65,7 @@ class FeedbackEntry {
 /// Texto y color de cada insignia.
 const kBadgeLabels = <String, String>{
   'verificado': 'Verificado',
+  'fundador': 'Vendedor fundador',
   'destacado': 'Vendedor destacado',
   'nuevo': 'Nuevo',
 };

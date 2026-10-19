@@ -36,6 +36,7 @@ etiquetado `v1.0.0`.
 | R-10 Precio fijo y "Comprar ahora" — backend | **EJECUTADO en local: 182/182 pasan (10 nuevas)** | `test/buy_now.test.js`: compra, doble compra simultánea (1 ganador, 1 cobro), abuso, INE, pujas bloqueadas, cierre sin venta, moroso sin segunda oportunidad, reserva. |
 | R-10 — reglas y Flutter | **Ver CI del commit** | Caso nuevo en `rules-tests`; `flutter analyze` solo corre en CI (sin SDK en este entorno). |
 | Comisión de lanzamiento + anti-sniping 2 min | **EJECUTADO en local: 188/188 pasan (6 nuevas)** | `test/launch_commission.test.js` (6): tope por mes, mes nuevo, mes de cierre vs. pago tardío, tienda y Buen Fin sin tope, configuración inválida → revisión y recálculo. Regla nueva: el cliente no toca `monthly_sales` (CI). |
+| Sello "Vendedor fundador" | **EJECUTADO en local: 189/189 pasan (1 nueva)** | Asignar, retirar, idempotencia, cuenta suspendida, no cambia comisión. Regla nueva: el cliente no se da el sello (CI). |
 | R-10 en producción | **NO EJECUTADO** | Requiere desplegar reglas y funciones (Blaze). **LISTO PARA EJECUTAR HUMANO.** |
 
 ### Verificación remota

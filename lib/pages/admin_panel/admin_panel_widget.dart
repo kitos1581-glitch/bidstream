@@ -396,10 +396,11 @@ class _UsersTabState extends State<_UsersTab> {
                 if (u['seller_plan'] == 'store')
                   Tag('Tienda Oficial: ${u['store_name'] ?? ''}'
                       '${u['store_plan_until'] is Timestamp ? ' hasta ${formatDateTime((u['store_plan_until'] as Timestamp).toDate())}' : ''}'),
+                if (u['founding_seller'] == true) const Tag('Vendedor fundador', icon: Icons.military_tech_rounded),
                 if (banned) Tag('Suspendido', background: theme.error, foreground: Colors.white),
               ]),
               const SizedBox(height: 6),
-              Wrap(spacing: 8, children: [
+              Wrap(spacing: 8, runSpacing: 6, children: [
                 OutlinedButton.icon(
                   icon: const Icon(Icons.storefront_outlined, size: 18),
                   label: Text(u['seller_plan'] == 'store' ? 'Renovar tienda' : 'Hacer Tienda Oficial'),
@@ -422,6 +423,16 @@ class _UsersTabState extends State<_UsersTab> {
                     },
                     child: const Text('Cancelar tienda'),
                   ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.military_tech_outlined, size: 18),
+                  label: Text(u['founding_seller'] == true ? 'Quitar sello fundador' : 'Hacer Vendedor fundador'),
+                  onPressed: () async {
+                    final on = u['founding_seller'] != true;
+                    await _run(context, () => AdminService.instance.setFoundingSeller(d.id, on),
+                        on ? 'Sello de fundador asignado' : 'Sello de fundador retirado');
+                    _search();
+                  },
+                ),
               ]),
               const SizedBox(height: 8),
               Align(

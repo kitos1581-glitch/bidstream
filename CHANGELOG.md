@@ -8,6 +8,15 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Agregado: sello "Vendedor fundador" (2026-10-19)
+- Nueva función de admin `adminSetFoundingSeller` (34 funciones): asigna o
+  retira el sello. Solo es reconocimiento; no cambia comisiones.
+- Aparece como insignia "Vendedor fundador" en el perfil público y en los
+  lotes publicados **después** de asignarlo (los lotes guardan las insignias
+  al publicarse).
+- Panel → Usuarios: botón "Hacer Vendedor fundador" / "Quitar sello".
+- Reglas: el cliente no puede darse el sello.
+
 ### Cambiado: comisión de lanzamiento y anti-sniping (2026-10-19)
 - **Comisión de lanzamiento:** 0 % para todos los vendedores hasta el
   31 de marzo de 2027 (`LAUNCH_FREE_UNTIL`), hasta 30 ventas por vendedor al

@@ -198,6 +198,11 @@ class AdminService {
       .httpsCallable('adminSetStorePlan')
       .call<dynamic>({'uid': uid, 'months': months, 'storeName': storeName});
 
+  /// Sello "Vendedor fundador" (solo reconocimiento; no cambia comisiones).
+  Future<void> setFoundingSeller(String uid, bool founding) => _fn
+      .httpsCallable('adminSetFoundingSeller')
+      .call<dynamic>({'uid': uid, 'founding': founding});
+
   Future<void> cancelLot(String lotId, String reason) => _fn
       .httpsCallable('adminCancelLot')
       .call<dynamic>({'lotId': lotId, 'reason': reason});

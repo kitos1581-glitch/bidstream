@@ -303,3 +303,8 @@ test("comisión de lanzamiento: nadie puede tocar su conteo de ventas del mes", 
   await assertFails(setDoc(doc(as("nuevo"), "users/nuevo"), { full_name: "Nuevo", monthly_sales: {} }));
   await assertSucceeds(setDoc(doc(as("nuevo2"), "users/nuevo2"), { full_name: "Nuevo" }));
 });
+
+test("vendedor fundador: nadie se da el sello a sí mismo", async () => {
+  await assertFails(updateDoc(doc(as("beto"), "users/beto"), { founding_seller: true }));
+  await assertFails(setDoc(doc(as("nuevo3"), "users/nuevo3"), { full_name: "Nuevo", founding_seller: true }));
+});

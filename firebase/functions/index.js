@@ -69,6 +69,7 @@ exports.adminRetryWinnerPayment = adminFns.adminRetryWinnerPayment;
 exports.adminCancelLot = adminFns.adminCancelLot;
 exports.adminRecalculatePayout = adminFns.adminRecalculatePayout;
 exports.adminSetStorePlan = adminFns.adminSetStorePlan;
+exports.adminSetFoundingSeller = adminFns.adminSetFoundingSeller;
 
 // Pujas altas requieren identidad verificada (INE). Monto en MXN.
 const VERIFIED_BID_THRESHOLD = Number(process.env.VERIFIED_BID_THRESHOLD || 20000);

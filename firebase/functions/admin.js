@@ -432,3 +432,38 @@ async function setStorePlanImpl(data, adminUid, nowMs = Date.now()) {
 }
 
 module.exports = { ...module.exports, setStorePlanImpl };
+
+// ---------------------------------------------------------------------
+// adminSetFoundingSeller — sello "Vendedor fundador" (campaña de arranque).
+// data: { uid, founding: true | false }. Solo reconocimiento: no cambia
+// comisiones. Lo asigna el admin; el cliente no lo puede escribir (reglas).
+// ---------------------------------------------------------------------
+exports.adminSetFoundingSeller = functions.region(REGION).https.onCall(async (data, context) => {
+  assertAppCheck(context);
+  const adminUid = requireAdmin(context);
+  return setFoundingSellerImpl(data, adminUid);
+});
+
+async function setFoundingSellerImpl(data, adminUid) {
+  const uid = String((data && data.uid) || "");
+  const founding = data && data.founding;
+  if (!uid || uid.includes("/") || uid.length > 128) throw new functions.https.HttpsError("invalid-argument", "Usuario inválido.");
+  if (typeof founding !== "boolean") throw new functions.https.HttpsError("invalid-argument", "Indica si es fundador (true/false).");
+  const userRef = db.collection("users").doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new functions.https.HttpsError("not-found", "Usuario no encontrado.");
+    const u = snap.data();
+    if (founding && u.banned === true) throw new functions.https.HttpsError("failed-precondition", "La cuenta está suspendida.");
+    if ((u.founding_seller === true) === founding) return;
+    tx.update(userRef, {
+      founding_seller: founding,
+      founding_since: founding ? admin.firestore.FieldValue.serverTimestamp() : null,
+    });
+  });
+  await require("./reputation").refreshProfile(uid);
+  await auditLog(adminUid, "founding_seller", uid, { founding });
+  return { ok: true, founding };
+}
+
+module.exports = { ...module.exports, setFoundingSellerImpl };

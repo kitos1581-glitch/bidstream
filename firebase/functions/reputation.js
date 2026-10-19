@@ -40,9 +40,10 @@ function fail(httpsCode, code, message) {
 }
 
 /** Insignias a partir de los agregados (función pura). */
-function computeBadges({ verified, sales_count: sales = 0, rating_avg: avg = 0, rating_count: count = 0, open_disputes: disputes = 0, is_store: isStore = false }) {
+function computeBadges({ verified, sales_count: sales = 0, rating_avg: avg = 0, rating_count: count = 0, open_disputes: disputes = 0, is_store: isStore = false, is_founding: founding = false }) {
   const badges = [];
   if (isStore) badges.push("tienda_oficial");
+  if (founding) badges.push("fundador");
   if (verified) badges.push("verificado");
   if (disputes > 0) badges.push("en_disputa");
   else if (sales >= 10 && count > 0 && avg >= 4.5) badges.push("destacado");
@@ -83,6 +84,7 @@ function profilePatch(current, { addSum = 0, addCount = 0 }, seller) {
   const verified = seller ? seller.verified === true : current.verified === true;
   const sales = Number(current.sales_count) || 0;
   const isStore = seller ? storeActive(seller, Date.now()) : current.is_store === true;
+  const isFounding = seller ? seller.founding_seller === true : current.is_founding === true;
   return {
     display_name: seller ? publicName(seller.full_name || "") : current.display_name || "",
     verified,
@@ -92,8 +94,10 @@ function profilePatch(current, { addSum = 0, addCount = 0 }, seller) {
     sales_count: sales,
     is_store: isStore,
     store_name: isStore && seller ? String(seller.store_name || "") : isStore ? current.store_name || "" : "",
+    is_founding: isFounding,
     badges: computeBadges({
       is_store: isStore,
+      is_founding: isFounding,
       verified,
       sales_count: sales,
       rating_avg: ratingAvg,
@@ -241,6 +245,7 @@ exports.onPublicProfileInputs = functions
       a.full_name === b.full_name &&
       a.seller_plan === b.seller_plan &&
       a.store_name === b.store_name &&
+      a.founding_seller === b.founding_seller &&
       millis(a.store_plan_until) === millis(b.store_plan_until)
     ) {
       return;

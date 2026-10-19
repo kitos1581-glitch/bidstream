@@ -781,6 +781,7 @@ class SellerBadges extends StatelessWidget {
     Widget chip(String key) {
       final (label, icon, bg, fg) = switch (key) {
         'tienda_oficial' => ('Tienda Oficial', Icons.storefront_rounded, theme.primary, Colors.white),
+        'fundador' => ('Vendedor fundador', Icons.military_tech_rounded, const Color(0xFFFDE6D2), const Color(0xFF8A3B00)),
         'en_disputa' => ('En disputa', Icons.gavel_rounded, const Color(0xFFFDECEA), theme.error),
         'verificado' => ('Verificado', Icons.verified_rounded, theme.primaryContainer, theme.primary),
         'destacado' => ('Vendedor destacado', Icons.workspace_premium_rounded, const Color(0xFFFFF1C7), const Color(0xFF8A5A00)),
