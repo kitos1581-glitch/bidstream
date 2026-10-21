@@ -12,7 +12,7 @@ const {
   assertSucceeds,
   assertFails,
 } = require("@firebase/rules-unit-testing");
-const { doc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, Timestamp, serverTimestamp } =
+const { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, query, where, Timestamp, serverTimestamp } =
   require("firebase/firestore");
 
 let env;
@@ -307,4 +307,17 @@ test("comisión de lanzamiento: nadie puede tocar su conteo de ventas del mes", 
 test("vendedor fundador: nadie se da el sello a sí mismo", async () => {
   await assertFails(updateDoc(doc(as("beto"), "users/beto"), { founding_seller: true }));
   await assertFails(setDoc(doc(as("nuevo3"), "users/nuevo3"), { full_name: "Nuevo", founding_seller: true }));
+});
+
+test("aparta y paga: no se borra un artículo apartado o vendido sin pujas; nadie se limpia sus apartados vencidos", async () => {
+  await env.withSecurityRulesDisabled(async (c) => {
+    const f = c.firestore();
+    await setDoc(doc(f, "lots/V1"), { seller_uid: "vero", status: "ended", bid_count: 0, winner_uid: "ana", payment_status: "pending", pay_first: true });
+    await setDoc(doc(f, "lots/V2"), { seller_uid: "vero", status: "ended", bid_count: 0, winner_uid: "ana", payment_status: "paid" });
+    await setDoc(doc(f, "lots/V3"), { seller_uid: "vero", status: "active", bid_count: 0 });
+  });
+  await assertFails(deleteDoc(doc(as("vero"), "lots/V1")));
+  await assertFails(deleteDoc(doc(as("vero"), "lots/V2")));
+  await assertSucceeds(deleteDoc(doc(as("vero"), "lots/V3")));
+  await assertFails(updateDoc(doc(as("beto"), "users/beto"), { unpaid_buys: 0 }));
 });

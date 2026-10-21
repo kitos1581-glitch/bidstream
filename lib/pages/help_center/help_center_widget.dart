@@ -73,6 +73,7 @@ class HelpTopic {
 const kHelpTopics = <HelpTopic>[
   HelpTopic('comprar', Icons.gavel_rounded, 'Cómo comprar', [
     'Busca y revisa el lote: fotos, estado, características y tiempo restante.',
+    'Artículos a precio fijo: solo necesitas tu cuenta con nombre y teléfono, sin depósito ni INE. Al dar "Comprar ahora" te lo apartamos 30 minutos mientras pagas con tarjeta o Mercado Pago; si no pagas, vuelve a la venta. Si dejas vencer 3 apartados, para volver a apartar te pediremos el depósito.',
     'Para pujar crea tu cuenta, verifica tu correo y deja un depósito de garantía de \$200 (se descuenta si ganas).',
     'Escribe el máximo que estás dispuesto a pagar. Es secreto: el sistema puja por ti solo lo necesario para ir ganando.',
     'Si alguien puja en los últimos 2 minutos, el cierre se alarga 2 minutos para que todos puedan responder.',

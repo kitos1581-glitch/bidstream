@@ -107,14 +107,14 @@ service cloud.firestore {
               ['verified', 'role', 'banned', 'deposit', 'strikes',
                'verification_status', 'ban_reason', 'seller_strikes',
                'seller_plan', 'store_name', 'store_plan_until', 'monthly_sales',
-               'founding_seller', 'founding_since']);
+               'founding_seller', 'founding_since', 'unpaid_buys']);
 
       allow update: if isOwner(uid)
         && !request.resource.data.diff(resource.data).affectedKeys()
               .hasAny(['verified', 'role', 'banned', 'uid', 'created_time',
                        'deposit', 'strikes', 'verification_status', 'ban_reason',
                        'seller_strikes', 'seller_plan', 'store_name', 'store_plan_until',
-                       'monthly_sales', 'founding_seller', 'founding_since']);
+                       'monthly_sales', 'founding_seller', 'founding_since', 'unpaid_buys']);
 
       allow delete: if false;
 
@@ -201,8 +201,12 @@ service cloud.firestore {
               && request.resource.data.end_time > request.time)
         );
 
-      // Solo se puede borrar un lote que nadie ha pujado.
-      allow delete: if isOwner(resource.data.seller_uid) && resource.data.bid_count == 0;
+      // Solo se puede borrar un lote que nadie ha pujado NI comprado/apartado
+      // (Comprar ahora y precio fijo venden sin pujas).
+      allow delete: if isOwner(resource.data.seller_uid)
+        && resource.data.bid_count == 0
+        && resource.data.get('winner_uid', null) == null
+        && resource.data.get('payment_status', null) == null;
 
       // Ofertas proxy: contienen el MÁXIMO SECRETO (max_amount).
       // Cada quien solo puede leer las suyas (las consultas deben filtrar

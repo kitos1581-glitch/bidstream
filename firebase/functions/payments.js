@@ -162,6 +162,17 @@ function computeCommission(price, config = COMMISSION_CONFIG) {
   return round2(Math.min(p, Math.max(c, config.min)));
 }
 const WINNER_PAYMENT_WINDOW_HOURS = Number(process.env.WINNER_PAYMENT_WINDOW_HOURS || 24);
+// Precio fijo "aparta y paga": minutos que se aparta el artículo mientras el
+// comprador paga (entero 10–240; por defecto 30). Sin pago, vuelve a venta.
+const BUY_HOLD_MINUTES = (() => {
+  const raw = process.env.BUY_HOLD_MINUTES;
+  if (raw === undefined || String(raw).trim() === "") return 30;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 10 || n > 240) {
+    throw new Error(`BUY_HOLD_MINUTES inválido: "${raw}" (entero 10–240)`);
+  }
+  return n;
+})();
 const SITE_URL = process.env.SITE_URL || "https://bidstream.web.app";
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 
@@ -520,7 +531,9 @@ exports.createDeposit = functions.region(REGION).https.onCall(async (data, conte
 async function startWinnerPayment(lotRef, lot, winnerUid) {
   const finalPrice = round2(Number(lot.current_bid) || 0);
   const winnerRef = db.collection("users").doc(winnerUid);
-  const dueMs = Date.now() + WINNER_PAYMENT_WINDOW_HOURS * 3600 * 1000;
+  // Aparta y paga: ventana corta, sin depósito y solo pago inmediato (tarjeta / MP).
+  const payFirst = lot.pay_first === true;
+  const dueMs = Date.now() + (payFirst ? BUY_HOLD_MINUTES * 60 * 1000 : WINNER_PAYMENT_WINDOW_HOURS * 3600 * 1000);
 
   const sellerRef = db.collection("users").doc(lot.seller_uid);
   const plan = await db.runTransaction(async (tx) => {
@@ -539,7 +552,7 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
 
     let depositApplied = 0;
     let depositMpId = null;
-    const dep = winner.deposit || {};
+    const dep = payFirst ? {} : winner.deposit || {};
     if (dep.status === "held") {
       depositApplied = round2(Number(dep.amount) || 0);
       depositMpId = dep.mp_payment_id || null;
@@ -593,7 +606,8 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
       deposit_applied: depositApplied,
       payment_due_time: Timestamp.fromMillis(dueMs),
       // Métodos que el ganador puede elegir (SPEI solo si Openpay está configurado).
-      payment_options: openpayConfigured() ? ["mercadopago", "spei"] : ["mercadopago"],
+      // Aparta y paga: solo pago inmediato; una transferencia puede tardar más que el apartado.
+      payment_options: !payFirst && openpayConfigured() ? ["mercadopago", "spei"] : ["mercadopago"],
     });
     return { settled: false, amountDue, depositApplied, excess: 0, depositMpId };
   });
@@ -663,6 +677,7 @@ async function forfeitWin(lotRef) {
     if (lot.status !== "ended" || lot.payment_status !== "pending") return null;
     if (!lot.payment_due_time || lot.payment_due_time.toMillis() > Date.now()) return null;
     if (!lot.winner_uid) return null;
+    if (lot.pay_first === true) return releaseBuyHold(tx, lotRef, lot);
 
     const winnerRef = db.collection("users").doc(lot.winner_uid);
     const winnerSnap = await tx.get(winnerRef);
@@ -728,9 +743,63 @@ async function forfeitWin(lotRef) {
   return !!outcome;
 }
 
+/**
+ * Aparta y paga vencido: el artículo vuelve a la venta (sin castigo ni
+ * depósito que perder). Se cuenta en users.unpaid_buys: al llegar al límite,
+ * esa persona necesita depósito para volver a apartar.
+ * Si la publicación ya había vencido, queda terminada sin venta.
+ */
+function releaseBuyHold(tx, lotRef, lot) {
+  const del = FieldValue.delete();
+  const listingEnd = lot.listing_end_time && lot.listing_end_time.toMillis ? lot.listing_end_time.toMillis() : 0;
+  const reopen = listingEnd > Date.now();
+  const patch = {
+    status: reopen ? "active" : "ended",
+    end_time: reopen ? lot.listing_end_time : Timestamp.now(),
+    current_bid: Number(lot.starting_price) || Number(lot.buy_now_price) || 0,
+    winner_uid: null,
+    winner_name: null,
+    highest_bidder_uid: null,
+    highest_bidder_name: null,
+    final_price: null,
+    sold_via: del,
+    pay_first: del,
+    listing_end_time: del,
+    payment_status: del,
+    payment_due_time: del,
+    winner_payment_url: del,
+    amount_due: del,
+    deposit_applied: del,
+    payment_options: del,
+    delivery_choice: del,
+    shipping_charge: del,
+  };
+  if (reopen) patch.closed_time = del;
+  tx.update(lotRef, patch);
+  tx.update(db.collection("users").doc(lot.winner_uid), { unpaid_buys: FieldValue.increment(1) });
+  tx.set(
+    notificationRef(lot.winner_uid),
+    notificationData(
+      "hold_expired",
+      `Se liberó tu apartado: ${lot.title}`,
+      reopen
+        ? "No recibimos tu pago a tiempo y el artículo volvió a la venta. Si aún lo quieres, puedes comprarlo de nuevo mientras siga disponible."
+        : "No recibimos tu pago a tiempo y la publicación ya terminó.",
+      lotRef.id
+    )
+  );
+  if (!reopen) {
+    tx.set(
+      notificationRef(lot.seller_uid),
+      notificationData("unsold", `Sin venta: ${lot.title}`, "Tu publicación terminó sin venta. Puedes volver a publicarla.", lotRef.id)
+    );
+  }
+  return true;
+}
+
 exports.expireUnpaidWins = functions
   .region(REGION)
-  .pubsub.schedule("every 15 minutes")
+  .pubsub.schedule("every 5 minutes")
   .onRun(async () => {
     const snap = await db
       .collection("lots")
@@ -1114,6 +1183,7 @@ module.exports = {
   CommissionConfigError,
   getCommissionConfigError: () => COMMISSION_CONFIG_ERROR,
   WINNER_PAYMENT_WINDOW_HOURS,
+  BUY_HOLD_MINUTES,
   readReleaseDays,
   RELEASE,
 };

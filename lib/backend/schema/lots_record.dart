@@ -56,6 +56,10 @@ class LotsRecord extends FirestoreRecord {
       : asDouble(snapshotData['buy_now_price']);
   bool get soldByBuyNow => asString(snapshotData['sold_via']) == 'buy_now';
 
+  /// Precio fijo "aparta y paga": alguien lo apartó y está pagando.
+  bool get isHeld =>
+      snapshotData['pay_first'] == true && status == 'ended' && paymentStatus == 'pending';
+
   /// ¿Se puede comprar al instante? (la decisión final la toma el servidor)
   bool canBuyNow([DateTime? now]) =>
       (buyNowPrice ?? 0) > 0 &&

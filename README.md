@@ -128,10 +128,16 @@ admin_log/{id}              bitácora de administradores
   - En una subasta por tiempo, el vendedor puede poner un precio "Comprar
     ahora" mayor al inicial (y a la reserva). Desaparece con la primera puja.
   - La compra la decide el servidor (`buyNow`) en una transacción: dos
-    compradores a la vez → solo uno gana. Exige lo mismo que pujar
-    (depósito, perfil, términos e INE arriba de $20,000).
-  - Después sigue la ruta de una subasta ganada: se aplica el depósito,
-    24 h para pagar, escrow y entrega. El cliente nunca escribe el precio.
+    compradores a la vez → solo uno gana. El cliente nunca escribe el precio.
+  - **Precio fijo = "aparta y paga":** sin depósito ni INE (solo perfil y
+    términos). Se aparta `BUY_HOLD_MINUTES` (30) mientras paga, solo con pago
+    inmediato (tarjeta / Mercado Pago). Si no paga, vuelve a la venta sin
+    castigo; se cuenta en `users.unpaid_buys` y con 3 vencidos se le pide
+    depósito para volver a apartar. Al vendedor se le avisa al cobrar.
+  - **Subasta con Comprar ahora:** mismas reglas que pujar (depósito,
+    perfil, términos, INE arriba de $20,000), 24 h para pagar y castigo
+    normal si no paga.
+  - Después: escrow y entrega como en cualquier venta.
 - **Ganador moroso:**
   - Pierde su depósito, que se le da al vendedor como compensación.
   - Recibe un strike; con 2 strikes la cuenta se suspende.

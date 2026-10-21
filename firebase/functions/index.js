@@ -12,10 +12,12 @@ const {
   publicName,
   userBidEligibilityError,
   buyNowError,
+  directBuyEligibilityError,
+  needsDepositForDirectBuy,
   saleType,
 } = require("./auction_logic");
 const payments = require("./payments");
-const { startWinnerPayment, WINNER_PAYMENT_WINDOW_HOURS } = payments;
+const { startWinnerPayment, WINNER_PAYMENT_WINDOW_HOURS, BUY_HOLD_MINUTES } = payments;
 
 // Funciones de pagos: DEBEN exportarse desde index.js para que Firebase
 // las despliegue.
@@ -437,6 +439,7 @@ async function closeLot(lotRef) {
 // ---------------------------------------------------------------------
 async function finishSale(lotRef, lot, winnerUid) {
   const boughtNow = lot.sold_via === "buy_now";
+  const payFirst = lot.pay_first === true;
   const verbo = boughtNow ? "Compraste" : "Ganaste";
   let pay;
   try {
@@ -453,6 +456,8 @@ async function finishSale(lotRef, lot, winnerUid) {
     winnerBody = `${verbo} en ${formatMoney(lot.current_bid)} y tu depósito lo cubre. En tus avisos está el contacto del vendedor.`;
   } else if (pay.error) {
     winnerBody = `${verbo} en ${formatMoney(lot.current_bid)}. Estamos generando tu enlace de pago; te avisaremos en cuanto esté listo.`;
+  } else if (payFirst) {
+    winnerBody = `Te lo apartamos ${BUY_HOLD_MINUTES} minutos. Paga ${formatMoney(pay.amount)} para que sea tuyo; si no, vuelve a estar a la venta. Al pagar te compartimos el contacto del vendedor.`;
   } else {
     winnerBody = `${verbo} en ${formatMoney(lot.current_bid)}. Tienes ${WINNER_PAYMENT_WINDOW_HOURS} horas para pagar ${formatMoney(
       pay.amount
@@ -462,14 +467,15 @@ async function finishSale(lotRef, lot, winnerUid) {
   const batch = db.batch();
   batch.set(notificationRef(winnerUid), {
     type: "won",
-    title: boughtNow ? `¡Compraste! ${lot.title}` : `¡Ganaste! ${lot.title}`,
+    title: payFirst ? `Apartado: ${lot.title}` : boughtNow ? `¡Compraste! ${lot.title}` : `¡Ganaste! ${lot.title}`,
     body: winnerBody,
     lot_id: lotRef.id,
     action_url: pay.url || "",
     read: false,
     created_time: FieldValue.serverTimestamp(),
   });
-  batch.set(notificationRef(lot.seller_uid), {
+  // Aparta y paga: al vendedor se le avisa cuando el pago entra ("¡Cobrada!").
+  if (!payFirst) batch.set(notificationRef(lot.seller_uid), {
     type: "sold",
     title: `Vendiste: ${lot.title}`,
     body: `Se vendió en ${formatMoney(lot.current_bid)}${boughtNow ? " (Comprar ahora)" : ""}. Cuando el comprador pague te enviaremos su contacto para la entrega.`,
@@ -485,7 +491,11 @@ async function finishSale(lotRef, lot, winnerUid) {
 // buyNow: Comprar ahora (precio fijo o subasta sin pujas con precio de
 // compra inmediata). Una transacción cierra el lote a nombre del comprador:
 // si dos personas compran a la vez, solo una gana (la otra ve "ya se vendió").
-// Mismos requisitos que pujar (perfil, términos, depósito, INE en montos altos).
+// Subasta con Comprar ahora: mismos requisitos que pujar (perfil, términos,
+// depósito, INE en montos altos).
+// Precio fijo: "aparta y paga" — sin depósito ni INE; el artículo se aparta
+// BUY_HOLD_MINUTES mientras paga y, si no paga, vuelve a la venta (quien deja
+// vencer varios apartados vuelve a necesitar depósito).
 // data: { lotId }
 // ---------------------------------------------------------------------
 async function buyNowImpl(data, auth) {
@@ -517,12 +527,11 @@ async function buyNowImpl(data, auth) {
       nowMs
     );
     if (chk.code) throw new functions.https.HttpsError(chk.code, chk.message, { code: chk.reason });
-    const userErr = userBidEligibilityError(
-      userSnap.exists ? userSnap.data() : null,
-      chk.price,
-      VERIFIED_BID_THRESHOLD,
-      "comprar"
-    );
+    const buyer = userSnap.exists ? userSnap.data() : null;
+    const payFirst = saleType(lot) === "fixed" && !needsDepositForDirectBuy(buyer);
+    const userErr = payFirst
+      ? directBuyEligibilityError(buyer)
+      : userBidEligibilityError(buyer, chk.price, VERIFIED_BID_THRESHOLD, "comprar");
     if (userErr) throw new functions.https.HttpsError(userErr.code, userErr.message, userErr.details);
 
     const buyerName = publicName(userSnap.data().full_name);
@@ -539,6 +548,10 @@ async function buyNowImpl(data, auth) {
       final_price: chk.price,
       payment_status: "processing",
     };
+    if (payFirst) {
+      patch.pay_first = true;
+      patch.listing_end_time = lot.end_time; // para regresarlo a la venta si no paga
+    }
     tx.update(lotRef, patch);
     return { ...lot, ...patch };
   });
@@ -550,11 +563,15 @@ async function buyNowImpl(data, auth) {
     url: pay.url || null,
     amount: pay.amount,
     settled: Boolean(pay.alreadySettled),
+    payFirst: sold.pay_first === true,
+    holdMinutes: sold.pay_first === true ? BUY_HOLD_MINUTES : null,
     message: pay.alreadySettled
       ? "¡Es tuyo! Tu depósito cubre el pago."
       : pay.error
-        ? "¡Es tuyo! Estamos generando tu enlace de pago."
-        : `¡Es tuyo! Tienes ${WINNER_PAYMENT_WINDOW_HOURS} horas para pagar ${formatMoney(pay.amount)}.`,
+        ? "Estamos generando tu enlace de pago; te avisaremos en cuanto esté listo."
+        : sold.pay_first === true
+          ? `Te lo apartamos ${BUY_HOLD_MINUTES} minutos. Paga ${formatMoney(pay.amount)} para que sea tuyo.`
+          : `¡Es tuyo! Tienes ${WINNER_PAYMENT_WINDOW_HOURS} horas para pagar ${formatMoney(pay.amount)}.`,
   };
 }
 

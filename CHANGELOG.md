@@ -8,6 +8,19 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Cambiado: precio fijo "aparta y paga" (2026-10-21)
+- Comprar a precio fijo ya no pide depósito ni INE: el artículo se aparta
+  30 min (`BUY_HOLD_MINUTES`) mientras se paga con tarjeta o Mercado Pago.
+  Si no paga, vuelve a la venta (o termina sin venta si ya venció), sin
+  strike. Con 3 apartados vencidos (`users.unpaid_buys`) se vuelve a pedir
+  depósito.
+- La subasta con Comprar ahora conserva las reglas de pujar.
+- `expireUnpaidWins` corre cada 5 min (antes 15) para liberar apartados a
+  tiempo.
+- **Corregido (seguridad):** el vendedor podía borrar un lote vendido o
+  apartado por Comprar ahora (no tiene pujas). Ahora no se borra si tiene
+  comprador o estado de pago.
+
 ### Agregado: sello "Vendedor fundador" (2026-10-19)
 - Nueva función de admin `adminSetFoundingSeller` (34 funciones): asigna o
   retira el sello. Solo es reconocimiento; no cambia comisiones.

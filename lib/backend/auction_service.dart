@@ -339,6 +339,7 @@ class AuctionService {
         message: data['message']?.toString() ?? '¡Es tuyo!',
         paymentUrl: data['url']?.toString(),
         settled: data['settled'] == true,
+        payFirst: data['payFirst'] == true,
       );
     } on FirebaseFunctionsException catch (e) {
       final details = e.details;
@@ -502,18 +503,22 @@ class AuctionService {
 
 /// Resultado de Comprar ahora.
 class BuyNowResult {
-  const BuyNowResult.success({required this.message, this.paymentUrl, this.settled = false})
+  const BuyNowResult.success({required this.message, this.paymentUrl, this.settled = false, this.payFirst = false})
       : ok = true,
         code = null;
   const BuyNowResult.failure(this.message, {this.code})
       : ok = false,
         paymentUrl = null,
-        settled = false;
+        settled = false,
+        payFirst = false;
 
   final bool ok;
   final String message;
   final String? paymentUrl;
   final bool settled;
+
+  /// Precio fijo "aparta y paga": está apartado mientras paga (sin depósito).
+  final bool payFirst;
 
   /// Código del servidor (p. ej. DEPOSIT_REQUIRED, IDENTITY_REQUIRED, NOT_ACTIVE).
   final String? code;

@@ -218,7 +218,9 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                             children: [
                               Text(
                                   lot.isFixedPrice
-                                      ? (lot.status == 'ended' && lot.winnerUid.isNotEmpty
+                                      ? (lot.isHeld
+                                          ? 'Apartado'
+                                          : lot.status == 'ended' && lot.winnerUid.isNotEmpty
                                           ? 'Vendido en'
                                           : 'Precio')
                                       : lot.status == 'ended'
@@ -307,7 +309,11 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                     if (lot.status == 'ended') ...[
                       const SizedBox(height: 10),
                       Text(
-                        lot.winnerUid.isEmpty
+                        lot.isHeld
+                            ? (currentUserUid.isNotEmpty && lot.winnerUid == currentUserUid
+                                ? 'Lo apartaste: paga para que sea tuyo. Si no pagas a tiempo, vuelve a la venta.'
+                                : 'Apartado: alguien lo está pagando. Si no completa el pago, vuelve a estar disponible.')
+                            : lot.winnerUid.isEmpty
                             ? (lot.isFixedPrice ? 'Terminó sin venta.' : 'Terminó sin pujas.')
                             : (currentUserUid.isNotEmpty && lot.winnerUid == currentUserUid
                                 ? (lot.soldByBuyNow ? '¡Lo compraste!' : '¡Ganaste esta subasta!')
@@ -549,9 +555,11 @@ class _BuyNowButtonState extends State<_BuyNowButton> {
       context: context,
       builder: (c) => AlertDialog(
         title: Text('¿Comprar por ${formatMoney(price)}?'),
-        content: const Text(
-            'Al confirmar, el artículo es tuyo. Tienes 24 horas para pagar (tu depósito se descuenta). '
-            'Si no pagas, pierdes tu depósito. El pago queda protegido hasta que recibas el artículo.'),
+        content: Text(lot.isFixedPrice
+            ? 'Te lo apartamos unos minutos mientras pagas con tarjeta o Mercado Pago. No necesitas depósito. '
+                'Si no pagas a tiempo, vuelve a estar a la venta. Tu pago queda protegido hasta que recibas el artículo.'
+            : 'Al confirmar, el artículo es tuyo. Tienes 24 horas para pagar (tu depósito se descuenta). '
+                'Si no pagas, pierdes tu depósito. El pago queda protegido hasta que recibas el artículo.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
           TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Comprar')),
@@ -568,7 +576,7 @@ class _BuyNowButtonState extends State<_BuyNowButton> {
       await showDialog<void>(
         context: context,
         builder: (c) => AlertDialog(
-          title: const Text('¡Es tuyo!'),
+          title: Text(r.payFirst ? '¡Apartado!' : '¡Es tuyo!'),
           content: Text(r.message),
           actions: [
             if (url != null && url.isNotEmpty)

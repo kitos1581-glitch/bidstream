@@ -381,6 +381,29 @@ function userBidEligibilityError(user, maxAmount, verifiedThreshold, verbo = "pu
   return null;
 }
 
+/**
+ * Compra directa (precio fijo, "aparta y paga"): el comprador paga por
+ * adelantado, así que NO se le pide depósito ni INE. Solo cuenta activa,
+ * perfil (nombre y teléfono, para la entrega) y términos.
+ * Quien dejó vencer UNPAID_BUYS_LIMIT apartados sin pagar vuelve a la regla
+ * normal (depósito), para que nadie bloquee artículos por gusto.
+ */
+const UNPAID_BUYS_LIMIT = 3;
+function directBuyEligibilityError(user) {
+  if (!user) return { code: "failed-precondition", message: "Completa tu perfil antes de comprar." };
+  if (user.banned === true) return { code: "permission-denied", message: "Tu cuenta está suspendida." };
+  if (!String(user.full_name || "").trim() || !String(user.phone || "").trim()) {
+    return { code: "failed-precondition", message: "Completa tu perfil (nombre y teléfono) antes de comprar." };
+  }
+  if (user.accepted_terms !== true) {
+    return { code: "failed-precondition", message: "Acepta los términos antes de comprar." };
+  }
+  return null;
+}
+function needsDepositForDirectBuy(user) {
+  return (Number(user && user.unpaid_buys) || 0) >= UNPAID_BUYS_LIMIT;
+}
+
 // Nombre público para el historial (protege privacidad):
 // "Juan Pérez López" -> "Juan P."
 function publicName(fullName) {
@@ -412,6 +435,13 @@ function buyNowError(lot, uid, nowMs) {
     return { code: "failed-precondition", message: "Es tu publicación: no puedes comprarla.", reason: "OWN_LOT" };
   }
   if (lot.status !== "active") {
+    if (lot.pay_first === true && lot.payment_status === "pending") {
+      return {
+        code: "failed-precondition",
+        message: "Alguien lo apartó y está pagando. Si no completa el pago en unos minutos, vuelve a estar disponible.",
+        reason: "HELD",
+      };
+    }
     return { code: "failed-precondition", message: "Este artículo ya se vendió o terminó.", reason: "NOT_ACTIVE" };
   }
   const start = lot.start_time_ms;
@@ -446,6 +476,9 @@ module.exports = {
   buyNowError,
   applyReserve,
   userBidEligibilityError,
+  directBuyEligibilityError,
+  needsDepositForDirectBuy,
+  UNPAID_BUYS_LIMIT,
   resolveProxyBid,
   lotIntegrityError,
   stateIntegrityError,
