@@ -114,8 +114,9 @@ admin_log/{id}              bitácora de administradores
 - **Puja proxy:** cada postor ofrece un máximo secreto, y el precio visible
   sube solo lo necesario. En empate gana quien ofertó primero. El vendedor no
   puede pujar en sus propios lotes.
-- **Anti-sniping:** una oferta válida en los últimos 2 min mueve el cierre a
-  "ahora + 2 min" (conexiones de celular lentas en la región).
+- **Anti-sniping:** una oferta válida en los últimos 40 s mueve el cierre a
+  "ahora + 40 s" (`ANTI_SNIPE_SECONDS`, 15–300): ágil, con margen para el
+  retraso del video en vivo.
 - **Precio de reserva** (solo en subastas por tiempo):
   - Es secreto: vive en `private/reserve`.
   - Si el máximo del líder alcanza la reserva, el precio salta a la reserva.

@@ -12,9 +12,20 @@
  */
 
 // Anti-sniping: si quedan 30 s o menos, el cierre pasa a "ahora + 30 s".
-// Conexiones de celular lentas en la región: 2 minutos para responder.
-const ANTI_SNIPE_WINDOW_MS = 2 * 60 * 1000;
-const ANTI_SNIPE_EXTENSION_MS = 2 * 60 * 1000;
+// Anti-sniping: una puja en los últimos N segundos alarga el cierre a
+// "ahora + N s". ANTI_SNIPE_SECONDS (entero 15–300; por defecto 40): ágil,
+// pero con margen para el retraso del video en vivo (10–30 s en YouTube).
+const ANTI_SNIPE_SECONDS = (() => {
+  const raw = process.env.ANTI_SNIPE_SECONDS;
+  if (raw === undefined || String(raw).trim() === "") return 40;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 15 || n > 300) {
+    throw new Error(`ANTI_SNIPE_SECONDS inválido: "${raw}" (entero 15–300)`);
+  }
+  return n;
+})();
+const ANTI_SNIPE_WINDOW_MS = ANTI_SNIPE_SECONDS * 1000;
+const ANTI_SNIPE_EXTENSION_MS = ANTI_SNIPE_SECONDS * 1000;
 
 // Tope absoluto contra errores de dedo (en pesos). Con puja proxy un máximo
 // muy por encima del precio actual es legítimo, por eso ya no se usa un

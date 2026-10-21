@@ -8,6 +8,10 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Cambiado: anti-sniping de 40 segundos, configurable (2026-10-21)
+- `ANTI_SNIPE_SECONDS` (por defecto 40, rango 15–300) reemplaza los 2 min
+  fijos: más ágil y con margen para el retraso del video en vivo.
+
 ### Cambiado: precio fijo "aparta y paga" (2026-10-21)
 - Comprar a precio fijo ya no pide depósito ni INE: el artículo se aparta
   30 min (`BUY_HOLD_MINUTES`) mientras se paga con tarjeta o Mercado Pago.

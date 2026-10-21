@@ -185,20 +185,20 @@ test("lotes antiguos sin estado privado se reconstruyen", () => {
 });
 
 // ------------------------------------------------------------------
-// Anti-sniping de 2 minutos
+// Anti-sniping de 40 segundos
 // ------------------------------------------------------------------
 
-test("anti-sniping: con 2 min o menos, cierre = ahora + 2 min", () => {
-  for (const left of [120_000, 30_000, 5_000, 1]) {
+test("anti-sniping: con 40 s o menos, cierre = ahora + 40 s", () => {
+  for (const left of [40_000, 30_000, 5_000, 1]) {
     assert.deepStrictEqual(applyAntiSniping(NOW + left, NOW), {
-      newEndTimeMs: NOW + 120_000,
+      newEndTimeMs: NOW + 40_000,
       extended: true,
     });
   }
 });
 
-test("anti-sniping: con más de 2 min o ya vencido, no cambia", () => {
-  assert.strictEqual(applyAntiSniping(NOW + 120_001, NOW).extended, false);
+test("anti-sniping: con más de 40 s o ya vencido, no cambia", () => {
+  assert.strictEqual(applyAntiSniping(NOW + 40_001, NOW).extended, false);
   assert.strictEqual(applyAntiSniping(NOW, NOW).extended, false);
   assert.strictEqual(applyAntiSniping(NOW - 1, NOW).extended, false);
 });
@@ -208,7 +208,7 @@ test("una oferta válida a 10 s del cierre extiende la subasta", () => {
     end_time_ms: NOW + 60_000,
   });
   assert.strictEqual(results[1].extended, true);
-  assert.strictEqual(lot.end_time_ms, NOW + 50_000 + 120_000);
+  assert.strictEqual(lot.end_time_ms, NOW + 50_000 + 40_000);
 });
 
 test("una oferta rechazada no extiende la subasta", () => {
