@@ -38,6 +38,7 @@ etiquetado `v1.0.0`.
 | Comisión de lanzamiento + anti-sniping 2 min | **EJECUTADO en local: 188/188 pasan (6 nuevas)** | `test/launch_commission.test.js` (6): tope por mes, mes nuevo, mes de cierre vs. pago tardío, tienda y Buen Fin sin tope, configuración inválida → revisión y recálculo. Regla nueva: el cliente no toca `monthly_sales` (CI). |
 | Sello "Vendedor fundador" | **EJECUTADO en local: 189/189 pasan (1 nueva)** | Asignar, retirar, idempotencia, cuenta suspendida, no cambia comisión. Regla nueva: el cliente no se da el sello (CI). |
 | Precio fijo "aparta y paga" | **EJECUTADO en local: 194/194 pasan** | Sin depósito ni INE, apartado de 30 min, pago aprobado → liquidado, apartado vencido → vuelve a la venta sin strike, pago tardío devuelto, límite de 3 apartados, publicación vencida → sin venta. Reglas: no borrar lote apartado/vendido; no tocar `unpaid_buys` (CI). |
+| **Despliegue parcial a producción (2026-10-26)** | **EJECUTADO** | Plan Blaze activo (cuenta de facturación en prueba gratuita, alerta de presupuesto $200 MXN). Storage creado (US-CENTRAL1, modo producción). Índices de Firestore y reglas de Firestore + Storage desplegados con el workflow "Desplegar a Firebase" (corrida 40334908064). Funciones y hosting nuevo: **pendientes** (credenciales de Mercado Pago). |
 | R-10 en producción | **NO EJECUTADO** | Requiere desplegar reglas y funciones (Blaze). **LISTO PARA EJECUTAR HUMANO.** |
 
 ### Verificación remota
