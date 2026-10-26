@@ -102,6 +102,13 @@ jobs:
           npm ci
           npm test
 
+      - name: Política de limpieza de imágenes (1 día)
+        if: inputs.destino == 'funciones' || inputs.destino == 'todo'
+        working-directory: firebase
+        # Borra imágenes viejas de las funciones después de 1 día (evita cobros
+        # de almacenamiento). --force solo omite la pregunta de confirmación.
+        run: ../.github/scripts/run_and_report.sh "Política de limpieza" "Error|error|denied|Permission|permission|403|401|404|not found|HTTP|requires|Failed|failed" firebase functions:artifacts:setpolicy --location us-central1 --days 1 --force --project "$PROYECTO" --non-interactive
+
       - name: Desplegar funciones
         if: inputs.destino == 'funciones' || inputs.destino == 'todo'
         working-directory: firebase
