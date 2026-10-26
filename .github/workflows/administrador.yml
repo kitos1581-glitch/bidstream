@@ -1,0 +1,82 @@
+# Da o quita permisos de ADMINISTRADOR a un usuario de Subástalo Aquí
+# (proyecto bidstream-656cf), sin instalar nada en tu computadora.
+#
+# Es MANUAL: GitHub → Actions → "Administrador (dar / quitar)" → Run workflow.
+#   correo:    el correo con el que la persona se registró en la página
+#   accion:    dar | quitar
+#   confirmar: escribe ADMIN
+#
+# Usa el secreto FIREBASE_SERVICE_ACCOUNT. La cuenta github-deploy necesita los
+# roles "Administrador de Firebase Authentication" y "Usuario de Cloud
+# Datastore" (DEPLOY.md §0-bis). Después, la persona debe cerrar sesión y
+# volver a entrar para ver el panel.
+name: Administrador (dar / quitar)
+
+on:
+  workflow_dispatch:
+    inputs:
+      correo:
+        description: "Correo del usuario"
+        type: string
+        required: true
+      accion:
+        description: "dar o quitar"
+        type: choice
+        default: dar
+        options:
+          - dar
+          - quitar
+      confirmar:
+        description: "Escribe ADMIN para confirmar"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  administrador:
+    runs-on: ubuntu-24.04
+    environment: produccion
+    steps:
+      - name: Confirmación
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          if [ "$CONFIRMAR" != "ADMIN" ]; then
+            echo "::error::No se confirmó. Escribe ADMIN (en mayúsculas)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Dependencias
+        working-directory: firebase/functions
+        run: npm ci --omit=dev
+
+      - name: Credenciales (cuenta de servicio)
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Aplicar
+        working-directory: firebase
+        env:
+          CORREO: ${{ inputs.correo }}
+          ACCION: ${{ inputs.accion }}
+        run: |
+          if [ "$ACCION" = "quitar" ]; then
+            ../.github/scripts/run_and_report.sh "Administrador" "Error|error|denied|PERMISSION|permission|not found|no user" node scripts/set_admin.js "$CORREO" --quitar
+          else
+            ../.github/scripts/run_and_report.sh "Administrador" "Error|error|denied|PERMISSION|permission|not found|no user" node scripts/set_admin.js "$CORREO"
+          fi
+
+      - name: Limpiar credenciales
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
