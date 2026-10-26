@@ -548,7 +548,7 @@ class _BuyNowButtonState extends State<_BuyNowButton> {
     final lot = widget.lot;
     final price = lot.buyNowPrice ?? 0;
     if (currentUserUid.isEmpty) {
-      context.pushNamed('AuthAccess');
+      context.pushNamed('BidderAccess');
       return;
     }
     final ok = await showDialog<bool>(

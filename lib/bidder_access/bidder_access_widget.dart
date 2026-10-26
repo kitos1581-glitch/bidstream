@@ -63,6 +63,22 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
     }
   }
 
+  /// Entrar o registrarse con una cuenta de Google (Gmail). El correo ya
+  /// viene verificado por Google, así que no hace falta el correo de verificación.
+  Future<void> _google() async {
+    setState(() => _loading = true);
+    try {
+      GoRouter.of(context).prepareAuthEvent();
+      final user = await authManager.signInWithGoogle(context);
+      if (user == null) return;
+      await _safeEnsureProfile(fullName: user.displayName);
+      if (!mounted) return;
+      context.goNamedAuth('AuctionDashboard', context.mounted);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   /// Crear el perfil no debe impedir entrar a la app: si falla (sin
   /// conexión, reglas no desplegadas...), se avisa y se reintenta después
   /// desde "Completa tu cuenta".
@@ -228,6 +244,22 @@ class _BidderAccessWidgetState extends State<BidderAccessWidget> {
                       label: _isSignUp ? 'Crear cuenta' : 'Entrar',
                       loading: _loading,
                       onPressed: _submit,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(child: Divider(color: theme.alternate)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text('o', style: theme.bodySmall),
+                      ),
+                      Expanded(child: Divider(color: theme.alternate)),
+                    ]),
+                    const SizedBox(height: 12),
+                    BigButton(
+                      label: 'Continuar con Google (Gmail)',
+                      icon: Icons.account_circle_outlined,
+                      secondary: true,
+                      onPressed: _loading ? null : _google,
                     ),
                     if (!_isSignUp)
                       TextButton(
