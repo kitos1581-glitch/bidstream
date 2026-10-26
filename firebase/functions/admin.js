@@ -386,7 +386,7 @@ module.exports = { ...module.exports, ID_FILES };
 // El cobro de la membresía hoy es fuera de la app (transferencia/factura);
 // cobrarla automáticamente (suscripción de Mercado Pago) es un paso posterior.
 // ---------------------------------------------------------------------
-exports.adminSetStorePlan = functions.region(REGION).https.onCall(async (data, context) => {
+module.exports.adminSetStorePlan = functions.region(REGION).https.onCall(async (data, context) => {
   assertAppCheck(context);
   const adminUid = requireAdmin(context);
   return setStorePlanImpl(data, adminUid);
@@ -438,7 +438,7 @@ module.exports = { ...module.exports, setStorePlanImpl };
 // data: { uid, founding: true | false }. Solo reconocimiento: no cambia
 // comisiones. Lo asigna el admin; el cliente no lo puede escribir (reglas).
 // ---------------------------------------------------------------------
-exports.adminSetFoundingSeller = functions.region(REGION).https.onCall(async (data, context) => {
+module.exports.adminSetFoundingSeller = functions.region(REGION).https.onCall(async (data, context) => {
   assertAppCheck(context);
   const adminUid = requireAdmin(context);
   return setFoundingSellerImpl(data, adminUid);
