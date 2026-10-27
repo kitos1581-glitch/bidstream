@@ -8,6 +8,12 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Agregado: correo oficial contacto@subastaloaqui.com (2026-10-27)
+- Tarjeta "¿Necesitas ayuda?" en Ayuda (abre el correo) y punto en
+  Privacidad para consultar, corregir o borrar datos. Buzón en Zoho Mail.
+- Modo de prueba de Mercado Pago: no se envía el correo real del comprador
+  (MP rechazaba el pago: "una de las partes es de prueba").
+
 ### Corregido: "Pagar ahora" no hacía nada en iPhone (2026-10-27)
 - Safari bloqueaba la pestaña de Mercado Pago porque se abría después de
   esperar al servidor. En web el cobro se abre en la misma pestaña, y al

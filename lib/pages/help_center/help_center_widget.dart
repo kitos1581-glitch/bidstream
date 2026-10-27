@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/ui/ui_kit.dart';
@@ -45,6 +46,8 @@ class HelpCenterWidget extends StatelessWidget {
               const SizedBox(height: 16),
               for (final t in kHelpTopics)
                 _TopicCard(topic: t, initiallyExpanded: t.id == topic),
+              const SizedBox(height: 16),
+              const _ContactCard(),
               const SizedBox(height: 16),
               Text(
                 'Versión preliminar. Las reglas completas están en el reglamento, '
@@ -130,8 +133,35 @@ const kHelpTopics = <HelpTopic>[
     'Tu puja máxima es secreta: nadie la ve, ni el vendedor.',
     'En el historial público solo aparece tu nombre y la inicial de tu apellido (por ejemplo, "Juan P.").',
     'Tu teléfono y nombre completo se comparten solo con tu contraparte y solo después del pago.',
+    'Para consultar, corregir o borrar tus datos, escríbenos a $kContactEmail.',
   ]),
 ];
+
+/// Correo oficial de atención (buzón en Zoho Mail).
+const kContactEmail = 'contacto@subastaloaqui.com';
+
+class _ContactCard extends StatelessWidget {
+  const _ContactCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Card(
+      elevation: 0,
+      color: theme.secondaryBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: theme.alternate),
+      ),
+      child: ListTile(
+        leading: Icon(Icons.mail_outline, color: theme.primary),
+        title: Text('¿Necesitas ayuda?', style: theme.titleSmall.copyWith(fontWeight: FontWeight.w700)),
+        subtitle: Text('Escríbenos a $kContactEmail', style: theme.bodyMedium),
+        onTap: () => launchUrl(Uri.parse('mailto:$kContactEmail?subject=Ayuda%20Sub%C3%A1stalo%20Aqu%C3%AD')),
+      ),
+    );
+  }
+}
 
 class _TopicCard extends StatelessWidget {
   const _TopicCard({required this.topic, required this.initiallyExpanded});
