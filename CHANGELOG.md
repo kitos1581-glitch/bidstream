@@ -8,6 +8,12 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Cambiado: "Comprar ahora" de subasta = compra directa sin depósito (2026-10-27)
+- El "Comprar ahora" de una subasta sin pujas usa el mismo "aparta y paga"
+  que el precio fijo: sin depósito ni INE, 30 min para pagar, solo pago
+  inmediato. Si no paga, la subasta vuelve a estar activa con su fecha de
+  cierre y se suma a `unpaid_buys` (con 3, se vuelve a pedir depósito).
+
 ### Agregado: pago en efectivo (OXXO/tiendas) y transferencia para el ganador (2026-10-27)
 - El cobro del GANADOR de una subasta ya no usa `binary_mode`: acepta
   efectivo y transferencia de Mercado Pago. La ficha vence

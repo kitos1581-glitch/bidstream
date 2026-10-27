@@ -555,11 +555,9 @@ class _BuyNowButtonState extends State<_BuyNowButton> {
       context: context,
       builder: (c) => AlertDialog(
         title: Text('¿Comprar por ${formatMoney(price)}?'),
-        content: Text(lot.isFixedPrice
-            ? 'Te lo apartamos unos minutos mientras pagas con tarjeta o Mercado Pago. No necesitas depósito. '
-                'Si no pagas a tiempo, vuelve a estar a la venta. Tu pago queda protegido hasta que recibas el artículo.'
-            : 'Al confirmar, el artículo es tuyo. Tienes 24 horas para pagar (tu depósito se descuenta). '
-                'Si no pagas, pierdes tu depósito. El pago queda protegido hasta que recibas el artículo.'),
+        content: const Text(
+            'Te lo apartamos unos minutos mientras pagas con tarjeta o Mercado Pago. No necesitas depósito. '
+            'Si no pagas a tiempo, vuelve a estar a la venta. Tu pago queda protegido hasta que recibas el artículo.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
           TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Comprar')),

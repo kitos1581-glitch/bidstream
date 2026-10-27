@@ -528,7 +528,10 @@ async function buyNowImpl(data, auth) {
     );
     if (chk.code) throw new functions.https.HttpsError(chk.code, chk.message, { code: chk.reason });
     const buyer = userSnap.exists ? userSnap.data() : null;
-    const payFirst = saleType(lot) === "fixed" && !needsDepositForDirectBuy(buyer);
+    // Compra directa (precio fijo o "Comprar ahora" de una subasta sin pujas):
+    // aparta y paga, sin depósito. Solo quien dejó vencer UNPAID_BUYS_LIMIT
+    // apartados vuelve al flujo con depósito.
+    const payFirst = !needsDepositForDirectBuy(buyer);
     const userErr = payFirst
       ? directBuyEligibilityError(buyer)
       : userBidEligibilityError(buyer, chk.price, VERIFIED_BID_THRESHOLD, "comprar");

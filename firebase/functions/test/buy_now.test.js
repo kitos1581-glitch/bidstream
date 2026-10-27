@@ -1,7 +1,7 @@
 /**
  * Comprar ahora / precio fijo (R-10).
  * Precio fijo = "aparta y paga" (sin depósito ni INE; si no paga, vuelve a
- * la venta). Subasta con Comprar ahora = mismas reglas que pujar.
+ * la venta). "Comprar ahora" de una subasta sin pujas = misma compra directa.
  * Casos felices, abuso (vendedor, con pujas, vencido, en vivo),
  * concurrencia (dos compran a la vez → solo uno) y que el cobro/escrow sea el
  * mismo de una subasta ganada.
@@ -217,15 +217,22 @@ test("abuso: el vendedor no puede comprar lo suyo; sin correo verificado, perfil
   assert.strictEqual(mp.__calls.preferences.length, 0);
 });
 
-test("subasta con Comprar ahora: sigue pidiendo depósito e INE en montos altos (como pujar)", async () => {
+test("subasta con Comprar ahora (sin pujas) = compra directa: aparta y paga, sin depósito ni INE", async () => {
   seed({ sale_type: "auction", starting_price: 21000, current_bid: 21000, buy_now_price: 25000, minimum_increment: 100 });
-  await rejectsWith(buy("ana"), "IDENTITY_REQUIRED");
-  user("caro", { deposit: null, verified: true });
-  await rejectsWith(buy("caro"), "DEPOSIT_REQUIRED");
-  user("ana", { verified: true });
-  const r = await buy("ana");
+  user("caro", { deposit: null });
+  const r = await buy("caro");
   assert.strictEqual(r.ok, true);
-  assert.strictEqual(r.payFirst, false);
+  assert.strictEqual(r.payFirst, true);
+  assert.strictEqual(r.amount, 25000, "paga el precio completo");
+  const lot = get("lots/F1");
+  assert.deepStrictEqual(lot.payment_options, ["mercadopago"], "solo pago inmediato");
+  const mins = (lot.payment_due_time.toMillis() - Date.now()) / 60000;
+  assert.ok(mins > 25 && mins <= 30, `apartado de 30 min (${mins})`);
+  // Con 3 apartados vencidos vuelve a pedir depósito (y entonces INE en montos altos, como pujar).
+  user("dani", { deposit: null, unpaid_buys: 3 });
+  seed({ sale_type: "auction", starting_price: 21000, current_bid: 21000, buy_now_price: 25000, minimum_increment: 100 });
+  user("dani", { deposit: null, unpaid_buys: 3, verified: true });
+  await rejectsWith(buy("dani"), "DEPOSIT_REQUIRED");
 });
 
 test("en precio fijo no se puede pujar", async () => {
@@ -253,15 +260,22 @@ test("vencida o ya vendida: no se compra; el cierre sin compradores avisa 'Sin v
   assert.ok(children("users/vendedor/notifications").some((n) => n.type === "unsold" && /Sin venta/.test(n.title)));
 });
 
-test("subasta con Comprar ahora sin pagar: castigo normal y SIN segunda oportunidad (no hubo pujas)", async () => {
+test("subasta con Comprar ahora sin pagar: vuelve a estar en subasta (sin pujas), sin castigo, con su fecha de cierre", async () => {
   seed({ sale_type: "auction", starting_price: 1000, current_bid: 1000, buy_now_price: 5000, minimum_increment: 100 });
+  const endBefore = get("lots/F1").end_time.toMillis();
   await buy("ana");
   S.get("lots/F1").data.payment_due_time = Timestamp.fromMillis(Date.now() - 1000);
   const lotRef = fake.firestore().collection("lots").doc("F1");
   assert.strictEqual(await pay.forfeitWin(lotRef), true);
-  assert.strictEqual(get("users/ana").deposit.status, "forfeited");
   const lot = get("lots/F1");
-  assert.ok(!lot.second_chance || lot.second_chance.status !== "offered", "no se ofrece a nadie");
+  assert.strictEqual(lot.status, "active");
+  assert.strictEqual(lot.end_time.toMillis(), endBefore);
+  assert.strictEqual(lot.bid_count, 0);
+  assert.strictEqual(get("users/ana").deposit.status, "held", "no pierde depósito");
+  assert.strictEqual(get("users/ana").unpaid_buys, 1);
+  // Ya se puede pujar otra vez.
+  await fns.placeBid.run({ lotId: "F1", max_amount: 1500 }, ctx("beto"));
+  assert.strictEqual(get("lots/F1").bid_count, 1);
 });
 
 test("reserva: no en precio fijo; en subasta debe quedar debajo del Comprar ahora", async () => {
