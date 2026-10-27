@@ -35,7 +35,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
         if (snap.data != true) {
           return Scaffold(
             backgroundColor: theme.primaryBackground,
-            appBar: AppBar(backgroundColor: theme.primaryBackground, foregroundColor: theme.primaryText, elevation: 0),
+            appBar: AppBar(leading: const BackOrHomeButton(), backgroundColor: theme.primaryBackground, foregroundColor: theme.primaryText, elevation: 0),
             body: const EmptyState(icon: Icons.lock_outline, title: 'Solo administradores'),
           );
         }
@@ -43,7 +43,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
           length: 5,
           child: Scaffold(
             backgroundColor: theme.primaryBackground,
-            appBar: AppBar(
+            appBar: AppBar(leading: const BackOrHomeButton(), 
               backgroundColor: theme.primaryBackground,
               foregroundColor: theme.primaryText,
               elevation: 0,

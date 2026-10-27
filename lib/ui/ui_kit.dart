@@ -461,6 +461,21 @@ class BigButton extends StatelessWidget {
 // Estados vacíos y de carga
 // =====================================================================
 
+/// Flecha de regreso que SIEMPRE funciona: si hay pantalla anterior regresa;
+/// si se entró directo (enlace compartido, recarga, app instalada) va al inicio.
+class BackOrHomeButton extends StatelessWidget {
+  const BackOrHomeButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Regresar',
+      icon: Icon(Icons.arrow_back, color: FlutterFlowTheme.of(context).primaryText),
+      onPressed: () => context.canPop() ? context.pop() : context.goNamed('AuctionDashboard'),
+    );
+  }
+}
+
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,

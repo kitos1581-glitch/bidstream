@@ -36,11 +36,8 @@ class _SellerProfileWidgetState extends State<SellerProfileWidget> {
         backgroundColor: theme.secondaryBackground,
         surfaceTintColor: Colors.transparent,
         title: const Text('Vendedor'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.goNamed('AuctionDashboard'),
-        ),
+        leading: const BackOrHomeButton(),
+        foregroundColor: theme.primaryText,
       ),
       body: Center(
         child: ConstrainedBox(

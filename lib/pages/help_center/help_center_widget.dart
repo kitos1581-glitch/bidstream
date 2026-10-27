@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
+import '/ui/ui_kit.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 
 /// Centro de ayuda público (no requiere cuenta): cómo comprar y vender,
@@ -24,12 +25,8 @@ class HelpCenterWidget extends StatelessWidget {
         backgroundColor: theme.secondaryBackground,
         surfaceTintColor: Colors.transparent,
         title: Text('Ayuda', style: theme.titleLarge.copyWith(fontWeight: FontWeight.w800)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop()
-              ? context.pop()
-              : context.goNamed('AuctionDashboard'),
-        ),
+        leading: const BackOrHomeButton(),
+        foregroundColor: theme.primaryText,
       ),
       body: Center(
         child: ConstrainedBox(

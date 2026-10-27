@@ -117,7 +117,7 @@ class _BidConfirmationModalWidgetState
     final theme = FlutterFlowTheme.of(context);
     return Scaffold(
       backgroundColor: theme.primaryBackground,
-      appBar: AppBar(
+      appBar: AppBar(leading: const BackOrHomeButton(), 
         backgroundColor: theme.primaryBackground,
         foregroundColor: theme.primaryText,
         elevation: 0,

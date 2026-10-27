@@ -131,6 +131,14 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         brightness: Brightness.light,
         useMaterial3: false,
+        // Barras superiores claras con texto e íconos oscuros. Sin esto, Material 2
+        // pinta los íconos en blanco y la flecha de regreso no se ve en fondo blanco.
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF111111),
+          iconTheme: IconThemeData(color: Color(0xFF111111)),
+          elevation: 0.5,
+        ),
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,

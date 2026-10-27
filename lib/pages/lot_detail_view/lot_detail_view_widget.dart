@@ -77,7 +77,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
         if (snap.hasError) {
           return Scaffold(
             backgroundColor: theme.primaryBackground,
-            appBar: AppBar(backgroundColor: theme.primaryBackground, elevation: 0,
+            appBar: AppBar(leading: const BackOrHomeButton(), backgroundColor: theme.primaryBackground, elevation: 0,
                 foregroundColor: theme.primaryText),
             body: ErrorState(error: snap.error, onRetry: _retry),
           );
@@ -90,7 +90,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
         if (lot == null) {
           return Scaffold(
             backgroundColor: theme.primaryBackground,
-            appBar: AppBar(backgroundColor: theme.primaryBackground, elevation: 0,
+            appBar: AppBar(leading: const BackOrHomeButton(), backgroundColor: theme.primaryBackground, elevation: 0,
                 foregroundColor: theme.primaryText),
             body: const EmptyState(
                 icon: Icons.search_off,
@@ -134,7 +134,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
 
         return Scaffold(
           backgroundColor: theme.primaryBackground,
-          appBar: AppBar(
+          appBar: AppBar(leading: const BackOrHomeButton(), 
             backgroundColor: theme.primaryBackground,
             foregroundColor: theme.primaryText,
             elevation: 0,

@@ -8,6 +8,15 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Corregido: flecha de regreso invisible y versiones viejas en caché (2026-10-27)
+- Con Material 2 los íconos de la barra superior salían blancos sobre fondo
+  blanco (Ayuda, Vendedor): la flecha existía pero no se veía. Tema global
+  `appBarTheme` oscuro y `BackOrHomeButton` en todas las pantallas
+  secundarias: regresa, o va al inicio si se entró directo (enlace
+  compartido, recarga, app instalada).
+- Hosting: `Cache-Control: no-cache` (revalida con ETag) para que tras cada
+  despliegue se cargue la versión nueva sin cerrar la app.
+
 ### Cambiado: "Comprar ahora" de subasta = compra directa sin depósito (2026-10-27)
 - El "Comprar ahora" de una subasta sin pujas usa el mismo "aparta y paga"
   que el precio fijo: sin depósito ni INE, 30 min para pagar, solo pago
