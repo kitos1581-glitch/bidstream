@@ -296,7 +296,10 @@ async function createPreference({ email, title, amount, externalReference, expir
         unit_price: round2(amount),
       },
     ],
-    payer: email ? { email } : undefined,
+    // En modo de prueba (token TEST-) NO se manda el correo real del comprador:
+    // Mercado Pago rechaza el pago ("una de las partes es de prueba") si ese
+    // correo pertenece a una cuenta real. En producción sí se manda.
+    payer: email && !String(process.env.MP_ACCESS_TOKEN || "").startsWith("TEST-") ? { email } : undefined,
     external_reference: externalReference,
     // binary_mode: solo aprobado/rechazado al instante. Con efectivo o
     // transferencia hay que permitir "pendiente" mientras el comprador paga.
