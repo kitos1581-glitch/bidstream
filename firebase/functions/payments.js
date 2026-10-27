@@ -306,11 +306,12 @@ async function createPreference({ email, title, amount, externalReference, expir
       : { excluded_payment_types: OFFLINE_TYPES.map((id) => ({ id })) },
     statement_descriptor: "SUBASTALOAQUI",
     notification_url: WEBHOOK_URL || undefined,
-    back_urls: {
-      success: `${SITE_URL}/`,
-      pending: `${SITE_URL}/`,
-      failure: `${SITE_URL}/`,
-    },
+    // Al terminar en Mercado Pago, regresa al artículo (no al inicio).
+    back_urls: (() => {
+      const lotId = String(externalReference || "").startsWith("win:") ? String(externalReference).split(":")[1] : "";
+      const back = lotId ? `${SITE_URL}/lotDetailView?lotId=${encodeURIComponent(lotId)}` : `${SITE_URL}/`;
+      return { success: back, pending: back, failure: back };
+    })(),
     auto_return: "approved",
   };
   if (expiresAt) {

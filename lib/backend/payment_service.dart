@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -189,9 +190,13 @@ class PaymentService {
 
   /// Abre el checkout de Mercado Pago. En móvil abre el navegador (o la
   /// app de MP si está instalada); en web, una pestaña nueva.
+  /// En web se abre en la MISMA pestaña: Safari (iPhone) y otros navegadores
+  /// bloquean una pestaña nueva que se abre después de esperar al servidor
+  /// (no la cuentan como clic del usuario) y el botón "no hacía nada".
   Future<bool> openCheckout(String url) => launchUrl(
         Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+        mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
+        webOnlyWindowName: kIsWeb ? '_self' : null,
       );
 }
 

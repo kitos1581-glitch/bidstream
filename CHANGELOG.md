@@ -8,6 +8,13 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Corregido: "Pagar ahora" no hacía nada en iPhone (2026-10-27)
+- Safari bloqueaba la pestaña de Mercado Pago porque se abría después de
+  esperar al servidor. En web el cobro se abre en la misma pestaña, y al
+  terminar Mercado Pago regresa al artículo (no al inicio).
+- Texto del apartado: "si no pagas, vuelve a la venta" (ya no menciona
+  depósito en compra directa).
+
 ### Corregido: flecha de regreso invisible y versiones viejas en caché (2026-10-27)
 - Con Material 2 los íconos de la barra superior salían blancos sobre fondo
   blanco (Ayuda, Vendedor): la flecha existía pero no se veía. Tema global

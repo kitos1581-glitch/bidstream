@@ -709,7 +709,7 @@ class _PaymentMethodSelectorState extends State<_PaymentMethodSelector> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text(
         'Debes pagar ${formatMoney(lot.amountDue)} antes del ${formatDateTime(lot.paymentDueTime)}. '
-        'Si no pagas a tiempo pierdes tu depósito.',
+        '${lot.snapshotData['pay_first'] == true ? 'Si no pagas a tiempo, vuelve a la venta.' : 'Si no pagas a tiempo pierdes tu depósito.'}',
         style: theme.bodySmall,
       ),
       const SizedBox(height: 10),
