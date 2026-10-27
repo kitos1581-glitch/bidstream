@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '/backend/backend.dart';
 import '/backend/reputation_service.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/flutter_flow_util.dart';
 import '/ui/ui_kit.dart';
 
 /// Perfil público del vendedor: nombre público, calificación, ventas,
