@@ -99,6 +99,13 @@ async function chooseDeliveryImpl(data, uid, deps) {
     if (lot.payment_status !== "pending") {
       throw fail("failed-precondition", ERROR_CODES.NOT_PENDING, "Este lote no tiene un pago pendiente.");
     }
+    if (lot.offline_payment_pending === true) {
+      throw fail(
+        "failed-precondition",
+        ERROR_CODES.ALREADY_LOCKED,
+        "Ya generaste tu ficha de pago con este monto; ya no se puede cambiar la entrega."
+      );
+    }
     if (lot.spei_charge_id) {
       throw fail(
         "failed-precondition",
@@ -132,12 +139,16 @@ async function chooseDeliveryImpl(data, uid, deps) {
   const winnerSnap = await db.collection("users").doc(uid).get();
   let url = null;
   try {
+    const dueMs = plan.lot.payment_due_time && plan.lot.payment_due_time.toMillis ? plan.lot.payment_due_time.toMillis() : undefined;
+    const offline = deps.offlineOptionsFor ? deps.offlineOptionsFor(plan.lot, dueMs) : { allowOffline: false, cashExpiresAt: null };
     const pref = await deps.createPreference({
       email: winnerSnap.exists ? winnerSnap.data().email : undefined,
       title: `Pago de subasta ganada: ${plan.lot.title || ""}`,
       amount: plan.amountDue,
       externalReference: `win:${lotId}:${uid}`,
-      expiresAt: plan.lot.payment_due_time && plan.lot.payment_due_time.toMillis ? plan.lot.payment_due_time.toMillis() : undefined,
+      expiresAt: dueMs,
+      allowOffline: offline.allowOffline,
+      cashExpiresAt: offline.cashExpiresAt,
     });
     url = pref.init_point;
     await lotRef.update({ winner_payment_url: url });
@@ -150,7 +161,7 @@ async function chooseDeliveryImpl(data, uid, deps) {
 exports.chooseDelivery = functions.region("us-central1").https.onCall((data, context) => {
   assertAppCheck(context);
   const pay = require("./payments");
-  return chooseDeliveryImpl(data, context.auth ? context.auth.uid : null, { createPreference: pay.createPreference });
+  return chooseDeliveryImpl(data, context.auth ? context.auth.uid : null, { createPreference: pay.createPreference, offlineOptionsFor: pay.offlineOptionsFor });
 });
 
 module.exports = { ...module.exports, MUNICIPALITIES, ERROR_CODES, deliveryPlan, regionalCharge, chooseDeliveryImpl };

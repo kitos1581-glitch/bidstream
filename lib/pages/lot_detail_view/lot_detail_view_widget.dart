@@ -715,7 +715,25 @@ class _PaymentMethodSelectorState extends State<_PaymentMethodSelector> {
         style: theme.bodySmall,
       ),
       const SizedBox(height: 10),
-      if (lot.needsDeliveryChoice)
+      if (lot.offlinePaymentPending) ...[
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.secondaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Ya generaste tu ficha de pago'
+            '${lot.offlinePaymentMethod == 'oxxo' ? ' de OXXO' : ''}. '
+            'Págala antes del ${formatDateTime(lot.cashPaymentUntil ?? lot.paymentDueTime)}. '
+            'Te llegó también a tu correo. En cuanto Mercado Pago confirme el pago, '
+            'tu compra queda pagada aquí.',
+            style: theme.bodySmall,
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+      if (lot.needsDeliveryChoice && !lot.offlinePaymentPending)
         _DeliveryChooser(lot: lot)
       else if (spei != null)
         _SpeiInstructions(choice: spei)
@@ -734,15 +752,20 @@ class _PaymentMethodSelectorState extends State<_PaymentMethodSelector> {
         _MethodTile(
           selected: _method == FinalPaymentMethod.mercadopago,
           icon: Icons.credit_card,
-          title: 'Tarjeta o saldo Mercado Pago',
-          subtitle: 'Crédito, débito o tu cuenta de Mercado Pago.',
+          title: lot.cashPaymentUntil != null
+              ? 'Tarjeta, OXXO o Mercado Pago'
+              : 'Tarjeta o saldo Mercado Pago',
+          subtitle: lot.cashPaymentUntil != null
+              ? 'Crédito, débito, saldo MP o efectivo en OXXO y tiendas '
+                  '(efectivo hasta el ${formatDateTime(lot.cashPaymentUntil)}).'
+              : 'Crédito, débito o tu cuenta de Mercado Pago.',
           onTap: () => setState(() => _method = FinalPaymentMethod.mercadopago),
         ),
         const SizedBox(height: 8),
         BigButton(
           label: _method == FinalPaymentMethod.spei
               ? (lot.hasSpeiReference ? 'Ver datos para transferir' : 'Obtener datos para transferir')
-              : 'Pagar ahora',
+              : (lot.offlinePaymentPending ? 'Pagar con tarjeta en su lugar' : 'Pagar ahora'),
           icon: Icons.lock_outline,
           loading: _busy,
           onPressed: _continue,

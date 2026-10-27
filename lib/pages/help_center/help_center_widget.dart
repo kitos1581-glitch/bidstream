@@ -76,6 +76,7 @@ const kHelpTopics = <HelpTopic>[
     'Artículos a precio fijo: solo necesitas tu cuenta con nombre y teléfono, sin depósito ni INE. Al dar "Comprar ahora" te lo apartamos 30 minutos mientras pagas con tarjeta o Mercado Pago; si no pagas, vuelve a la venta. Si dejas vencer 3 apartados, para volver a apartar te pediremos el depósito.',
     'Para pujar crea tu cuenta, verifica tu correo y deja un depósito de garantía de \$200 (se descuenta si ganas).',
     'Escribe el máximo que estás dispuesto a pagar. Es secreto: el sistema puja por ti solo lo necesario para ir ganando.',
+    'Si ganas una subasta tienes 24 horas para pagar: con tarjeta, saldo de Mercado Pago o en efectivo en OXXO y tiendas. La ficha de efectivo vence unas horas antes del plazo; si la pagas a tiempo, en cuanto Mercado Pago la confirme tu compra queda pagada.',
     'Si alguien puja en los últimos 40 segundos, el cierre se alarga 40 segundos para que todos puedan responder.',
     'Algunos lotes por tiempo tienen precio de reserva (secreto): verás "Reserva no alcanzada" o "alcanzada". Si al cerrar no se alcanzó, no hay venta y no pagas nada.',
     'Una puja es un compromiso de compra: no se puede retirar.',

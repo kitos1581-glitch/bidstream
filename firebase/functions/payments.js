@@ -63,6 +63,51 @@ const RELEASE = readReleaseDays();
 if (RELEASE.error) functions.logger.error(RELEASE.error);
 
 /**
+ * Pagos que NO son inmediatos (efectivo en OXXO / tiendas, transferencia).
+ * Solo para el pago del GANADOR de una subasta (ventana de 24 h); nunca en
+ * "aparta y paga" (30 min) ni en el depósito.
+ *
+ *   OFFLINE_PAYMENTS=on|off              (por defecto on)
+ *   OFFLINE_PAYMENT_MARGIN_HOURS=4       la ficha vence N horas ANTES del
+ *                                        plazo, para que MP alcance a
+ *                                        confirmar un pago hecho al último.
+ *
+ * Valor inválido → se apaga (solo pago inmediato) y se registra el error:
+ * es el modo seguro, el comprador siempre puede pagar con tarjeta.
+ */
+const OFFLINE_TYPES = ["ticket", "atm", "bank_transfer"];
+const OFFLINE_MIN_WINDOW_MS = 2 * 3600 * 1000; // la ficha debe durar al menos 2 h
+
+function readOfflinePayments(env = process.env) {
+  const raw = env.OFFLINE_PAYMENTS === undefined || env.OFFLINE_PAYMENTS === "" ? "on" : String(env.OFFLINE_PAYMENTS).trim().toLowerCase();
+  if (!["on", "off"].includes(raw)) {
+    return { enabled: false, marginMs: 0, error: `OFFLINE_PAYMENTS inválido: "${env.OFFLINE_PAYMENTS}" (on u off)` };
+  }
+  const m = env.OFFLINE_PAYMENT_MARGIN_HOURS === undefined || env.OFFLINE_PAYMENT_MARGIN_HOURS === "" ? 4 : Number(env.OFFLINE_PAYMENT_MARGIN_HOURS);
+  if (!Number.isInteger(m) || m < 1 || m > 12) {
+    return {
+      enabled: false,
+      marginMs: 0,
+      error: `OFFLINE_PAYMENT_MARGIN_HOURS inválido: "${env.OFFLINE_PAYMENT_MARGIN_HOURS}" (entero de 1 a 12)`,
+    };
+  }
+  return { enabled: raw === "on", marginMs: m * 3600 * 1000 };
+}
+
+/**
+ * ¿Este cobro del ganador acepta efectivo / transferencia? Devuelve
+ * { allowOffline, cashExpiresAt } — cashExpiresAt en ms o null.
+ */
+function offlineOptionsFor(lot, dueMs, nowMs = Date.now(), env = process.env) {
+  const cfg = readOfflinePayments(env);
+  if (cfg.error) functions.logger.error(cfg.error);
+  if (!cfg.enabled || !lot || lot.pay_first === true || !dueMs) return { allowOffline: false, cashExpiresAt: null };
+  const cashExpiresAt = dueMs - cfg.marginMs;
+  if (cashExpiresAt - nowMs < OFFLINE_MIN_WINDOW_MS) return { allowOffline: false, cashExpiresAt: null };
+  return { allowOffline: true, cashExpiresAt };
+}
+
+/**
  * Comisión por tramos (marginal, como el ISR): cada tramo del precio paga
  * su porcentaje, así no hay "brincos" al pasar de un tramo a otro.
  *
@@ -239,7 +284,8 @@ function validateMpSignature({ xSignature, xRequestId, dataId, secret }) {
 // ---------------------------------------------------------------------
 // Llamadas a Mercado Pago
 // ---------------------------------------------------------------------
-async function createPreference({ email, title, amount, externalReference, expiresAt }) {
+async function createPreference({ email, title, amount, externalReference, expiresAt, allowOffline = false, cashExpiresAt = null }) {
+  const offline = allowOffline === true && !!cashExpiresAt;
   const body = {
     items: [
       {
@@ -252,7 +298,12 @@ async function createPreference({ email, title, amount, externalReference, expir
     ],
     payer: email ? { email } : undefined,
     external_reference: externalReference,
-    binary_mode: true,
+    // binary_mode: solo aprobado/rechazado al instante. Con efectivo o
+    // transferencia hay que permitir "pendiente" mientras el comprador paga.
+    binary_mode: !offline,
+    payment_methods: offline
+      ? { excluded_payment_types: [] }
+      : { excluded_payment_types: OFFLINE_TYPES.map((id) => ({ id })) },
     statement_descriptor: "SUBASTALOAQUI",
     notification_url: WEBHOOK_URL || undefined,
     back_urls: {
@@ -267,6 +318,8 @@ async function createPreference({ email, title, amount, externalReference, expir
     body.expiration_date_from = new Date().toISOString();
     body.expiration_date_to = new Date(expiresAt).toISOString();
   }
+  // Vencimiento de la ficha de efectivo (OXXO, tiendas): antes del plazo.
+  if (offline) body.date_of_expiration = new Date(cashExpiresAt).toISOString();
   return new Preference(mpConfig()).create({
     body,
     requestOptions: { idempotencyKey: `pref-${externalReference}-${Date.now()}` },
@@ -636,6 +689,7 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
 
   const winnerSnap = await winnerRef.get();
   const winner = winnerSnap.exists ? winnerSnap.data() : {};
+  const offline = offlineOptionsFor(lot, dueMs);
   try {
     const pref = await createPreference({
       email: winner.email,
@@ -643,8 +697,13 @@ async function startWinnerPayment(lotRef, lot, winnerUid) {
       amount: plan.amountDue,
       externalReference: `win:${lotRef.id}:${winnerUid}`,
       expiresAt: dueMs,
+      allowOffline: offline.allowOffline,
+      cashExpiresAt: offline.cashExpiresAt,
     });
-    await lotRef.update({ winner_payment_url: pref.init_point });
+    await lotRef.update({
+      winner_payment_url: pref.init_point,
+      cash_payment_until: offline.allowOffline ? Timestamp.fromMillis(offline.cashExpiresAt) : null,
+    });
     return {
       url: pref.init_point,
       amount: plan.amountDue,
@@ -693,6 +752,7 @@ async function forfeitWin(lotRef) {
     tx.update(lotRef, {
       payment_status: "forfeited",
       winner_payment_url: null,
+      offline_payment_pending: false,
     });
     const userPatch = { strikes };
     if (strikes >= 2) userPatch.banned = true;
@@ -773,6 +833,10 @@ function releaseBuyHold(tx, lotRef, lot) {
     payment_options: del,
     delivery_choice: del,
     shipping_charge: del,
+    cash_payment_until: del,
+    offline_payment_pending: del,
+    offline_payment_method: del,
+    offline_payment_id: del,
   };
   if (reopen) patch.closed_time = del;
   tx.update(lotRef, patch);
@@ -946,6 +1010,7 @@ async function applyWinnerPaymentTx(tx, { lockRef, base, lotId, winnerUid, amoun
     payment_status: "paid",
     winner_payment_url: null,
     payment_due_time: null,
+    offline_payment_pending: false,
     paid_time: FieldValue.serverTimestamp(),
     paid_with: base.provider || "mercadopago",
     processing_fee: processingFee,
@@ -1092,8 +1157,64 @@ async function applyApprovedPayment(payment) {
   });
 }
 
+/**
+ * El ganador generó una ficha de OXXO / transferencia (pago "pendiente").
+ * NO cuenta como pagado: solo se anota en el lote para mostrarlo y se le
+ * recuerda el plazo. Idempotente por payments/mp_pending_{id}.
+ */
+async function recordOfflinePending(payment) {
+  const mpId = String(payment.id);
+  const ref = String(payment.external_reference || "");
+  if (!ref.startsWith("win:")) return { recorded: false };
+  if (!OFFLINE_TYPES.includes(String(payment.payment_type_id || ""))) return { recorded: false };
+  const [, lotId, winnerUid] = ref.split(":");
+  const lotRef = db.collection("lots").doc(lotId);
+  const lockRef = db.collection("payments").doc(`mp_pending_${mpId}`);
+  return db.runTransaction(async (tx) => {
+    const [lock, lotSnap] = await Promise.all([tx.get(lockRef), tx.get(lotRef)]);
+    if (lock.exists) return { recorded: false, duplicate: true };
+    const lot = lotSnap.exists ? lotSnap.data() : null;
+    const ok = lot && lot.winner_uid === winnerUid && lot.payment_status === "pending";
+    tx.set(lockRef, {
+      kind: "winner_payment_pending",
+      mp_payment_id: mpId,
+      external_reference: ref,
+      payment_method: String(payment.payment_method_id || ""),
+      payment_type: String(payment.payment_type_id || ""),
+      amount: round2(Number(payment.transaction_amount) || 0),
+      status: ok ? "pending" : "ignored",
+      created_time: FieldValue.serverTimestamp(),
+    });
+    if (!ok) return { recorded: false };
+    tx.update(lotRef, {
+      offline_payment_pending: true,
+      offline_payment_method: String(payment.payment_method_id || payment.payment_type_id || ""),
+      offline_payment_id: mpId,
+    });
+    const due = lot.payment_due_time && lot.payment_due_time.toMillis ? lot.payment_due_time.toMillis() : null;
+    const until = lot.cash_payment_until && lot.cash_payment_until.toMillis ? lot.cash_payment_until.toMillis() : due;
+    const whenTxt = until
+      ? ` antes del ${new Date(until).toLocaleString("es-MX", { timeZone: "America/Mexico_City", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+      : "";
+    tx.set(
+      notificationRef(winnerUid),
+      notificationData(
+        "payment_pending",
+        "Ficha de pago generada",
+        `Paga ${money(Number(payment.transaction_amount) || 0)}${whenTxt}. Cuando Mercado Pago lo confirme, tu compra queda pagada. Si no pagas a tiempo, pierdes el artículo.`,
+        lotId
+      )
+    );
+    return { recorded: true };
+  });
+}
+
 async function handlePaymentNotification(paymentId) {
   const payment = await new Payment(mpConfig()).get({ id: paymentId });
+  if ((payment.status === "pending" || payment.status === "in_process") && OFFLINE_TYPES.includes(String(payment.payment_type_id || ""))) {
+    await recordOfflinePending(payment);
+    return;
+  }
   if (payment.status !== "approved") {
     // rejected / cancelled / etc. Solo dejamos registro.
     await db
@@ -1170,6 +1291,10 @@ module.exports = {
   ...module.exports,
   startWinnerPayment,
   createPreference,
+  offlineOptionsFor,
+  readOfflinePayments,
+  recordOfflinePending,
+  handlePaymentNotification,
   forfeitWin,
   applyApprovedPayment,
   applyProviderWinnerPayment,

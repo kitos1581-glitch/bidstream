@@ -153,6 +153,11 @@ class LotsRecord extends FirestoreRecord {
   String get winnerPaymentUrl => asString(snapshotData['winner_payment_url']);
   double get amountDue => asDouble(snapshotData['amount_due']);
   DateTime? get paymentDueTime => asDate(snapshotData['payment_due_time']);
+  /// Hasta cuándo se puede pagar en efectivo (OXXO/tiendas); null = solo pago inmediato.
+  DateTime? get cashPaymentUntil => asDate(snapshotData['cash_payment_until']);
+  /// El ganador ya generó una ficha (OXXO / transferencia) y falta que la pague.
+  bool get offlinePaymentPending => snapshotData['offline_payment_pending'] == true;
+  String get offlinePaymentMethod => asString(snapshotData['offline_payment_method']);
   bool get isCancelled => status == 'cancelled';
   String get cancelReason => asString(snapshotData['cancel_reason']);
 

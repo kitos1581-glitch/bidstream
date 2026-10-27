@@ -8,6 +8,19 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Agregado: pago en efectivo (OXXO/tiendas) y transferencia para el ganador (2026-10-27)
+- El cobro del GANADOR de una subasta ya no usa `binary_mode`: acepta
+  efectivo y transferencia de Mercado Pago. La ficha vence
+  `OFFLINE_PAYMENT_MARGIN_HOURS` (4) antes del plazo; si quedan < 2 h, solo
+  pago inmediato. `OFFLINE_PAYMENTS=off` lo apaga.
+- "Aparta y paga" y el depósito siguen solo con pago inmediato (efectivo
+  excluido explícitamente).
+- Un pago pendiente NO cuenta como pagado: se anota en el lote
+  (`offline_payment_pending`), se avisa al comprador una vez (candado
+  `payments/mp_pending_{id}`) y ya no se puede cambiar la entrega. Un pago
+  aprobado después de perder el lote se reembolsa completo (ya existía).
+- Pruebas: `test/offline_payments.test.js` (7). Total 202/202.
+
 ### Cambiado: anti-sniping de 40 segundos, configurable (2026-10-21)
 - `ANTI_SNIPE_SECONDS` (por defecto 40, rango 15–300) reemplaza los 2 min
   fijos: más ágil y con margen para el retraso del video en vivo.
