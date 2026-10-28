@@ -32,3 +32,46 @@ import 'package:image/image.dart' as img;
     return (bytes, mime);
   }
 }
+
+/// "Mejorar foto": la MISMA foto con mejor luz. No cambia el producto ni el
+/// fondo (eso engañaría al comprador). Pasos: orientación correcta, estirar
+/// niveles (quita lo opaco/oscuro sin quemar), un poco de contraste y color.
+/// Regresa JPEG; si algo falla, la original.
+Uint8List enhanceLotPhoto(Uint8List bytes) {
+  try {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+    var im = img.bakeOrientation(decoded);
+    // Histograma de luminancia para niveles automáticos (1 % – 99 %).
+    final hist = List<int>.filled(256, 0);
+    var total = 0;
+    for (final p in im) {
+      final l = (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round().clamp(0, 255);
+      hist[l]++;
+      total++;
+    }
+    int pct(double q) {
+      final target = total * q;
+      var acc = 0;
+      for (var i = 0; i < 256; i++) {
+        acc += hist[i];
+        if (acc >= target) return i;
+      }
+      return 255;
+    }
+    final lo = pct(0.01);
+    final hi = pct(0.99);
+    if (hi - lo > 20 && (lo > 4 || hi < 251)) {
+      final scale = 255 / (hi - lo);
+      for (final p in im) {
+        p.r = ((p.r - lo) * scale).clamp(0, 255);
+        p.g = ((p.g - lo) * scale).clamp(0, 255);
+        p.b = ((p.b - lo) * scale).clamp(0, 255);
+      }
+    }
+    im = img.adjustColor(im, contrast: 1.06, saturation: 1.08);
+    return Uint8List.fromList(img.encodeJpg(im, quality: 85));
+  } catch (_) {
+    return bytes;
+  }
+}

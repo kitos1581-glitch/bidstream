@@ -13,9 +13,12 @@ import '/ui/youtube.dart';
 import '/ui/ui_kit.dart';
 
 class _PickedPhoto {
-  _PickedPhoto(this.bytes, this.mime);
-  final Uint8List bytes;
-  final String mime;
+  _PickedPhoto(this.bytes, this.mime) : original = bytes;
+  Uint8List bytes;
+  String mime;
+  /// Foto tal como la tomó el vendedor (para "Deshacer").
+  final Uint8List original;
+  bool get enhanced => !identical(bytes, original);
 }
 
 /// Publicar un lote nuevo.
@@ -131,6 +134,26 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
       _photos.add(_PickedPhoto(ready, readyMime));
     }
     if (mounted) setState(() {});
+  }
+
+  /// ✨ Mejora la luz de una foto, o la regresa a la original.
+  Future<void> _toggleEnhance(int i) async {
+    final p = _photos[i];
+    if (p.enhanced) {
+      setState(() {
+        p.bytes = p.original;
+      });
+      return;
+    }
+    showMessage(context, 'Mejorando la foto…');
+    await Future<void>.delayed(const Duration(milliseconds: 50)); // deja pintar el aviso
+    final better = enhanceLotPhoto(p.bytes);
+    if (!mounted) return;
+    setState(() {
+      p.bytes = better;
+      p.mime = 'image/jpeg';
+    });
+    showMessage(context, 'Listo: misma foto con mejor luz. Toca ↶ para deshacer.');
   }
 
   Future<void> _pickLiveStart() async {
@@ -519,10 +542,32 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                       ),
                       if (i == 0)
                         const Positioned(left: 4, bottom: 4, child: Tag('Portada')),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: InkWell(
+                          onTap: _saving ? null : () => _toggleEnhance(i),
+                          child: Container(
+                            color: _photos[i].enhanced ? theme.primary : Colors.black54,
+                            padding: const EdgeInsets.all(3),
+                            child: Icon(
+                                _photos[i].enhanced ? Icons.undo : Icons.auto_fix_high,
+                                size: 16,
+                                color: Colors.white),
+                          ),
+                        ),
+                      ),
                     ]),
                   ),
               ],
             ),
+          ),
+
+          const SizedBox(height: 6),
+          Text(
+            'Tips para vender más: luz natural (cerca de una ventana), fondo liso y sin estorbos, '
+            'una foto de cada lado y una de la etiqueta o los detalles. Toca ✨ en una foto para mejorar su luz.',
+            style: theme.bodySmall.copyWith(color: theme.secondaryText),
           ),
 
           // ---------------- Datos ----------------

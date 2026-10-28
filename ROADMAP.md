@@ -99,3 +99,5 @@ las dos".
 4. R-20 → R-21/R-25 → R-23.
 
 Lo demás según los datos.
+
+- R-50 (P2, dic 2026): "Fondo blanco" (quitar fondo) solo para artículos NUEVOS, en el navegador, con etiqueta visible "Fondo editado" y foto original guardada. Nunca IA generativa sobre el producto.

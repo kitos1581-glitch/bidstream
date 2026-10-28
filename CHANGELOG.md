@@ -8,6 +8,14 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Agregado: "✨ Mejorar foto" y tips de foto al publicar (2026-10-28)
+- Botón en cada foto: niveles automáticos (1–99 %), algo de contraste y
+  color, orientación correcta. Misma foto, sin cambiar producto ni fondo;
+  se puede deshacer (se guarda la original). En el celular, sin costo.
+- Tips bajo las fotos (luz natural, fondo liso, todos los lados y etiqueta).
+- Pendiente (dic): "Fondo blanco" solo para artículos nuevos, con etiqueta
+  "Fondo editado".
+
 ### Corregido: la IA respondía 400 (AI_REQUEST) con Sonnet 5.5 (2026-10-28)
 - Sonnet 5.5 no acepta `tool_choice` forzado (`tool`/`any`) y piensa por
   defecto. Ahora `tool_choice: auto` + instrucción de usar la herramienta y
