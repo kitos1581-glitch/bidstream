@@ -111,7 +111,8 @@ test("llama a Claude con fotos, estado y notas; exige revisión humana", async (
   assert.strictEqual(r.category, "Deportes");
   assert.strictEqual(r.requires_review, true);
   const req = calls[calls.length - 1];
-  assert.strictEqual(req.tool_choice.name, "proponer_publicacion");
+  assert.strictEqual(req.tool_choice.type, "auto", "Sonnet 5.5 no acepta tool_choice forzado");
+  assert.ok(req.tools.some((t) => t.name === "proponer_publicacion"));
   assert.strictEqual(req.messages[0].content[0].type, "image");
   assert.ok(req.messages[0].content[1].text.includes("Usado en buen estado"));
   assert.strictEqual(usage(), 1);

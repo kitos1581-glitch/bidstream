@@ -356,10 +356,13 @@ exports.generateLotDescription = functions
     try {
       response = await client(cfg).messages.create({
         model: cfg.model,
-        max_tokens: 1500,
-        system: SYSTEM_PROMPT,
+        // Sonnet 5.5: piensa por defecto (adaptativo) y NO acepta tool_choice
+        // forzado ("tool"/"any" → 400). Se usa "auto" y el prompt exige la
+        // herramienta; el margen de tokens cubre el razonamiento.
+        max_tokens: 6000,
+        system: SYSTEM_PROMPT + "\n\nResponde SIEMPRE llamando a la herramienta " + TOOL.name + ", sin texto adicional.",
         tools: [TOOL],
-        tool_choice: { type: "tool", name: TOOL.name },
+        tool_choice: { type: "auto" },
         messages: [{ role: "user", content }],
       });
     } catch (err) {

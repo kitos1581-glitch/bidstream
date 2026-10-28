@@ -8,6 +8,11 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Corregido: la IA respondía 400 (AI_REQUEST) con Sonnet 5.5 (2026-10-28)
+- Sonnet 5.5 no acepta `tool_choice` forzado (`tool`/`any`) y piensa por
+  defecto. Ahora `tool_choice: auto` + instrucción de usar la herramienta y
+  `max_tokens` 6000. También: tipo real de imagen por firma (HEIC avisa).
+
 ### Corregido: "Una foto es demasiado grande" al usar la IA (2026-10-27)
 - En el navegador, image_picker no comprime PNG. Ahora cada foto se
   reconvierte a JPEG de máx. 1600 px y ~1.2 MB (`lib/backend/photo_utils.dart`,
