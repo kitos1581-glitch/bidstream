@@ -284,6 +284,11 @@ function validateMpSignature({ xSignature, xRequestId, dataId, secret }) {
 // ---------------------------------------------------------------------
 // Llamadas a Mercado Pago
 // ---------------------------------------------------------------------
+/** Modo de prueba: token TEST- o MP_TEST_MODE=true (cuentas de prueba con token APP_USR-). */
+function mpTestMode(env = process.env) {
+  return String(env.MP_ACCESS_TOKEN || "").startsWith("TEST-") || String(env.MP_TEST_MODE || "").toLowerCase() === "true";
+}
+
 async function createPreference({ email, title, amount, externalReference, expiresAt, allowOffline = false, cashExpiresAt = null }) {
   const offline = allowOffline === true && !!cashExpiresAt;
   const body = {
@@ -299,7 +304,7 @@ async function createPreference({ email, title, amount, externalReference, expir
     // En modo de prueba (token TEST-) NO se manda el correo real del comprador:
     // Mercado Pago rechaza el pago ("una de las partes es de prueba") si ese
     // correo pertenece a una cuenta real. En producción sí se manda.
-    payer: email && !String(process.env.MP_ACCESS_TOKEN || "").startsWith("TEST-") ? { email } : undefined,
+    payer: email && !mpTestMode() ? { email } : undefined,
     external_reference: externalReference,
     // binary_mode: solo aprobado/rechazado al instante. Con efectivo o
     // transferencia hay que permitir "pendiente" mientras el comprador paga.
@@ -1295,6 +1300,7 @@ module.exports = {
   ...module.exports,
   startWinnerPayment,
   createPreference,
+  mpTestMode,
   offlineOptionsFor,
   readOfflinePayments,
   recordOfflinePending,
