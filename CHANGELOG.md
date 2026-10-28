@@ -8,6 +8,11 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Corregido: "Una foto es demasiado grande" al usar la IA (2026-10-27)
+- En el navegador, image_picker no comprime PNG. Ahora cada foto se
+  reconvierte a JPEG de máx. 1600 px y ~1.2 MB (`lib/backend/photo_utils.dart`,
+  paquete `image`) antes de subirla o mandarla a la IA.
+
 ### Agregado: filtro de datos de contacto en publicaciones (2026-10-27)
 - `onLotModerate` (función 35): si el título, la descripción o las
   características traen teléfono (en número o en letra), correo, WhatsApp,

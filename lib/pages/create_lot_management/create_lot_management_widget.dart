@@ -4,6 +4,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '/backend/backend.dart';
+import '/backend/photo_utils.dart';
 import '/backend/lot_specs.dart';
 import '/backend/regions.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -126,7 +127,8 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
               : name.endsWith('.webp')
                   ? 'image/webp'
                   : 'image/jpeg');
-      _photos.add(_PickedPhoto(bytes, mime));
+      final (ready, readyMime) = prepareLotPhoto(bytes, mime);
+      _photos.add(_PickedPhoto(ready, readyMime));
     }
     if (mounted) setState(() {});
   }
