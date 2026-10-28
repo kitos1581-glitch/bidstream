@@ -115,6 +115,8 @@ class _CountdownState extends State<Countdown> {
     String text;
     if (lot.status == 'cancelled') {
       text = 'Cancelada';
+    } else if (lot.status == 'review') {
+      text = 'En revisión';
     } else if (lot.status != 'active') {
       text = 'Terminada';
     } else if (!lot.hasStarted(now)) {

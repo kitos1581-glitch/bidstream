@@ -209,7 +209,7 @@ firebase deploy --only functions
   Build, Artifact Registry, Cloud Scheduler y Eventarc. **Acepta.**
 - Si pregunta por una política de limpieza de imágenes en Artifact Registry,
   pon **1 día**. Evita cobros por almacenamiento de imágenes viejas.
-- Se deben crear **34 funciones**. La lista exacta está en
+- Se deben crear **35 funciones**. La lista exacta está en
   `scripts/verificar_remoto.sh`.
 - Si falla una sola, la CLI lo dice; repite el comando. Es seguro, porque el
   deploy es idempotente.
@@ -519,7 +519,7 @@ bash scripts/verificar_remoto.sh | tee /tmp/verificacion_$(date +%F).txt
 
 El script es **de solo lectura**. Revisa:
 1. que la facturación esté activa;
-2. que estén las 34 funciones esperadas;
+2. que estén las 35 funciones esperadas;
 3. que los índices estén READY;
 4. que las reglas publicadas sean idénticas a `firestore.rules`;
 5. que estén las variables de `.env` (sin mostrar secretos);

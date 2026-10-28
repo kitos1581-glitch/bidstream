@@ -275,6 +275,15 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                           background: theme.surfaceVariant,
                           icon: Icons.emoji_events_outlined),
                     ],
+                    if (lot.status == 'review' && isSeller) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'En revisión: tu publicación tiene datos de contacto (teléfono, correo, WhatsApp o redes). '
+                        'Bórrala con el bote de basura de arriba y vuelve a publicarla sin esos datos. '
+                        'Los contactos se comparten después del pago.',
+                        style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w700, color: theme.error),
+                      ),
+                    ],
                     if (lot.isCancelled) ...[
                       const SizedBox(height: 10),
                       Text(

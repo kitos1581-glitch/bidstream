@@ -33,6 +33,38 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   static const _maxPhotos = 10;
 
   final _formKey = GlobalKey<FormState>();
+  final _photosKey = GlobalKey();
+  final _conditionKey = GlobalKey();
+  final _locationKey = GlobalKey();
+
+  /// Muestra el aviso y sube/baja la pantalla hasta el campo que falta.
+  void _missing(GlobalKey key, String msg) {
+    showMessage(context, msg, error: true);
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350), alignment: 0.1);
+    }
+  }
+
+  /// Lleva al primer campo de texto con error (de arriba hacia abajo).
+  void _scrollToFirstError() {
+    FormFieldState<dynamic>? first;
+    void visit(Element e) {
+      if (first != null) return;
+      if (e is StatefulElement && e.state is FormFieldState && (e.state as FormFieldState).hasError) {
+        first = e.state as FormFieldState;
+        return;
+      }
+      e.visitChildren(visit);
+    }
+    final root = _formKey.currentContext;
+    if (root is Element) root.visitChildren(visit);
+    final ctx = first?.context;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350), alignment: 0.2);
+    }
+    showMessage(context, 'Revisa el campo marcado en rojo.', error: true);
+  }
   final _title = TextEditingController();
   final _description = TextEditingController();
   final _price = TextEditingController();
@@ -185,26 +217,28 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   }
 
   Future<void> _publish() async {
-    if (_condition == null) {
-      showMessage(context, 'Indica el estado del artículo (nuevo o usado).',
-          error: true);
+    if (_photos.isEmpty) {
+      _missing(_photosKey, 'Agrega al menos una foto.');
       return;
     }
-    if (!_formKey.currentState!.validate()) return;
+    if (_condition == null) {
+      _missing(_conditionKey, 'Indica el estado del artículo (nuevo o usado).');
+      return;
+    }
+    if (!_formKey.currentState!.validate()) {
+      _scrollToFirstError();
+      return;
+    }
     if (_municipality == null) {
-      showMessage(context, 'Indica en qué municipio está el artículo.', error: true);
+      _missing(_locationKey, 'Indica en qué municipio está el artículo.');
       return;
     }
     if (!_pickup && !_regional) {
-      showMessage(context, 'Elige al menos una forma de entrega.', error: true);
+      _missing(_locationKey, 'Elige al menos una forma de entrega.');
       return;
     }
     if (_regional && !_shipIncluded && (double.tryParse(_shipCost.text) ?? 0) <= 0) {
-      showMessage(context, 'Escribe el costo del envío o marca que ya va incluido.', error: true);
-      return;
-    }
-    if (_photos.isEmpty) {
-      showMessage(context, 'Agrega al menos una foto.', error: true);
+      _missing(_locationKey, 'Escribe el costo del envío o marca que ya va incluido.');
       return;
     }
     final now = DateTime.now();
@@ -419,11 +453,15 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   Widget _form(FlutterFlowTheme theme) {
     return Form(
       key: _formKey,
-      child: ListView(
+      // Column (no ListView): todos los campos existen siempre, así se validan
+      // aunque no estén en pantalla y se puede llevar al usuario al que falta.
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ---------------- Fotos ----------------
-          const SectionTitle('Fotos'),
+          KeyedSubtree(key: _photosKey, child: const SectionTitle('Fotos')),
           SizedBox(
             height: 96,
             child: ListView(
@@ -487,7 +525,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
 
           // ---------------- Datos ----------------
           // ---------------- Estado + asistente IA ----------------
-          const SectionTitle('Estado del artículo'),
+          KeyedSubtree(key: _conditionKey, child: const SectionTitle('Estado del artículo')),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final e in kLotConditions.entries)
               ChoiceChip(
@@ -599,7 +637,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
 
           // ---------------- Precio ----------------
           // ---------------- Ubicación y entrega ----------------
-          const SectionTitle('Ubicación y entrega'),
+          KeyedSubtree(key: _locationKey, child: const SectionTitle('Ubicación y entrega')),
           DropdownButtonFormField<String>(
             value: _municipality,
             isExpanded: true,
@@ -843,6 +881,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
             onPressed: _publish,
           ),
         ],
+        ),
       ),
     );
   }

@@ -17,11 +17,11 @@ inject("firebase-admin", fake);
 inject("mercadopago", mp);
 process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || "demo-bidstream";
 
-test("index.js: las 34 funciones exportadas existen (ninguna undefined)", () => {
+test("index.js: las 35 funciones exportadas existen (ninguna undefined)", () => {
   const fns = require(path.join(__dirname, "..", "index.js"));
   const names = Object.keys(fns);
   const missing = names.filter((n) => typeof fns[n] !== "function" && (typeof fns[n] !== "object" || fns[n] === null));
   assert.deepStrictEqual(missing, [], `exports vacíos: ${missing.join(", ")}`);
   assert.ok(fns.adminSetStorePlan && fns.adminSetFoundingSeller);
-  assert.strictEqual(names.length, 34);
+  assert.strictEqual(names.length, 35);
 });

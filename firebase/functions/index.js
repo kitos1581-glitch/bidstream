@@ -81,6 +81,8 @@ exports.generateLotDescription = require("./ai").generateLotDescription;
 
 // Notificaciones push: cada aviso nuevo se manda al celular.
 exports.onNotificationCreated = require("./push").onNotificationCreated;
+// Datos de contacto en publicaciones → revisión (no se brincan la plataforma).
+exports.onLotModerate = require("./contact_filter").onLotModerate;
 
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;

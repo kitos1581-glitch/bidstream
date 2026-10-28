@@ -119,6 +119,17 @@ test("actualizar: la misma validación que al crear", async () => {
   await assertFails(updateDoc(doc(db, "lots/L1"), { bid_count: 5 }));
 });
 
+test("en revisión (datos de contacto): el vendedor la corrige, pero no puede reactivarla él mismo", async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), "lots/L1"), { status: "review", moderation: { kind: "contact_info", reasons: ["phone"] } });
+  });
+  const db = as("vero");
+  await assertSucceeds(updateDoc(doc(db, "lots/L1"), { description: "Sin teléfono" }));
+  await assertFails(updateDoc(doc(db, "lots/L1"), { status: "active" }));
+  await assertFails(updateDoc(doc(db, "lots/L1"), { moderation: null }));
+  await assertFails(updateDoc(doc(as("otro"), "lots/L1"), { description: "x" }));
+});
+
 test("actualizar: con pujas no se tocan precio, incremento ni fechas", async () => {
   const db = as("vero");
   await assertSucceeds(updateDoc(doc(db, "lots/L2"), { description: "Más detalles" }));

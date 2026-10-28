@@ -8,6 +8,16 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Agregado: filtro de datos de contacto en publicaciones (2026-10-27)
+- `onLotModerate` (función 35): si el título, la descripción o las
+  características traen teléfono (en número o en letra), correo, WhatsApp,
+  redes o "@usuario", el lote pasa a `status: review` (no se ve ni acepta
+  pujas) y se avisa al vendedor. Corregido, vuelve solo a `active`.
+  Reglas: el dueño puede editar en `review`, pero no cambiar el estado.
+  Fotos (OCR) en una etapa posterior. Pruebas: `test/contact_filter.test.js`.
+- Publicar: al faltar un dato, la pantalla baja/sube al campo que falta; el
+  formulario ahora valida todos los campos aunque no estén en pantalla.
+
 ### Agregado: correo oficial contacto@subastaloaqui.com (2026-10-27)
 - Tarjeta "¿Necesitas ayuda?" en Ayuda (abre el correo) y punto en
   Privacidad para consultar, corregir o borrar datos. Buzón en Zoho Mail.

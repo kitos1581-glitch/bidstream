@@ -185,9 +185,11 @@ service cloud.firestore {
       // El vendedor solo edita la parte descriptiva. Precio, incremento y
       // fechas solo mientras NO haya pujas. El documento resultante pasa por
       // la misma validación que al crear (evita, p. ej., incrementos negativos).
+      // "review": el servidor la pausó por datos de contacto; el vendedor la
+      // corrige y el servidor la regresa a "active" (contact_filter.js).
       allow update: if isOwner(resource.data.seller_uid)
         && notBanned()
-        && resource.data.status == 'active'
+        && resource.data.status in ['active', 'review']
         && validLotData(request.resource.data)
         && (
           onlyChanges(['title', 'description', 'category', 'image_urls', 'stream_url',
