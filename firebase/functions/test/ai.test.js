@@ -170,3 +170,16 @@ test("uso concurrente no rebasa el límite", async () => {
   assert.strictEqual(res.filter((x) => x.status === "fulfilled").length, 2);
   assert.strictEqual(usage(), 2);
 });
+
+test("sniffImageType: usa el tipo real de la foto (el celular puede mentir)", () => {
+  const b64 = (bytes) => Buffer.from(bytes).toString("base64");
+  const pad = new Array(16).fill(0);
+  assert.strictEqual(ai.sniffImageType(b64([0xff, 0xd8, 0xff, 0xe0, ...pad])), "image/jpeg");
+  assert.strictEqual(ai.sniffImageType(b64([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...pad])), "image/png");
+  assert.strictEqual(ai.sniffImageType(b64([...Buffer.from("RIFF"), 0, 0, 0, 0, ...Buffer.from("WEBP"), ...pad])), "image/webp");
+  assert.strictEqual(ai.sniffImageType(b64([0, 0, 0, 0x18, ...Buffer.from("ftypheic"), ...pad])), "heic");
+  // Declarada jpeg pero es PNG → se manda como PNG.
+  const png = b64([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...pad]);
+  assert.strictEqual(ai.validateImages([{ mime: "image/jpeg", data: png }]).images[0].mime, "image/png");
+  assert.strictEqual(ai.validateImages([{ mime: "image/jpeg", data: b64([0, 0, 0, 0x18, ...Buffer.from("ftypheic"), ...pad]) }]).ok, false);
+});

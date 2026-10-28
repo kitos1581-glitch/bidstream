@@ -177,6 +177,23 @@ function sanitizeSuggestion(raw) {
   };
 }
 
+/** Tipo real de una imagen en base64 por su firma. null si no se reconoce. */
+function sniffImageType(b64) {
+  let head;
+  try {
+    head = Buffer.from(String(b64).slice(0, 64), "base64");
+  } catch (_) {
+    return null;
+  }
+  if (head.length < 12) return null;
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "image/jpeg";
+  if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) return "image/png";
+  if (head.toString("ascii", 0, 4) === "RIFF" && head.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  if (head.toString("ascii", 0, 3) === "GIF") return "image/gif";
+  if (head.toString("ascii", 4, 8) === "ftyp") return "heic";
+  return null;
+}
+
 /** Valida las imágenes recibidas (pura, para probarla). */
 function validateImages(images) {
   if (!Array.isArray(images) || images.length === 0) {
@@ -193,7 +210,13 @@ function validateImages(images) {
     if (!data || bytes > MAX_IMAGE_BYTES) {
       return { ok: false, message: "Una foto es demasiado grande." };
     }
-    out.push({ mime, data });
+    // El tipo REAL se toma de los primeros bytes: el celular a veces dice
+    // "jpeg" de una foto PNG/HEIC y el proveedor rechaza la petición (400).
+    const real = sniffImageType(data);
+    if (real === "heic") {
+      return { ok: false, message: "Formato HEIC no compatible: toma la foto en JPG o haz captura de pantalla." };
+    }
+    out.push({ mime: real || mime, data });
   }
   return { ok: true, images: out };
 }
@@ -351,9 +374,12 @@ exports.generateLotDescription = functions
       const code = status === 401 || status === 403 ? "AI_KEY" : status === 404 ? "AI_MODEL"
         : status === 400 ? "AI_REQUEST" : status === 402 ? "AI_BILLING" : status === 429 ? "AI_RATE"
         : status >= 500 ? "AI_PROVIDER" : "AI_NETWORK";
+      // Al administrador se le muestra el motivo del proveedor (diagnóstico).
+      const isAdmin = !!(context.auth && context.auth.token && context.auth.token.admin === true);
+      const detail = isAdmin && err && err.message ? ` [${String(err.message).slice(0, 180)}]` : "";
       throw new functions.https.HttpsError(
         "unavailable",
-        `El asistente no respondió (${code}). Intenta de nuevo en un momento (no se te descontó el uso).`,
+        `El asistente no respondió (${code}). Intenta de nuevo en un momento (no se te descontó el uso).${detail}`,
         { code }
       );
     }
@@ -380,6 +406,7 @@ module.exports = {
   ...module.exports,
   readAiConfig,
   AiConfigError,
+  sniffImageType,
   aiEligibilityError,
   sanitizeSuggestion,
   validateImages,
