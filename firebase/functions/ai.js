@@ -341,10 +341,20 @@ exports.generateLotDescription = functions
       });
     } catch (err) {
       await refund();
-      functions.logger.error("Error de la API de IA", err);
+      const status = Number(err && err.status) || 0;
+      functions.logger.error(`Error de la API de IA (status ${status || "red"})`, {
+        status,
+        type: err && err.error && err.error.error ? err.error.error.type : undefined,
+        message: err && err.message ? String(err.message).slice(0, 300) : String(err),
+      });
+      // Código corto para diagnosticar sin exponer detalles internos.
+      const code = status === 401 || status === 403 ? "AI_KEY" : status === 404 ? "AI_MODEL"
+        : status === 400 ? "AI_REQUEST" : status === 402 ? "AI_BILLING" : status === 429 ? "AI_RATE"
+        : status >= 500 ? "AI_PROVIDER" : "AI_NETWORK";
       throw new functions.https.HttpsError(
         "unavailable",
-        "El asistente no respondió. Intenta de nuevo en un momento (no se te descontó el uso)."
+        `El asistente no respondió (${code}). Intenta de nuevo en un momento (no se te descontó el uso).`,
+        { code }
       );
     }
 
