@@ -34,7 +34,7 @@ Funciona en Android, iOS y web, con Flutter + Firebase.
    │  escribe SOLO: su perfil, sus fotos, publicar/editar lote sin pujas
    │  todo lo demás → llamadas a funciones (con App Check)
    ▼
- Cloud Functions (Node 20, us-central1)  ── 34 funciones
+ Cloud Functions (Node 22, us-central1)  ── 37 funciones
    │  pujas, cierre, cobros, escrow, disputas, reputación, admin, IA
    │  transacciones + documento candado en todo lo que mueve dinero
    ├──► Firestore    (reglas deny-by-default, lista blanca al publicar)
