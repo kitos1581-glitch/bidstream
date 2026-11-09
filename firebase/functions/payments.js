@@ -398,6 +398,12 @@ function writeSettlement(writer, lotId, lot, winnerUid, seller, winner) {
   }
   // Una venta más en el perfil público del vendedor (reputación).
   recordSale(writer, lot.seller_uid);
+  // Promotores: la compra/venta cuenta para el código de quien trajo a cada uno.
+  require("./referral").recordReferralSale(writer, {
+    buyer: winner,
+    seller,
+    amount: finalPrice,
+  });
   let commission;
   let policy = "standard";
   let feePayer = "seller";

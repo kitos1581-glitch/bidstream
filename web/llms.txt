@@ -1,0 +1,18 @@
+# Subástalo Aquí
+
+> Plataforma local de subastas y ventas en línea para el centro-sur de Chihuahua, México (Camargo, Delicias, Meoqui, Saucillo, Jiménez, La Cruz y San Francisco de Conchos; vendedores también en la ciudad de Chihuahua). El comprador paga dentro de la plataforma y su dinero queda protegido hasta que recibe el artículo.
+
+Datos clave:
+- Subastas por tiempo (1 a 7 días), subastas en vivo con video de YouTube y venta a precio fijo.
+- Comisión para el vendedor: 0 % hasta el 31 de marzo de 2027 (hasta 30 ventas al mes); después 10 % / 8 % / 6 % por tramos, mínimo $50 MXN. El comprador no paga comisión.
+- Pagos: tarjeta, saldo de Mercado Pago, y efectivo en OXXO y tiendas para ganadores de subasta.
+- Depósito de garantía de $200 MXN para pujar (reembolsable); compra directa sin depósito.
+- Cierre extendido: una puja en los últimos 40 segundos alarga la subasta 40 segundos.
+- Vendedores verificados con INE; pago retenido hasta la entrega; reclamos con fotos.
+- Contacto: contacto@subastaloaqui.com
+
+## Páginas
+- [Cómo funciona](https://subastaloaqui.com/como-funciona.html): proceso de compra y venta, subastas en vivo y seguridad.
+- [Comisiones](https://subastaloaqui.com/comisiones.html): tabla de comisiones, ejemplos y Tiendas Oficiales.
+- [Preguntas frecuentes](https://subastaloaqui.com/preguntas-frecuentes.html): pagos, depósito, reclamos y reglas.
+- [Catálogo](https://subastaloaqui.com/): subastas y artículos activos (aplicación web).

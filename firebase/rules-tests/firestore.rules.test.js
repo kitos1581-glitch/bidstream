@@ -320,6 +320,13 @@ test("vendedor fundador: nadie se da el sello a sí mismo", async () => {
   await assertFails(setDoc(doc(as("nuevo3"), "users/nuevo3"), { full_name: "Nuevo", founding_seller: true }));
 });
 
+test("promotores: nadie se pone referido a mano; los códigos solo los lee el admin", async () => {
+  await assertFails(updateDoc(doc(as("beto"), "users/beto"), { referred_by: "PEPE10" }));
+  await assertFails(setDoc(doc(as("nuevo4"), "users/nuevo4"), { full_name: "Nuevo", referred_by: "PEPE10" }));
+  await assertFails(getDoc(doc(as("beto"), "referral_codes/PEPE10")));
+  await assertFails(setDoc(doc(as("beto"), "referral_codes/BETO"), { name: "Beto", signups: 999 }));
+});
+
 test("aparta y paga: no se borra un artículo apartado o vendido sin pujas; nadie se limpia sus apartados vencidos", async () => {
   await env.withSecurityRulesDisabled(async (c) => {
     const f = c.firestore();

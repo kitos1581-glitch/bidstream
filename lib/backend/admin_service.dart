@@ -203,6 +203,20 @@ class AdminService {
       .httpsCallable('adminSetFoundingSeller')
       .call<dynamic>({'uid': uid, 'founding': founding});
 
+  /// Crea un código de promotor. Regresa el enlace para compartir.
+  Future<String> createReferralCode(String code, String name) async {
+    final r = await _fn
+        .httpsCallable('adminCreateReferralCode')
+        .call<dynamic>({'code': code, 'name': name});
+    return '${(r.data as Map)['link']}';
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> referralCodes() => FirebaseFirestore.instance
+      .collection('referral_codes')
+      .orderBy('signups', descending: true)
+      .limit(100)
+      .snapshots();
+
   Future<void> cancelLot(String lotId, String reason) => _fn
       .httpsCallable('adminCancelLot')
       .call<dynamic>({'lotId': lotId, 'reason': reason});

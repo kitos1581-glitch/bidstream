@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert' show base64Encode;
 import 'dart:typed_data';
 
@@ -8,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import 'demo_lots.dart';
+import 'referral_service.dart';
 import 'schema/bidding_record.dart';
 import 'storage_upload.dart';
 import 'schema/bids_record.dart';
@@ -424,7 +426,9 @@ class AuctionService {
       });
     } else if (fullName != null && fullName.trim().isNotEmpty) {
       await ref.update({'full_name': fullName.trim()});
-    }
+    }    }
+    // Si llegó por el enlace de un promotor, se le acredita (sin bloquear).
+    unawaited(ReferralService.instance.claimPending());
   }
 
   Future<void> updateProfile({

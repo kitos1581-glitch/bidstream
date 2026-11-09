@@ -9,6 +9,7 @@ import 'auth/firebase_auth/auth_util.dart';
 
 import 'backend/firebase/firebase_config.dart';
 import 'backend/push_service.dart';
+import 'backend/referral_service.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import 'flutter_flow/flutter_flow_util.dart';
 import 'flutter_flow/nav/nav.dart';
@@ -22,6 +23,7 @@ void main() async {
   await _activateAppCheck();
 
   await FlutterFlowTheme.initialize();
+  await ReferralService.instance.captureFromUrl();
 
   runApp(MyApp());
 }

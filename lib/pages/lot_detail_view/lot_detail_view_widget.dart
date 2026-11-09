@@ -68,6 +68,84 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
     }
   }
 
+  /// El vendedor corrige la parte descriptiva (las reglas no dejan tocar
+  /// precio ni fechas una vez que hay pujas). Si estaba "en revisión" por datos
+  /// de contacto y ya está limpia, el servidor la vuelve a publicar solo.
+  Future<void> _edit(LotsRecord lot) async {
+    final title = TextEditingController(text: lot.title);
+    final desc = TextEditingController(text: lot.description);
+    final stream = TextEditingController(text: lot.streamUrl);
+    final specCtrls = {for (final e in lot.specs.entries) e.key: TextEditingController(text: e.value)};
+    final formKey = GlobalKey<FormState>();
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: formKey,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('Editar publicación', style: FlutterFlowTheme.of(c).titleLarge),
+              const SizedBox(height: 4),
+              Text('Sin teléfonos, correos ni redes: se comparten después del pago.',
+                  style: FlutterFlowTheme.of(c).bodySmall),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: title,
+                maxLength: 120,
+                decoration: const InputDecoration(labelText: 'Título'),
+                validator: (v) => (v ?? '').trim().length < 3 ? 'Mínimo 3 caracteres' : null,
+              ),
+              TextFormField(
+                controller: desc,
+                maxLength: 3000,
+                minLines: 4,
+                maxLines: 10,
+                decoration: const InputDecoration(labelText: 'Descripción'),
+              ),
+              for (final e in specCtrls.entries)
+                TextFormField(
+                  controller: e.value,
+                  maxLength: 200,
+                  decoration: InputDecoration(labelText: e.key),
+                ),
+              if (lot.format == 'live')
+                TextFormField(
+                  controller: stream,
+                  maxLength: 500,
+                  decoration: const InputDecoration(labelText: 'Enlace de YouTube Live'),
+                ),
+              const SizedBox(height: 12),
+              BigButton(
+                label: 'Guardar cambios',
+                onPressed: () {
+                  if (formKey.currentState!.validate()) Navigator.pop(c, true);
+                },
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+    if (saved != true) return;
+    try {
+      await lot.reference.update({
+        'title': title.text.trim(),
+        'description': desc.text.trim(),
+        if (specCtrls.isNotEmpty)
+          'specs': {for (final e in specCtrls.entries) e.key: e.value.text.trim()},
+        if (lot.format == 'live') 'stream_url': stream.text.trim(),
+      });
+      if (!mounted) return;
+      showMessage(context,
+          lot.status == 'review' ? 'Guardado. Si ya no tiene datos de contacto, se publica en unos segundos.' : 'Cambios guardados.');
+    } catch (e) {
+      if (mounted) showMessage(context, 'No se pudo guardar: ${friendlyError(e)}', error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
@@ -146,7 +224,13 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                 icon: const Icon(Icons.share_outlined),
                 onPressed: () => _share(lot),
               ),
-              if (isSeller && lot.bidCount == 0 && lot.status == 'active')
+              if (isSeller && (lot.status == 'active' || lot.status == 'review'))
+                IconButton(
+                  tooltip: 'Editar publicación',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _edit(lot),
+                ),
+              if (isSeller && lot.bidCount == 0 && (lot.status == 'active' || lot.status == 'review'))
                 IconButton(
                   tooltip: 'Eliminar lote',
                   icon: const Icon(Icons.delete_outline),
@@ -279,7 +363,7 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                       const SizedBox(height: 10),
                       Text(
                         'En revisión: tu publicación tiene datos de contacto (teléfono, correo, WhatsApp o redes). '
-                        'Bórrala con el bote de basura de arriba y vuelve a publicarla sin esos datos. '
+                        'Toca el lápiz de arriba, quítalos del título, la descripción o las características y guarda: se vuelve a publicar sola. '
                         'Los contactos se comparten después del pago.',
                         style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w700, color: theme.error),
                       ),

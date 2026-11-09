@@ -113,7 +113,7 @@ exports.onLotModerate = functions
         .add({
           type: "lot_review",
           title: "Tu publicación está en revisión",
-          body: `"${after.title}" tiene datos de contacto (${what}). Mientras tanto no se ve ni recibe pujas. Bórrala y vuelve a publicarla sin esos datos (si la corriges, se publica sola). Los contactos se comparten después del pago.`,
+          body: `"${after.title}" tiene datos de contacto (${what}). Mientras tanto no se ve ni recibe pujas. Ábrela, toca el lápiz (Editar), quita esos datos y guarda: se vuelve a publicar sola. Los contactos se comparten después del pago.`,
           lot_id: context.params.lotId,
           read: false,
           created_time: FieldValue.serverTimestamp(),

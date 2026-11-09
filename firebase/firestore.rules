@@ -107,14 +107,16 @@ service cloud.firestore {
               ['verified', 'role', 'banned', 'deposit', 'strikes',
                'verification_status', 'ban_reason', 'seller_strikes',
                'seller_plan', 'store_name', 'store_plan_until', 'monthly_sales',
-               'founding_seller', 'founding_since', 'unpaid_buys']);
+               'founding_seller', 'founding_since', 'unpaid_buys',
+               'referred_by', 'referred_time']);
 
       allow update: if isOwner(uid)
         && !request.resource.data.diff(resource.data).affectedKeys()
               .hasAny(['verified', 'role', 'banned', 'uid', 'created_time',
                        'deposit', 'strikes', 'verification_status', 'ban_reason',
                        'seller_strikes', 'seller_plan', 'store_name', 'store_plan_until',
-                       'monthly_sales', 'founding_seller', 'founding_since', 'unpaid_buys']);
+                       'monthly_sales', 'founding_seller', 'founding_since', 'unpaid_buys',
+                       'referred_by', 'referred_time']);
 
       allow delete: if false;
 
@@ -153,6 +155,12 @@ service cloud.firestore {
         allow read: if isOwner(uid);
         allow write: if false;
       }
+    }
+
+    // Códigos de promotores: solo el admin los lee; los escribe el servidor.
+    match /referral_codes/{code} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ---------------- Lotes ----------------

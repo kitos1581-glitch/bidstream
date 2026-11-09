@@ -8,6 +8,26 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Agregado: códigos de promotor `?ref=` (2026-11-08)
+- `claimReferral` y `adminCreateReferralCode` (funciones 36 y 37). Enlace
+  `subastaloaqui.com/?ref=CODIGO`; la app lo guarda y lo reclama al crear la
+  cuenta. Solo cuentas de menos de 14 días, una vez, nunca el propio dueño.
+- La liquidación suma compras/ventas pagadas al código del comprador y del
+  vendedor (idempotente con la liquidación). Pestaña "Promotores" en el panel.
+- Reglas: `referred_by`/`referred_time` no los escribe el cliente;
+  `referral_codes` solo lo lee el admin.
+
+### Agregado: editar publicación (2026-11-08)
+- Lápiz en el detalle para el vendedor (activa o en revisión): título,
+  descripción, características y enlace del en vivo. Al quitar datos de
+  contacto, la publicación regresa sola a activa.
+
+### Agregado: datos para buscadores e IA (2026-11-08)
+- Páginas estáticas `como-funciona`, `comisiones`, `preguntas-frecuentes`
+  (FAQPage), `llms.txt`, `robots.txt`, `sitemap.xml`; JSON-LD de
+  Organization/WebSite y `<noscript>` en `index.html`. Siguen en `noindex`
+  hasta el lanzamiento público.
+
 ### Agregado: "✨ Mejorar foto" y tips de foto al publicar (2026-10-28)
 - Botón en cada foto: niveles automáticos (1–99 %), algo de contraste y
   color, orientación correcta. Misma foto, sin cambiar producto ni fondo;

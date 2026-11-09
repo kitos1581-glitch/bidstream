@@ -83,6 +83,9 @@ exports.generateLotDescription = require("./ai").generateLotDescription;
 exports.onNotificationCreated = require("./push").onNotificationCreated;
 // Datos de contacto en publicaciones → revisión (no se brincan la plataforma).
 exports.onLotModerate = require("./contact_filter").onLotModerate;
+// Códigos de referido de promotores.
+exports.claimReferral = require("./referral").claimReferral;
+exports.adminCreateReferralCode = require("./referral").adminCreateReferralCode;
 
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;

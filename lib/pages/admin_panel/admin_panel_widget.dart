@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '/backend/admin_service.dart';
 import '/backend/dispute_service.dart';
@@ -40,7 +41,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
           );
         }
         return DefaultTabController(
-          length: 5,
+          length: 6,
           child: Scaffold(
             backgroundColor: theme.primaryBackground,
             appBar: AppBar(leading: const BackOrHomeButton(), 
@@ -60,6 +61,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
                   Tab(text: 'Pagos'),
                   Tab(text: 'Usuarios'),
                   Tab(text: 'Lotes'),
+                  Tab(text: 'Promotores'),
                 ],
               ),
             ),
@@ -69,6 +71,7 @@ class _AdminPanelWidgetState extends State<AdminPanelWidget> {
               _PaymentsTab(),
               _UsersTab(),
               _LotsTab(),
+              _PromotersTab(),
             ]),
           ),
         );
@@ -657,5 +660,93 @@ class _DisputesTab extends StatelessWidget {
         throw Exception(e.message);
       }
     }, 'Reclamo resuelto');
+  }
+}
+
+// =====================================================================
+// Promotores: códigos de referido (tiktokers, practicantes, comercios)
+// =====================================================================
+class _PromotersTab extends StatelessWidget {
+  const _PromotersTab();
+
+  String _money(dynamic v) {
+    final n = (v is num) ? v : 0;
+    return '\$${n.toStringAsFixed(0).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')}';
+  }
+
+  Future<void> _create(BuildContext context) async {
+    final name = await _askText(context, 'Nombre del promotor', 'Ej. Pepe TikTok');
+    if (name == null || !context.mounted) return;
+    final code = await _askText(context, 'Código (3 a 20 letras o números)', 'Ej. PEPE10');
+    if (code == null || !context.mounted) return;
+    try {
+      final link = await AdminService.instance.createReferralCode(code, name);
+      await Clipboard.setData(ClipboardData(text: link));
+      if (context.mounted) showMessage(context, 'Listo. Enlace copiado: $link');
+    } catch (e) {
+      if (context.mounted) showMessage(context, 'Error: $e', error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: AdminService.instance.referralCodes(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? const [];
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          Text('Cada promotor comparte subastaloaqui.com/?ref=CODIGO. Cuenta quien crea su cuenta '
+              'con ese enlace (máx. 14 días después de crearla) y lo que compra o vende ya pagado.',
+              style: theme.bodySmall),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo código'),
+              onPressed: () => _create(context),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (!snap.hasData) const Loading(),
+          if (snap.hasData && docs.isEmpty)
+            const EmptyState(icon: Icons.campaign_outlined, title: 'Aún no hay promotores'),
+          for (final d in docs)
+            Builder(builder: (context) {
+              final c = d.data();
+              final link = 'https://subastaloaqui.com/?ref=${d.id}';
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.secondaryBackground,
+                  border: Border.all(color: theme.alternate),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text('${c['name'] ?? ''} · ${d.id}', style: theme.titleSmall)),
+                    IconButton(
+                      tooltip: 'Copiar enlace',
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: link));
+                        if (context.mounted) showMessage(context, 'Enlace copiado');
+                      },
+                    ),
+                  ]),
+                  Wrap(spacing: 6, runSpacing: 6, children: [
+                    Tag('Registros: ${c['signups'] ?? 0}'),
+                    Tag('Compras: ${c['buyers_purchases'] ?? 0} (${_money(c['buyers_amount'])})'),
+                    Tag('Ventas: ${c['sellers_sales'] ?? 0} (${_money(c['sellers_amount'])})'),
+                    if (c['active'] == false) const Tag('Inactivo'),
+                  ]),
+                ]),
+              );
+            }),
+        ]);
+      },
+    );
   }
 }
