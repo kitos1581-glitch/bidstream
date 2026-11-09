@@ -199,11 +199,56 @@ FAQ = [
      "No. Las publicaciones con teléfono, correo, WhatsApp o redes se pausan automáticamente. Los datos de contacto se comparten después del pago, para proteger a ambas partes."),
     ("¿Hay subastas en vivo?",
      "Sí. El vendedor transmite por YouTube, el video se ve dentro de la app junto al botón de pujar y también se puede compartir en Facebook."),
+    ("¿Cuánto tiempo tengo para pagar si gano una subasta?",
+     "24 horas desde que cierra la subasta. Si pagas en efectivo en OXXO o tienda, la ficha vence antes de ese plazo. Si no pagas a tiempo, pierdes el depósito y el artículo se le puede ofrecer al siguiente postor."),
+    ("¿Cómo funciona la compra directa a precio fijo?",
+     "Tocas Comprar ahora y el artículo queda apartado 30 minutos mientras pagas. Si no completas el pago, se libera para otros compradores. No se pide depósito."),
+    ("¿Necesito verificar mi identidad para comprar?",
+     "Para pujar o comprar basta tu cuenta con correo verificado y el depósito de garantía. Para pujas de $20,000 o más se pide identificación verificada con INE."),
+    ("¿Tengo que instalar una aplicación?",
+     "No. Subástalo Aquí funciona desde el navegador del celular o la computadora, sin instalar nada. Puedes agregarlo a tu pantalla de inicio como si fuera una app."),
     ("¿Qué no se puede vender?",
      "Armas, drogas y medicamentos controlados, animales silvestres protegidos, artículos robados o falsificados, vehículos con reporte de robo o sin documentos y documentos oficiales."),
 ]
 
-FAQ_HTML = "<h1>Preguntas frecuentes</h1>\n<p>Respuestas rápidas sobre cómo comprar, vender y pagar en Subástalo Aquí.</p>\n" + "\n".join(
+FAQ_INTRO = """<h1>Preguntas frecuentes</h1>
+<p>Respuestas rápidas sobre cómo comprar, vender y pagar en Subástalo Aquí, la plataforma local de subastas del
+centro-sur de Chihuahua.</p>
+
+<h2>Subástalo Aquí en cifras</h2>
+<table>
+<tr><th>Concepto</th><th>Dato</th></tr>
+<tr><td>Costo por publicar</td><td>Gratis</td></tr>
+<tr><td>Comisión al vendedor hasta el 31 de marzo de 2027</td><td>0 % (hasta 30 ventas al mes)</td></tr>
+<tr><td>Comisión normal al vendedor</td><td>10 % / 8 % / 6 % por tramos, mínimo $50</td></tr>
+<tr><td>Comisión al comprador</td><td>$0</td></tr>
+<tr><td>Depósito para pujar</td><td>$200, reembolsable</td></tr>
+<tr><td>Plazo para pagar una subasta ganada</td><td>24 horas</td></tr>
+<tr><td>Apartado en compra directa</td><td>30 minutos</td></tr>
+<tr><td>Extensión por puja de último momento</td><td>40 segundos</td></tr>
+<tr><td>Liberación del pago en envíos sin reclamo</td><td>7 días</td></tr>
+</table>
+
+<h2>Cómo comprar en 5 pasos</h2>
+<ol>
+<li>Crea tu cuenta y verifica tu correo.</li>
+<li>Deja el depósito de garantía de $200 si vas a pujar (para compra directa no hace falta).</li>
+<li>Puja o toca Comprar ahora.</li>
+<li>Paga dentro de la plataforma: tarjeta, Mercado Pago u OXXO.</li>
+<li>Recibe el artículo y entrega tu código de 6 dígitos al vendedor; hasta entonces tu dinero queda retenido.</li>
+</ol>
+
+<h2>Cómo vender en 5 pasos</h2>
+<ol>
+<li>Verifica tu identidad con INE (una sola vez).</li>
+<li>Sube fotos reales del artículo, de todos los lados.</li>
+<li>Elige subasta (1 a 7 días o en vivo) o precio fijo.</li>
+<li>Cuando se pague, coordina la entrega desde la app.</li>
+<li>Recibe tu dinero al capturar el código del comprador o cuando confirme que llegó bien.</li>
+</ol>
+"""
+
+FAQ_HTML = FAQ_INTRO + "\n".join(
     f"<h2>{html.escape(q)}</h2>\n<p>{html.escape(a)}</p>" for q, a in FAQ)
 FAQ_LD = {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
     {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in FAQ]}
