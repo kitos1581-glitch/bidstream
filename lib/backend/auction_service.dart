@@ -426,7 +426,7 @@ class AuctionService {
       });
     } else if (fullName != null && fullName.trim().isNotEmpty) {
       await ref.update({'full_name': fullName.trim()});
-    }    }
+    }
     // Si llegó por el enlace de un promotor, se le acredita (sin bloquear).
     unawaited(ReferralService.instance.claimPending());
   }
