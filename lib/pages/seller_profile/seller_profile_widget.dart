@@ -97,7 +97,7 @@ class _SellerProfileWidgetState extends State<SellerProfileWidget> {
                       icon: Icons.inventory_2_outlined, title: 'No tiene subastas activas');
                 }
                 return SizedBox(
-                  height: 220 * 3 / 4 + 140,
+                  height: lotCardHeight(220) + 8,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),

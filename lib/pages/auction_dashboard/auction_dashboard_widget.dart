@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '/auth/firebase_auth/auth_util.dart';
@@ -22,19 +20,22 @@ class AuctionDashboardWidget extends StatefulWidget {
   State<AuctionDashboardWidget> createState() => _AuctionDashboardWidgetState();
 }
 
-/// Ícono y color de cada categoría para las tarjetas.
-const _categoryStyle = <String, (String, int)>{
-  'Vehículos': ('🚗', 0xFFE3F2FD),
-  'Ganado y caballos': ('🐎', 0xFFFFF3E0),
-  'Maquinaria y herramientas': ('🚜', 0xFFF1F8E9),
-  'Electrónica': ('📱', 0xFFEDE7F6),
-  'Hogar y muebles': ('🛋️', 0xFFF5F5F5),
-  'Joyería y relojes': ('⌚', 0xFFFFF8E1),
-  'Arte y colección': ('🎨', 0xFFFCE4EC),
-  'Deportes': ('⚽', 0xFFE0F2F1),
-  'Ropa y accesorios': ('👟', 0xFFE8EAF6),
-  'Otros': ('📦', 0xFFEFEBE9),
+/// Ícono (Material, una sola familia) y tono de cada categoría.
+const _categoryStyle = <String, (IconData, int)>{
+  'Vehículos': (Icons.directions_car_outlined, 0xFF2563EB),
+  'Ganado y caballos': (Icons.pets_outlined, 0xFFB45309),
+  'Maquinaria y herramientas': (Icons.agriculture_outlined, 0xFF15803D),
+  'Electrónica': (Icons.smartphone_outlined, 0xFF7C3AED),
+  'Hogar y muebles': (Icons.chair_outlined, 0xFF475569),
+  'Joyería y relojes': (Icons.watch_outlined, 0xFFA16207),
+  'Arte y colección': (Icons.palette_outlined, 0xFFBE185D),
+  'Deportes': (Icons.sports_soccer_outlined, 0xFF0F766E),
+  'Ropa y accesorios': (Icons.checkroom_outlined, 0xFF4338CA),
+  'Otros': (Icons.category_outlined, 0xFF78716C),
 };
+
+/// Con menos lotes que esto, el inicio muestra el panel de "estamos arrancando".
+const _fewLots = 6;
 
 class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
   final _search = TextEditingController();
@@ -44,6 +45,18 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
 
   /// Municipio para filtrar ('' = toda la región). Se recuerda en el equipo.
   String _region = '';
+
+  /// Para que "Ver subastas" del banner baje al catálogo.
+  final _catalogKey = GlobalKey();
+
+  void _scrollToCatalog() {
+    final ctx = _catalogKey.currentContext;
+    if (ctx == null) return;
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    Scrollable.ensureVisible(ctx,
+        duration: reduce ? Duration.zero : const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic);
+  }
 
   @override
   void initState() {
@@ -110,7 +123,7 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
     final columns = width > 1100 ? 5 : (width > 800 ? 4 : (width > 560 ? 3 : 2));
     final contentWidth = width > 1280 ? 1280.0 : width;
     final cellWidth = (contentWidth - 32 - 12 * (columns - 1)) / columns;
-    final cardHeight = cellWidth * 3 / 4 + 132;
+    final cardHeight = lotCardHeight(cellWidth);
 
     return Scaffold(
       backgroundColor: theme.primaryBackground,
@@ -143,7 +156,27 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                     ),
                   ]);
                 }
-                if (!snap.hasData) return Column(children: [header, const Expanded(child: Loading())]);
+                if (!snap.hasData) {
+                  return CustomScrollView(physics: const NeverScrollableScrollPhysics(), slivers: [
+                    SliverToBoxAdapter(child: header),
+                    const SliverToBoxAdapter(child: _HeroSkeleton()),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          mainAxisExtent: cardHeight,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => const LotCardSkeleton(),
+                          childCount: columns * 2,
+                        ),
+                      ),
+                    ),
+                  ]);
+                }
 
                 final now = DateTime.now();
                 // Filtro por municipio: "Toda la región" o solo el elegido.
@@ -184,31 +217,44 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                     ),
                   ),
 
-                  if (!_browsing) ...[
-                    const SliverToBoxAdapter(child: _HeroCarousel()),
+                  if (!_browsing)
+                    SliverToBoxAdapter(
+                      child: _Hero(
+                        liveCount: live.length,
+                        activeCount: all.length,
+                        onBrowse: _scrollToCatalog,
+                      ),
+                    ),
+                  if (_query.trim().isEmpty) ...[
                     const SliverToBoxAdapter(child: SectionTitle('Explora por categoría')),
                     SliverToBoxAdapter(
                       child: _CategoryRow(
-                        onSelect: (c) => setState(() => _category = c),
+                        selected: _category,
+                        onSelect: (c) => setState(() => _category = c == _category ? null : c),
                       ),
                     ),
-                    const SliverToBoxAdapter(child: SectionTitle('Así funciona')),
-                    const SliverToBoxAdapter(child: HowItWorks()),
+                  ],
+                  if (!_browsing) ...[
                     if (live.isNotEmpty) ...[
                       SliverToBoxAdapter(
-                        child: SectionTitle('🔴 En vivo ahora',
+                        child: SectionTitle('En vivo ahora',
+                            leading: const _LiveDot(),
                             trailing: Text('${live.length}', style: theme.labelMedium)),
                       ),
                       SliverToBoxAdapter(child: _LotRow(lots: live, cardWidth: 220)),
                     ],
                     if (endingSoon.isNotEmpty) ...[
-                      const SliverToBoxAdapter(child: SectionTitle('⏰ Terminan pronto')),
+                      SliverToBoxAdapter(
+                        child: SectionTitle('Terminan pronto',
+                            leading: Icon(Icons.timer_outlined, color: theme.tertiary)),
+                      ),
                       SliverToBoxAdapter(child: _LotRow(lots: endingSoon, cardWidth: 220)),
                     ],
                   ],
 
                   // ---------------- Catálogo ----------------
                   SliverToBoxAdapter(
+                    key: _catalogKey,
                     child: SectionTitle(
                       _category ?? (_query.isNotEmpty ? 'Resultados' : 'Todas las subastas'),
                       trailing: _browsing
@@ -227,27 +273,31 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                               style: theme.bodySmall.copyWith(color: theme.secondaryText)),
                     ),
                   ),
-                  if (filtered.isEmpty)
+                  if (all.isEmpty && !_browsing)
+                    SliverToBoxAdapter(
+                      child: _StartingPanel(
+                        big: true,
+                        region: _region.isEmpty ? '' : municipalityName(_region),
+                        onSeeRegion: _region.isEmpty ? null : () => _setRegion(''),
+                      ),
+                    )
+                  else if (filtered.isEmpty)
                     SliverToBoxAdapter(
                       child: EmptyState(
-                        icon: Icons.inventory_2_outlined,
-                        title: all.isEmpty && _region.isNotEmpty
-                            ? 'Aún no hay subastas en ${municipalityName(_region)}'
-                            : all.isEmpty
-                            ? 'Todavía no hay subastas'
-                            : 'Nada coincide con tu búsqueda',
-                        message: all.isEmpty
-                            ? 'Sé el primero en publicar un lote.'
-                            : 'Prueba con otra palabra o categoría.',
-                        action: all.isEmpty
-                            ? SizedBox(
-                                width: 220,
-                                child: BigButton(
-                                  label: 'Publicar lote',
-                                  onPressed: () => context.goNamed('CreateLotManagement'),
-                                ),
-                              )
-                            : null,
+                        icon: Icons.search_off_rounded,
+                        title: 'Nada coincide con tu búsqueda',
+                        message: 'Prueba con otra palabra, otra categoría o toda la región.',
+                        action: OutlinedButton.icon(
+                          onPressed: () {
+                            _search.clear();
+                            setState(() {
+                              _query = '';
+                              _category = null;
+                            });
+                          },
+                          icon: const Icon(Icons.close, size: 18),
+                          label: const Text('Quitar filtros'),
+                        ),
                       ),
                     )
                   else
@@ -266,6 +316,10 @@ class _AuctionDashboardWidgetState extends State<AuctionDashboardWidget> {
                         ),
                       ),
                     ),
+                  if (!_browsing && all.isNotEmpty && all.length < _fewLots)
+                    const SliverToBoxAdapter(child: _StartingPanel(big: false)),
+                  const SliverToBoxAdapter(child: SectionTitle('Así funciona')),
+                  const SliverToBoxAdapter(child: HowItWorks()),
                   const SliverToBoxAdapter(child: HelpLinks()),
                 ]);
               },
@@ -374,173 +428,493 @@ class _Header extends StatelessWidget {
 }
 
 // =====================================================================
-// Banner rotativo
+// Banner principal: propuesta de valor, dos acciones y confianza
 // =====================================================================
-class _HeroCarousel extends StatefulWidget {
-  const _HeroCarousel();
+class _Hero extends StatelessWidget {
+  const _Hero({
+    required this.liveCount,
+    required this.activeCount,
+    required this.onBrowse,
+  });
+
+  final int liveCount;
+  final int activeCount;
+  final VoidCallback onBrowse;
 
   @override
-  State<_HeroCarousel> createState() => _HeroCarouselState();
-}
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final wide = MediaQuery.sizeOf(context).width > 760;
+    const fg = Colors.white;
 
-class _HeroSlide {
-  const _HeroSlide(this.title, this.subtitle, this.cta, this.route, this.emoji, this.c1, this.c2);
-  final String title, subtitle, cta, route, emoji;
-  final Color c1, c2;
-}
+    final copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withOpacity(0.18)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.place_outlined, size: 14, color: fg),
+            const SizedBox(width: 4),
+            Text('Centro-sur de Chihuahua',
+                style: theme.labelSmall.copyWith(color: fg, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        Text.rich(
+          TextSpan(children: [
+            const TextSpan(text: 'Compra y vende en subasta, '),
+            TextSpan(text: 'con tu pago protegido', style: TextStyle(color: theme.tertiary)),
+          ]),
+          style: (wide ? theme.displaySmall : theme.headlineSmall).copyWith(
+              color: fg, fontWeight: FontWeight.w800, height: 1.12, letterSpacing: -0.5),
+        ),
+        const SizedBox(height: 10),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Text(
+            'Camargo, Delicias, Meoqui, Saucillo, Jiménez y más. '
+            'Tu dinero se le libera al vendedor hasta que recibes el artículo.',
+            style: theme.bodyMedium.copyWith(color: fg.withOpacity(0.86), height: 1.5),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Wrap(spacing: 10, runSpacing: 10, children: [
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.tertiary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              shape: const StadiumBorder(),
+            ),
+            onPressed: onBrowse,
+            icon: const Icon(Icons.gavel_rounded, size: 20),
+            label: const Text('Ver subastas', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              side: BorderSide(color: Colors.white.withOpacity(0.55)),
+              shape: const StadiumBorder(),
+            ),
+            onPressed: () => context.pushNamed('CreateLotManagement'),
+            icon: const Icon(Icons.add_a_photo_outlined, size: 20),
+            label: const Text('Vender gratis', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ]),
+        const SizedBox(height: 18),
+        Wrap(spacing: 16, runSpacing: 8, children: const [
+          _TrustItem(Icons.verified_user_outlined, 'Pago protegido'),
+          _TrustItem(Icons.badge_outlined, 'Vendedores con INE'),
+          _TrustItem(Icons.percent_rounded, '0 % de comisión hasta marzo'),
+        ]),
+      ],
+    );
 
-class _HeroCarouselState extends State<_HeroCarousel> {
-  static const _slides = [
-    _HeroSlide('Subastas en vivo, desde tu celular', 'Mira la transmisión y puja en tiempo real.',
-        'Ver subastas', 'AuctionDashboard', '🔴', Color(0xFF1B3A6B), Color(0xFF2F5A9E)),
-    _HeroSlide('Vende en 2 minutos con IA', 'Sube fotos y la IA escribe tu publicación.',
-        'Publicar ahora', 'CreateLotManagement', '✨', Color(0xFFF47920), Color(0xFFFFA65C)),
-    _HeroSlide('Ganado, caballos y maquinaria', 'Compra y vende con vendedores verificados.',
-        'Explorar', 'AuctionDashboard', '🐎', Color(0xFF0E8A00), Color(0xFF6BC25B)),
-  ];
-
-  final _controller = PageController();
-  Timer? _timer;
-  int _page = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 6), (_) {
-      if (!mounted || !_controller.hasClients) return;
-      final next = (_page + 1) % _slides.length;
-      _controller.animateToPage(next,
-          duration: const Duration(milliseconds: 450), curve: Curves.easeOut);
-    });
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF14305C), Color(0xFF1B3A6B), Color(0xFF285192)],
+          ),
+        ),
+        child: Stack(children: [
+          // Formas decorativas (no informativas).
+          Positioned(
+            right: -60,
+            top: -60,
+            child: _Blob(size: 220, color: theme.tertiary.withOpacity(0.22)),
+          ),
+          Positioned(
+            right: wide ? 180 : -30,
+            bottom: -80,
+            child: _Blob(size: 180, color: Colors.white.withOpacity(0.06)),
+          ),
+          Padding(
+            padding: EdgeInsets.all(wide ? 36 : 22),
+            child: wide
+                ? Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    Expanded(flex: 3, child: copy),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 2,
+                      child: _HeroStats(liveCount: liveCount, activeCount: activeCount),
+                    ),
+                  ])
+                : copy,
+          ),
+        ]),
+      ),
+    );
   }
+}
+
+class _Blob extends StatelessWidget {
+  const _Blob({required this.size, required this.color});
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+      );
+}
+
+class _TrustItem extends StatelessWidget {
+  const _TrustItem(this.icon, this.text);
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 16, color: Colors.white.withOpacity(0.9)),
+      const SizedBox(width: 6),
+      Text(text,
+          style: theme.bodySmall.copyWith(
+              color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w600)),
+    ]);
+  }
+}
+
+/// Lado derecho del banner en pantallas anchas: cifras en tiempo real.
+class _HeroStats extends StatelessWidget {
+  const _HeroStats({required this.liveCount, required this.activeCount});
+  final int liveCount;
+  final int activeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    Widget tile(IconData icon, String value, String label, {Widget? lead}) => Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.14)),
+          ),
+          child: Row(children: [
+            lead ?? Icon(icon, color: Colors.white, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(value,
+                    style: theme.headlineSmall.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+                Text(label,
+                    style: theme.bodySmall.copyWith(color: Colors.white.withOpacity(0.8))),
+              ]),
+            ),
+          ]),
+        );
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      tile(Icons.circle, '$liveCount', liveCount == 1 ? 'subasta en vivo' : 'subastas en vivo',
+          lead: const _LiveDot(size: 12)),
+      const SizedBox(height: 10),
+      tile(Icons.inventory_2_outlined, '$activeCount',
+          activeCount == 1 ? 'lote activo' : 'lotes activos'),
+      const SizedBox(height: 10),
+      tile(Icons.schedule_rounded, '40 s', 'extra si alguien puja al final'),
+    ]);
+  }
+}
+
+/// Esqueleto del banner mientras carga (mismo alto aproximado, sin saltos).
+class _HeroSkeleton extends StatelessWidget {
+  const _HeroSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width > 760;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Container(
+        height: wide ? 300 : 330,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF14305C), Color(0xFF285192)],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Punto rojo que late (indicador de "en vivo"). Quieto con reduce-motion.
+class _LiveDot extends StatefulWidget {
+  const _LiveDot({this.size = 10});
+  final double size;
+
+  @override
+  State<_LiveDot> createState() => _LiveDotState();
+}
+
+class _LiveDotState extends State<_LiveDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
+        ..repeat();
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _controller.dispose();
+    _c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = FlutterFlowTheme.of(context);
-    final wide = MediaQuery.sizeOf(context).width > 700;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Column(children: [
-        SizedBox(
-          height: wide ? 240 : 190,
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: _slides.length,
-            onPageChanged: (i) => setState(() => _page = i),
-            itemBuilder: (context, i) {
-              final s = _slides[i];
-              const fg = Colors.white;
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(colors: [s.c1, s.c2]),
-                ),
-                padding: EdgeInsets.all(wide ? 28 : 20),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(s.title,
-                            maxLines: 2,
-                            style: (wide ? theme.headlineMedium : theme.titleLarge).copyWith(
-                                color: fg, fontWeight: FontWeight.w800, height: 1.15)),
-                        const SizedBox(height: 6),
-                        Text(s.subtitle,
-                            maxLines: 2,
-                            style: theme.bodyMedium.copyWith(color: fg.withOpacity(0.9))),
-                        const SizedBox(height: 14),
-                        FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: s.c1,
-                            shape: const StadiumBorder(),
-                          ),
-                          onPressed: () => context.goNamed(s.route),
-                          child: Text(s.cta, style: const TextStyle(fontWeight: FontWeight.w700)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(s.emoji, style: TextStyle(fontSize: wide ? 110 : 64)),
-                ]),
-              );
-            },
+    const red = Color(0xFFE11D48);
+    final dot = Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: const BoxDecoration(color: red, shape: BoxShape.circle),
+    );
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return dot;
+    return SizedBox(
+      width: widget.size * 2,
+      height: widget.size * 2,
+      child: Stack(alignment: Alignment.center, children: [
+        AnimatedBuilder(
+          animation: _c,
+          builder: (context, _) => Container(
+            width: widget.size * (1 + _c.value),
+            height: widget.size * (1 + _c.value),
+            decoration: BoxDecoration(
+              color: red.withOpacity(0.35 * (1 - _c.value)),
+              shape: BoxShape.circle,
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          for (var i = 0; i < _slides.length; i++)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: i == _page ? 18 : 7,
-              height: 7,
-              decoration: BoxDecoration(
-                color: i == _page ? theme.primaryText : theme.alternate,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-        ]),
+        dot,
       ]),
     );
   }
 }
 
 // =====================================================================
-// Categorías (tarjetas redondas con ícono)
+// Categorías: mosaico con ícono y estado seleccionado
 // =====================================================================
 class _CategoryRow extends StatelessWidget {
-  const _CategoryRow({required this.onSelect});
+  const _CategoryRow({required this.selected, required this.onSelect});
+  final String? selected;
   final ValueChanged<String> onSelect;
 
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
     return SizedBox(
-      height: 112,
+      height: 118,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: kLotCategories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, i) {
           final c = kLotCategories[i];
-          final style = _categoryStyle[c] ?? ('📦', 0xFFF5F5F5);
-          return InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => onSelect(c),
-            child: SizedBox(
-              width: 82,
-              child: Column(children: [
-                Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    color: Color(style.$2),
-                    shape: BoxShape.circle,
+          final style = _categoryStyle[c] ?? (Icons.category_outlined, 0xFF78716C);
+          final tone = Color(style.$2);
+          final isSel = c == selected;
+          return Semantics(
+            selected: isSel,
+            button: true,
+            child: Material(
+              color: isSel ? tone.withOpacity(0.12) : theme.secondaryBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(color: isSel ? tone : theme.alternate, width: isSel ? 1.5 : 1),
+              ),
+              child: InkWell(
+                customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                onTap: () => onSelect(c),
+                child: SizedBox(
+                  width: 96,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 14, 8, 10),
+                    child: Column(children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: tone.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(style.$1, color: tone, size: 26),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(c,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.bodySmall.copyWith(
+                              fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
+                              height: 1.2)),
+                    ]),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(style.$1, style: const TextStyle(fontSize: 32)),
                 ),
-                const SizedBox(height: 6),
-                Text(c,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.bodySmall.copyWith(fontWeight: FontWeight.w600, height: 1.2)),
-              ]),
+              ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// Estado vacío / pocos lotes: "estamos arrancando"
+// =====================================================================
+class _StartingPanel extends StatelessWidget {
+  const _StartingPanel({required this.big, this.region = '', this.onSeeRegion});
+
+  /// true = no hay ningún lote (panel completo); false = pocos lotes (franja).
+  final bool big;
+  final String region;
+  final VoidCallback? onSeeRegion;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final wide = MediaQuery.sizeOf(context).width > 700;
+    final title = big
+        ? (region.isNotEmpty
+            ? 'Aún no hay lotes en $region'
+            : 'Los primeros lotes ya vienen en camino')
+        : 'Apenas estamos arrancando';
+    final message = big
+        ? 'Publica el tuyo y aparece hasta arriba. Vender cuesta 0 % de comisión '
+            'hasta el 31 de marzo de 2027 y solo te toma unos minutos con fotos del celular.'
+        : 'Hay pocos lotes por ahora. Si tienes algo que vender, este es el mejor momento: '
+            '0 % de comisión y más visibilidad.';
+
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      alignment: wide ? WrapAlignment.start : WrapAlignment.center,
+      children: [
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: theme.primary,
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            shape: const StadiumBorder(),
+          ),
+          onPressed: () => context.pushNamed('CreateLotManagement'),
+          icon: const Icon(Icons.add_a_photo_outlined, size: 20),
+          label: const Text('Publicar gratis', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        if (onSeeRegion != null)
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 48), shape: const StadiumBorder()),
+            onPressed: onSeeRegion,
+            child: const Text('Ver toda la región'),
+          )
+        else
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 48), shape: const StadiumBorder()),
+            onPressed: () => context.pushNamed('HelpCenter'),
+            child: const Text('¿Cómo funciona?'),
+          ),
+      ],
+    );
+
+    final text = Column(
+      crossAxisAlignment: wide ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title,
+            textAlign: wide ? TextAlign.start : TextAlign.center,
+            style: (big ? theme.headlineSmall : theme.titleLarge)
+                .copyWith(fontWeight: FontWeight.w800, height: 1.2)),
+        const SizedBox(height: 8),
+        Text(message,
+            textAlign: wide ? TextAlign.start : TextAlign.center,
+            style: theme.bodyMedium.copyWith(color: theme.secondaryText, height: 1.5)),
+        const SizedBox(height: 16),
+        actions,
+      ],
+    );
+
+    final art = _StartingArt(size: big ? 150 : 110);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, big ? 8 : 0, 16, 8),
+      child: Container(
+        padding: EdgeInsets.all(wide ? 28 : 22),
+        decoration: BoxDecoration(
+          color: theme.primaryContainer,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: theme.primary.withOpacity(0.12)),
+        ),
+        child: wide
+            ? Row(children: [art, const SizedBox(width: 28), Expanded(child: text)])
+            : Column(children: [art, const SizedBox(height: 16), text]),
+      ),
+    );
+  }
+}
+
+/// Ilustración hecha con formas: tres tarjetas encimadas con íconos.
+class _StartingArt extends StatelessWidget {
+  const _StartingArt({required this.size});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    Widget card(IconData icon, Color bg, Color fg, double angle, Offset offset) =>
+        Transform.translate(
+          offset: offset,
+          child: Transform.rotate(
+            angle: angle,
+            child: Container(
+              width: size * 0.56,
+              height: size * 0.66,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: softShadow(0.10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: fg, size: size * 0.26),
+            ),
+          ),
+        );
+    return ExcludeSemantics(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(alignment: Alignment.center, children: [
+          card(Icons.sell_outlined, theme.secondaryBackground, theme.secondaryText, -0.22,
+              Offset(-size * 0.2, size * 0.04)),
+          card(Icons.local_shipping_outlined, theme.secondaryBackground, theme.secondaryText,
+              0.22, Offset(size * 0.2, size * 0.04)),
+          card(Icons.gavel_rounded, theme.tertiary, Colors.white, 0, Offset(0, -size * 0.04)),
+        ]),
       ),
     );
   }
@@ -557,7 +931,7 @@ class _LotRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: cardWidth * 3 / 4 + 140,
+      height: lotCardHeight(cardWidth) + 8,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),

@@ -8,6 +8,21 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Cambiado: diseño de la página principal (2026-11-16)
+- Pantalla de carga con logo y barra en `web/index.html` (ya no se ve en
+  blanco mientras baja la app); en la app, esqueletos de tarjetas en vez del
+  círculo de carga.
+- Banner fijo (sin carrusel automático): propuesta de valor, "Ver subastas"
+  (baja al catálogo) y "Vender gratis", sellos de confianza y, en pantallas
+  anchas, cifras en vivo.
+- Categorías con íconos (sin emojis), estado seleccionado y se pueden cambiar
+  sin salir del filtro.
+- Tarjetas: etiqueta de qué es el precio (puja actual / precio inicial /
+  precio), degradado bajo la foto, efecto al pasar el mouse, ícono de lugar.
+- Estado vacío "Los primeros lotes ya vienen en camino" y franja "Apenas
+  estamos arrancando" cuando hay menos de 6 lotes.
+- Sin cambios en pujas, pagos ni datos.
+
 ### Agregado: códigos de promotor `?ref=` (2026-11-08)
 - `claimReferral` y `adminCreateReferralCode` (funciones 36 y 37). Enlace
   `subastaloaqui.com/?ref=CODIGO`; la app lo guarda y lo reclama al crear la

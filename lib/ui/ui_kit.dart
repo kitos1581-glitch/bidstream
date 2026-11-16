@@ -252,7 +252,13 @@ List<BoxShadow> softShadow([double opacity = 0.08]) => [
 // Tarjeta de lote (estilo marketplace)
 // =====================================================================
 
-class LotCard extends StatelessWidget {
+/// Alto de la parte de texto de [LotCard]. Alto total = ancho * 3/4 + esto.
+const double kLotCardBodyHeight = 150;
+
+/// Alto total de una tarjeta de [width] de ancho.
+double lotCardHeight(double width) => width * 3 / 4 + kLotCardBodyHeight;
+
+class LotCard extends StatefulWidget {
   const LotCard({super.key, required this.lot, this.onTap, this.width});
 
   final LotsRecord lot;
@@ -262,14 +268,43 @@ class LotCard extends StatelessWidget {
   final double? width;
 
   @override
+  State<LotCard> createState() => _LotCardState();
+}
+
+class _LotCardState extends State<LotCard> {
+  bool _hover = false;
+
+  LotsRecord get lot => widget.lot;
+
+  /// Qué representa el precio grande.
+  String get _priceLabel {
+    if (lot.isFixedPrice) return 'Precio';
+    if (lot.bidCount == 0) return 'Precio inicial';
+    return 'Puja actual';
+  }
+
+  /// Línea de apoyo bajo el precio.
+  String get _priceNote {
+    if (lot.isFixedPrice) return 'Comprar ahora';
+    if (lot.canBuyNow()) return 'o cómpralo en ${formatMoney(lot.buyNowPrice ?? 0)}';
+    if (lot.bidCount == 0) return 'Sé el primero en pujar';
+    return '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}';
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
+    final place = municipalityName(lot.municipality);
+    final hasPlace = place.isNotEmpty && lot.municipality != 'otro';
+    final condition = kLotConditions[lot.condition] ?? (lot.category.isEmpty ? 'Lote' : lot.category);
+
     final card = Material(
       color: theme.secondaryBackground,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap ??
+        onHover: (v) => setState(() => _hover = v),
+        onTap: widget.onTap ??
             () => context.pushNamed('LotDetailView',
                 queryParameters: {'lotId': lot.reference.id}),
         child: Column(
@@ -278,11 +313,39 @@ class LotCard extends StatelessWidget {
             AspectRatio(
               aspectRatio: 4 / 3,
               child: Stack(fit: StackFit.expand, children: [
-                LotImage(lot.firstImage),
+                AnimatedScale(
+                  scale: _hover ? 1.04 : 1,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  child: LotImage(lot.firstImage),
+                ),
+                // Degradado para que la píldora de tiempo siempre se lea.
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 56,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x00000000), Color(0x59000000)],
+                      ),
+                    ),
+                  ),
+                ),
                 Positioned(
                   left: 8,
                   top: 8,
-                  child: lot.isLiveNow() ? const LiveTag() : const SizedBox(),
+                  child: lot.isLiveNow()
+                      ? const LiveTag()
+                      : lot.isFixedPrice
+                          ? Tag('Precio fijo',
+                              background: Colors.white.withOpacity(0.92),
+                              foreground: theme.primary,
+                              icon: Icons.sell_outlined)
+                          : const SizedBox(),
                 ),
                 if (lot.isDemo)
                   Positioned(
@@ -299,61 +362,145 @@ class LotCard extends StatelessWidget {
                 ),
               ]),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(lot.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.bodyMedium.copyWith(
-                          fontWeight: FontWeight.w600, height: 1.25)),
-                  const SizedBox(height: 4),
-                  Text(
-                      [
-                        if (municipalityName(lot.municipality).isNotEmpty &&
-                            lot.municipality != 'otro')
-                          '📍 ${municipalityName(lot.municipality)}',
-                        kLotConditions[lot.condition] ??
-                            (lot.category.isEmpty ? 'Lote' : lot.category),
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.bodySmall.copyWith(color: theme.secondaryText)),
-                  const SizedBox(height: 6),
-                  Text(formatMoney(lot.currentBid),
-                      style: theme.titleLarge.copyWith(
-                          fontWeight: FontWeight.w800, fontSize: 20)),
-                  Text(
-                      (lot.isFixedPrice
-                              ? 'Precio fijo · Comprar ahora'
-                              : lot.canBuyNow()
-                                  ? 'Sin pujas · o cómpralo en ${formatMoney(lot.buyNowPrice ?? 0)}'
-                              : lot.bidCount == 0
-                              ? 'Precio inicial · sin pujas'
-                              : '${lot.bidCount} ${lot.bidCount == 1 ? 'puja' : 'pujas'}') +
-                          (lot.sellerRatingCount > 0
-                              ? ' · ★ ${lot.sellerRatingAvg.toStringAsFixed(1)}'
-                              : ''),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.bodySmall.copyWith(color: theme.secondaryText)),
-                ],
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(lot.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600, height: 1.25)),
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      if (hasPlace) ...[
+                        Icon(Icons.place_outlined, size: 14, color: theme.secondaryText),
+                        const SizedBox(width: 2),
+                      ],
+                      Expanded(
+                        child: Text(
+                            [if (hasPlace) place, condition].join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.bodySmall.copyWith(color: theme.secondaryText)),
+                      ),
+                    ]),
+                    const Spacer(),
+                    Text(_priceLabel.toUpperCase(),
+                        style: theme.labelSmall.copyWith(
+                            color: theme.secondaryText,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6)),
+                    Text(formatMoney(lot.currentBid),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.titleLarge.copyWith(
+                            color: theme.primary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                            fontFeatures: const [FontFeature.tabularFigures()])),
+                    Row(children: [
+                      Expanded(
+                        child: Text(_priceNote,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.bodySmall.copyWith(color: theme.secondaryText)),
+                      ),
+                      if (lot.sellerRatingCount > 0) ...[
+                        const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF5A524)),
+                        Text(lot.sellerRatingAvg.toStringAsFixed(1),
+                            style: theme.bodySmall.copyWith(fontWeight: FontWeight.w700)),
+                      ],
+                    ]),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
     );
-    return Container(
-      width: width,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: widget.width,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.alternate),
-        boxShadow: softShadow(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _hover ? theme.primary.withOpacity(0.35) : theme.alternate),
+        boxShadow: softShadow(_hover ? 0.12 : 0.04),
       ),
       child: card,
+    );
+  }
+}
+
+/// Esqueleto de [LotCard] mientras cargan los lotes (sin saltos de layout).
+class LotCardSkeleton extends StatefulWidget {
+  const LotCardSkeleton({super.key, this.width});
+  final double? width;
+
+  @override
+  State<LotCardSkeleton> createState() => _LotCardSkeletonState();
+}
+
+class _LotCardSkeletonState extends State<LotCardSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    Widget bar(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: theme.secondaryContainer,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        );
+    final body = Container(
+      width: widget.width,
+      decoration: BoxDecoration(
+        color: theme.secondaryBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.alternate),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        AspectRatio(aspectRatio: 4 / 3, child: Container(color: theme.secondaryContainer)),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              bar(double.infinity, 14),
+              const SizedBox(height: 6),
+              bar(110, 14),
+              const SizedBox(height: 8),
+              bar(80, 11),
+              const Spacer(),
+              bar(60, 10),
+              const SizedBox(height: 6),
+              bar(100, 20),
+            ]),
+          ),
+        ),
+      ]),
+    );
+    if (reduce) return body;
+    return FadeTransition(
+      opacity: Tween(begin: 0.55, end: 1.0).animate(_c),
+      child: body,
     );
   }
 }
@@ -534,10 +681,13 @@ class Loading extends StatelessWidget {
 }
 
 class SectionTitle extends StatelessWidget {
-  const SectionTitle(this.text, {super.key, this.trailing});
+  const SectionTitle(this.text, {super.key, this.trailing, this.leading});
 
   final String text;
   final Widget? trailing;
+
+  /// Ícono o indicador antes del título (en vez de emojis).
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -545,6 +695,7 @@ class SectionTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 22, 16, 10),
       child: Row(children: [
+        if (leading != null) ...[leading!, const SizedBox(width: 8)],
         Expanded(
           child: Text(text,
               style: theme.titleLarge

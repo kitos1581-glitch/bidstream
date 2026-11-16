@@ -53,8 +53,30 @@
   <link rel="manifest" href="manifest.json">
   <script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "Organization", "@id": "https://subastaloaqui.com/#organization", "name": "Subástalo Aquí", "url": "https://subastaloaqui.com/", "logo": "https://subastaloaqui.com/icons/Icon-512.png", "email": "contacto@subastaloaqui.com", "address": {"@type": "PostalAddress", "addressLocality": "Camargo", "addressRegion": "Chihuahua", "addressCountry": "MX"}, "sameAs": []}, {"@type": "WebSite", "@id": "https://subastaloaqui.com/#website", "url": "https://subastaloaqui.com/", "name": "Subástalo Aquí", "inLanguage": "es-MX", "publisher": {"@id": "https://subastaloaqui.com/#organization"}}]}</script>
   
+  <style>
+    /* Pantalla de carga: se ve al instante, antes de que cargue la app. */
+    html, body { margin: 0; background: #FFFFFF; }
+    #splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px; background: #FFFFFF;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; transition: opacity .3s ease; }
+    #splash.hide { opacity: 0; pointer-events: none; }
+    #splash .brand { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; color: #1B3A6B; }
+    #splash .brand span { color: #F47920; }
+    #splash .tag { margin-top: -12px; font-size: 15px; color: #4B5563; }
+    #splash .bar { width: 160px; height: 4px; border-radius: 4px; background: #E3E8F2; overflow: hidden; }
+    #splash .bar::after { content: ""; display: block; width: 40%; height: 100%; border-radius: 4px;
+      background: #F47920; animation: slide 1.1s ease-in-out infinite; }
+    @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+    @media (prefers-reduced-motion: reduce) { #splash .bar::after { animation: none; width: 100%; } }
+  </style>
 </head>
 <body>
+  <div id="splash" role="status" aria-live="polite">
+    <img src="icons/Icon-192.png" width="72" height="72" alt="" style="border-radius:18px">
+    <div class="brand">Subástalo <span>Aquí</span></div>
+    <div class="tag">Cargando subastas…</div>
+    <div class="bar" aria-hidden="true"></div>
+  </div>
   <noscript>
     <h1>Subástalo Aquí: subastas y ventas en línea en el centro-sur de Chihuahua</h1>
     <p>Compra y vende en subasta o a precio fijo en Camargo, Delicias, Meoqui, Saucillo, Jiménez, La Cruz y San Francisco de Conchos. Tu pago queda protegido hasta que recibes el artículo. Para usar la aplicación activa JavaScript.</p>
@@ -70,6 +92,14 @@
   
   
   
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('splash');
+      if (!el) return;
+      el.classList.add('hide');
+      setTimeout(function () { el.remove(); }, 350);
+    });
+  </script>
   <script>
     {{flutter_bootstrap_js}}
   </script>
