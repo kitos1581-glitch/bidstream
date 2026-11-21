@@ -8,6 +8,19 @@ Las fechas corresponden a los commits. La evidencia de cada versión está en
 
 ## [Sin publicar]
 
+### Agregado: venta privada con enlace de pago (2026-11-20)
+- Para "ya tengo comprador, solo necesito cobrar con tarjeta". Al publicar a
+  precio fijo, el vendedor marca "Venta privada": no sale en el catálogo ni en
+  su perfil, y el detalle le da "Copiar enlace de pago"
+  (`/lotDetailView?lotId=…&k=…`).
+- `getPrivateSaleLink` (función 38) crea el token en `lot_private/{id}` (solo
+  servidor). `buyNow` exige el token, INE verificada del comprador, tope de
+  $30,000 (`PRIVATE_SALE_MAX`) y máximo 2 compras privadas por pareja
+  vendedor-comprador cada 30 días (`PRIVATE_PAIR_LIMIT`, en `private_pairs`).
+- Mismo flujo de pago protegido y entrega con código. Reglas: `private_sale`
+  solo en precio fijo y hasta $30,000; `lot_private` y `private_pairs` sin
+  acceso del cliente.
+
 ### Cambiado: diseño de la página principal (2026-11-16)
 - Pantalla de carga con logo y barra en `web/index.html` (ya no se ve en
   blanco mientras baja la app); en la app, esqueletos de tarjetas en vez del

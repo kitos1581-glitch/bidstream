@@ -187,8 +187,14 @@ service cloud.firestore {
                'starting_price', 'current_bid', 'minimum_increment', 'bid_count',
                'start_time', 'end_time', 'status', 'format', 'condition', 'specs',
                'municipality', 'delivery', 'seller_uid', 'created_time',
-               'sale_type', 'buy_now_price'])
-        && request.resource.data.get('created_time', request.time) == request.time;
+               'sale_type', 'buy_now_price', 'private_sale'])
+        && request.resource.data.get('created_time', request.time) == request.time
+        // Venta privada (enlace): solo precio fijo y hasta $30,000. El servidor
+        // exige además el token del enlace y la INE del comprador (private_sale.js).
+        && (request.resource.data.get('private_sale', false) == false
+            || (request.resource.data.private_sale == true
+                && request.resource.data.get('sale_type', 'auction') == 'fixed'
+                && request.resource.data.starting_price <= 30000));
 
       // El vendedor solo edita la parte descriptiva. Precio, incremento y
       // fechas solo mientras NO haya pujas. El documento resultante pasa por
@@ -199,6 +205,9 @@ service cloud.firestore {
         && notBanned()
         && resource.data.status in ['active', 'review']
         && validLotData(request.resource.data)
+        // Venta privada: el precio no puede subir del tope al editar.
+        && (resource.data.get('private_sale', false) == false
+            || request.resource.data.starting_price <= 30000)
         && (
           onlyChanges(['title', 'description', 'category', 'image_urls', 'stream_url',
                        'condition', 'specs', 'municipality'])

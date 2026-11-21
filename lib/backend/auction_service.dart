@@ -142,7 +142,10 @@ class AuctionService {
         .orderBy('end_time')
         .limit(limit)
         .snapshots()
-        .map((s) => s.docs.map(LotsRecord.fromSnapshot).toList());
+        .map((s) => s.docs
+            .map(LotsRecord.fromSnapshot)
+            .where((l) => !l.privateSale)
+            .toList());
     if (!kShowDemoLots) return real;
     return _withDemos(real);
   }
@@ -209,8 +212,24 @@ class AuctionService {
         .snapshots()
         .map((s) => s.docs
             .map(LotsRecord.fromSnapshot)
-            .where((l) => l.status == 'active')
+            .where((l) => l.status == 'active' && !l.privateSale)
             .toList());
+  }
+
+  /// Tokens de enlaces de venta privada abiertos en esta sesión (lotId → k),
+  /// para no perderlos si el comprador tiene que iniciar sesión.
+  final Map<String, String> privateTokens = {};
+
+  /// El vendedor obtiene el enlace de pago de su venta privada.
+  Future<String> privateSaleLink(String lotId) async {
+    try {
+      final r = await _functions
+          .httpsCallable('getPrivateSaleLink')
+          .call<dynamic>({'lotId': lotId});
+      return '${(r.data as Map)['link']}';
+    } on FirebaseFunctionsException catch (e) {
+      throw StateError(e.message ?? 'No se pudo generar el enlace.');
+    }
   }
 
   Stream<List<LotsRecord>> wonLots() => LotsRecord.collection
@@ -259,6 +278,7 @@ class AuctionService {
     Map<String, dynamic>? delivery,
     String saleType = 'auction',
     double? buyNowPrice,
+    bool privateSale = false,
   }) async {
     final uid = _uid;
     if (uid == null) throw StateError('Sin sesión');
@@ -282,6 +302,7 @@ class AuctionService {
       'delivery': delivery ?? {'pickup': true, 'regional': false},
       'sale_type': saleType,
       if (saleType == 'fixed') 'buy_now_price': startingPrice,
+      if (saleType == 'fixed' && privateSale) 'private_sale': true,
       if (saleType != 'fixed' && buyNowPrice != null && buyNowPrice > 0)
         'buy_now_price': buyNowPrice,
     });
@@ -327,6 +348,7 @@ class AuctionService {
   /// Comprar ahora (precio fijo o subasta sin pujas). El servidor cierra la
   /// venta en una transacción; si alguien compró antes, responde el error.
   Future<BuyNowResult> buyNow(String lotId) async {
+    final k = privateTokens[lotId];
     if (isDemoLotId(lotId)) {
       return const BuyNowResult.failure(
           'Este es un artículo de demostración: no se puede comprar. Las compras reales se activan al lanzar.');
@@ -334,7 +356,7 @@ class AuctionService {
     try {
       final res = await _functions
           .httpsCallable('buyNow')
-          .call<dynamic>({'lotId': lotId});
+          .call<dynamic>({'lotId': lotId, if (k != null && k.isNotEmpty) 'k': k});
       final raw = res.data;
       final data = raw is Map ? Map<String, dynamic>.from(raw) : const <String, dynamic>{};
       return BuyNowResult.success(

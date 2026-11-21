@@ -95,6 +95,10 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
   String _saleType = 'auction';
   int _fixedDays = 30;
   bool get _isFixed => _saleType == 'fixed';
+
+  /// Venta privada: ya tengo comprador, solo necesito cobrarle con tarjeta.
+  bool _private = false;
+  static const _privateMax = 30000;
   int _timedDays = 3;
   DateTime? _liveStart;
   int _liveMinutes = 30;
@@ -266,6 +270,11 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
       _missing(_locationKey, 'Escribe el costo del envío o marca que ya va incluido.');
       return;
     }
+    if (_isFixed && _private && (double.tryParse(_price.text) ?? 0) > _privateMax) {
+      showMessage(context, 'Las ventas privadas son de hasta \$30,000. Baja el precio o publícala normal.',
+          error: true);
+      return;
+    }
     final now = DateTime.now();
     late DateTime start;
     late DateTime end;
@@ -307,6 +316,7 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
         endTime: end,
         format: _isFixed ? 'timed' : _format,
         saleType: _saleType,
+        privateSale: _isFixed && _private,
         buyNowPrice: _isFixed
             ? null
             : (_format == 'timed' ? double.tryParse(_buyNow.text) : null),
@@ -341,7 +351,9 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
           context,
           reserveFailed
               ? 'Tu lote se publicó, pero no pudimos guardar la reserva. Agrégala desde el lote antes de que alguien puje.'
-              : (_isFixed ? '¡Tu artículo ya está a la venta!' : '¡Tu lote ya está publicado!'),
+              : (_isFixed && _private
+                  ? 'Listo. Copia el enlace de pago y mándaselo a tu comprador.'
+                  : (_isFixed ? '¡Tu artículo ya está a la venta!' : '¡Tu lote ya está publicado!')),
           error: reserveFailed);
       context.pushReplacementNamed('LotDetailView',
           queryParameters: {'lotId': id});
@@ -775,6 +787,16 @@ class _CreateLotManagementWidgetState extends State<CreateLotManagementWidget> {
                   onSelected: (_) => setState(() => _fixedDays = d),
                 ),
             ]),
+            const SizedBox(height: 10),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _private,
+              onChanged: (v) => setState(() => _private = v),
+              title: const Text('Venta privada: ya tengo comprador'),
+              subtitle: const Text(
+                  'No aparece en el catálogo. Te damos un enlace de pago para mandárselo; '
+                  'solo esa persona puede comprarlo y pagar con tarjeta. Hasta \$30,000 y el comprador necesita su INE verificada.'),
+            ),
           ] else ...[
             const SectionTitle('Precio'),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

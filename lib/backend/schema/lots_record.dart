@@ -201,6 +201,9 @@ class LotsRecord extends FirestoreRecord {
   /// Lote de demostración (no existe en Firestore; id empieza con "demo-").
   bool get isDemo => reference.id.startsWith('demo-');
 
+  /// Venta privada: no sale en el catálogo y solo se compra con el enlace del vendedor.
+  bool get privateSale => snapshotData['private_sale'] == true;
+
   /// Construye un lote desde datos en memoria (lotes de demostración).
   static LotsRecord fromMap(DocumentReference ref, Map<String, dynamic> data) =>
       LotsRecord._(ref, mapFromFirestore(data));

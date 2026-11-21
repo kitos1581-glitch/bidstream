@@ -17,9 +17,12 @@ import '/ui/ui_kit.dart';
 
 /// Detalle de un lote: fotos, precio, cuenta regresiva e historial de pujas.
 class LotDetailViewWidget extends StatefulWidget {
-  const LotDetailViewWidget({super.key, required this.lotId});
+  const LotDetailViewWidget({super.key, required this.lotId, this.privateKey = ''});
 
   final String lotId;
+
+  /// `k` del enlace de venta privada (si se abrió desde ese enlace).
+  final String privateKey;
 
   static String routeName = 'LotDetailView';
   static String routePath = '/lotDetailView';
@@ -32,6 +35,27 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
   late Stream<LotsRecord?> _lot = AuctionService.instance.lot(widget.lotId);
   late Stream<List<BidsRecord>> _bids =
       AuctionService.instance.bids(widget.lotId);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.privateKey.isNotEmpty) {
+      AuctionService.instance.privateTokens[widget.lotId] = widget.privateKey;
+    }
+  }
+
+  /// Vendedor: copia el enlace privado de pago (solo con él se puede comprar).
+  Future<void> _copyPrivateLink(LotsRecord lot) async {
+    try {
+      final link = await AuctionService.instance.privateSaleLink(lot.reference.id);
+      await Clipboard.setData(ClipboardData(text: '${lot.title} — $link'));
+      if (mounted) {
+        showMessage(context, 'Enlace de pago copiado. Mándaselo solo a tu comprador por WhatsApp.');
+      }
+    } catch (e) {
+      if (mounted) showMessage(context, '$e'.replaceFirst('Bad state: ', ''), error: true);
+    }
+  }
 
   void _retry() => setState(() {
         _lot = AuctionService.instance.lot(widget.lotId);
@@ -219,11 +243,18 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
             title: Text(lot.category.isEmpty ? 'Lote' : lot.category,
                 style: theme.titleSmall),
             actions: [
-              IconButton(
-                tooltip: 'Compartir',
-                icon: const Icon(Icons.share_outlined),
-                onPressed: () => _share(lot),
-              ),
+              if (lot.privateSale && isSeller)
+                IconButton(
+                  tooltip: 'Copiar enlace de pago',
+                  icon: const Icon(Icons.link_rounded),
+                  onPressed: () => _copyPrivateLink(lot),
+                )
+              else if (!lot.privateSale)
+                IconButton(
+                  tooltip: 'Compartir',
+                  icon: const Icon(Icons.share_outlined),
+                  onPressed: () => _share(lot),
+                ),
               if (isSeller && (lot.status == 'active' || lot.status == 'review'))
                 IconButton(
                   tooltip: 'Editar publicación',
@@ -358,6 +389,14 @@ class _LotDetailViewWidgetState extends State<LotDetailViewWidget> {
                       Tag('Vas ganando',
                           background: theme.surfaceVariant,
                           icon: Icons.emoji_events_outlined),
+                    ],
+                    if (lot.privateSale && lot.status == 'active') ...[
+                      const SizedBox(height: 10),
+                      _PrivateSaleBox(
+                        isSeller: isSeller,
+                        hasLink: AuctionService.instance.privateTokens.containsKey(lot.reference.id),
+                        onCopy: () => _copyPrivateLink(lot),
+                      ),
                     ],
                     if (lot.status == 'review' && isSeller) ...[
                       const SizedBox(height: 10),
@@ -579,7 +618,18 @@ class _BottomBar extends StatelessWidget {
       ));
     }
 
-    if (!isSeller && lot.status != 'ended' && lot.isFixedPrice) {
+    final lockedPrivate = lot.privateSale &&
+        !AuctionService.instance.privateTokens.containsKey(lot.reference.id);
+    if (!isSeller && lot.status != 'ended' && lot.isFixedPrice && lockedPrivate) {
+      buttons.add(Expanded(
+        child: BigButton(
+          label: 'Venta privada',
+          icon: Icons.lock_outline_rounded,
+          secondary: true,
+          onPressed: null,
+        ),
+      ));
+    } else if (!isSeller && lot.status != 'ended' && lot.isFixedPrice) {
       buttons.add(Expanded(child: _BuyNowButton(lot: lot, primary: true)));
     } else if (!isSeller && lot.status != 'ended') {
       if (lot.canBuyNow()) {
@@ -1683,6 +1733,67 @@ class _SellerCodeBoxState extends State<_SellerCodeBox> {
         ),
         const SizedBox(height: 8),
         BigButton(label: 'Confirmar entrega', icon: Icons.verified_outlined, loading: _busy, onPressed: _send),
+      ]),
+    );
+  }
+}
+
+/// Aviso de venta privada: al vendedor le da el enlace; al comprador le explica.
+class _PrivateSaleBox extends StatelessWidget {
+  const _PrivateSaleBox({required this.isSeller, required this.hasLink, required this.onCopy});
+
+  final bool isSeller;
+  final bool hasLink;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final String title;
+    final String body;
+    if (isSeller) {
+      title = 'Venta privada';
+      body = 'No aparece en el catálogo. Solo puede comprarla quien tenga tu enlace de pago: '
+          'cópialo y mándaselo a tu comprador. Paga con tarjeta y tu dinero se libera al entregar '
+          'con su código de 6 dígitos.';
+    } else if (hasLink) {
+      title = 'Venta privada para ti';
+      body = 'El vendedor te mandó este enlace. Puedes pagar con tarjeta; tu pago queda protegido '
+          'hasta que recibas el artículo y entregues tu código. Necesitas tu INE verificada.';
+    } else {
+      title = 'Venta privada';
+      body = 'Este artículo ya tiene comprador. Solo se puede comprar con el enlace que manda el vendedor.';
+    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.primaryContainer,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.primary.withOpacity(0.15)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.lock_outline_rounded, size: 20, color: theme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(title, style: theme.titleSmall.copyWith(fontWeight: FontWeight.w800)),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Text(body, style: theme.bodyMedium.copyWith(height: 1.45)),
+        if (isSeller) ...[
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.primary,
+              minimumSize: const Size(0, 48),
+              shape: const StadiumBorder(),
+            ),
+            onPressed: onCopy,
+            icon: const Icon(Icons.link_rounded, size: 20),
+            label: const Text('Copiar enlace de pago', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
       ]),
     );
   }

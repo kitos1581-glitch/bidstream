@@ -315,6 +315,17 @@ test("comisión de lanzamiento: nadie puede tocar su conteo de ventas del mes", 
   await assertSucceeds(setDoc(doc(as("nuevo2"), "users/nuevo2"), { full_name: "Nuevo" }));
 });
 
+test("venta privada: solo precio fijo hasta $30,000; el secreto del enlace nadie lo lee", async () => {
+  const fixed = { sale_type: "fixed", buy_now_price: 22000, starting_price: 22000, current_bid: 22000, private_sale: true };
+  await assertSucceeds(setDoc(doc(as("vero"), "lots/P1"), validLot(fixed)));
+  await assertFails(setDoc(doc(as("vero"), "lots/P2"), validLot({ private_sale: true })));
+  await assertFails(setDoc(doc(as("vero"), "lots/P3"),
+    validLot({ ...fixed, buy_now_price: 35000, starting_price: 35000, current_bid: 35000 })));
+  await assertFails(getDoc(doc(as("vero"), "lot_private/P1")));
+  await assertFails(setDoc(doc(as("vero"), "lot_private/P1"), { token: "x" }));
+  await assertFails(getDoc(doc(as("ana"), "private_pairs/vero_ana")));
+});
+
 test("vendedor fundador: nadie se da el sello a sí mismo", async () => {
   await assertFails(updateDoc(doc(as("beto"), "users/beto"), { founding_seller: true }));
   await assertFails(setDoc(doc(as("nuevo3"), "users/nuevo3"), { full_name: "Nuevo", founding_seller: true }));

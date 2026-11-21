@@ -86,6 +86,8 @@ exports.onLotModerate = require("./contact_filter").onLotModerate;
 // Códigos de referido de promotores.
 exports.claimReferral = require("./referral").claimReferral;
 exports.adminCreateReferralCode = require("./referral").adminCreateReferralCode;
+// Venta privada con enlace (terminal sin terminal).
+exports.getPrivateSaleLink = require("./private_sale").getPrivateSaleLink;
 
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
@@ -542,6 +544,20 @@ async function buyNowImpl(data, auth) {
       : userBidEligibilityError(buyer, chk.price, VERIFIED_BID_THRESHOLD, "comprar");
     if (userErr) throw new functions.https.HttpsError(userErr.code, userErr.message, userErr.details);
 
+    // Venta privada: solo con el enlace del vendedor y con los controles anti-abuso.
+    let recordPrivate = null;
+    if (lot.private_sale === true) {
+      recordPrivate = await require("./private_sale").assertPrivateSaleTx(tx, {
+        lotId,
+        lot,
+        buyer,
+        buyerUid: uid,
+        token: data && data.k,
+        price: chk.price,
+        nowMs,
+      });
+    }
+
     const buyerName = publicName(userSnap.data().full_name);
     const patch = {
       status: "ended",
@@ -561,6 +577,7 @@ async function buyNowImpl(data, auth) {
       patch.listing_end_time = lot.end_time; // para regresarlo a la venta si no paga
     }
     tx.update(lotRef, patch);
+    if (recordPrivate) recordPrivate();
     return { ...lot, ...patch };
   });
 

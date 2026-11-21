@@ -99,6 +99,7 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           requireAuth: false,
           builder: (context, params) => LotDetailViewWidget(
             lotId: params.getParam('lotId', ParamType.String) ?? '',
+            privateKey: params.getParam('k', ParamType.String) ?? '',
           ),
         ),
         FFRoute(
